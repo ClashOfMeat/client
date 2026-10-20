@@ -1,0 +1,80 @@
+[
+  {
+    "source": {
+      "provider": "claude",
+      "sourceKey": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "clientVersion": "2.1.87",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "21169994-24ae-579d-ab03-bb8e937c1735",
+      "sessionId": "33333333-3333-4333-8333-333333333333",
+      "modelFamily": "haiku",
+      "modelRelease": "haiku-4-5",
+      "startedAt": "2026-10-01T12:00:00.000Z",
+      "completedAt": "2026-10-01T12:00:05.000Z",
+      "durationMs": 5000,
+      "status": "completed",
+      "inputTokens": 5,
+      "outputTokens": 13,
+      "cacheReadTokens": 5,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "totalTokens": 23,
+      "modelCalls": 2,
+      "userTurns": 1,
+      "toolCalls": 2,
+      "subagentCalls": 2,
+      "compactions": 0,
+      "readOperations": 0,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 2,
+      "schemaVersion": 1
+    }
+  },
+  {
+    "source": {
+      "provider": "claude",
+      "sourceKey": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "clientVersion": "2.1.87",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "440eb715-3bd0-53c0-a678-195f16a7bf9d",
+      "sessionId": "44444444-4444-4444-8444-444444444444",
+      "modelFamily": "unknown",
+      "modelRelease": "unknown",
+      "startedAt": "2026-10-01T13:00:00.000Z",
+      "completedAt": "2026-10-01T13:00:03.000Z",
+      "durationMs": 3000,
+      "status": "completed",
+      "inputTokens": 6,
+      "outputTokens": 4,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "totalTokens": 10,
+      "modelCalls": 1,
+      "userTurns": 1,
+      "toolCalls": 1,
+      "subagentCalls": 0,
+      "compactions": 0,
+      "readOperations": 1,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 0,
+      "schemaVersion": 1
+    }
+  }
+]

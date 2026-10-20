@@ -1,0 +1,5 @@
+{"timestamp":"2026-10-01T14:00:00.000Z","type":"session_meta","payload":{"id":"88888888-8888-4888-8888-888888888888","cli_version":"0.163.1","source":"cli"}}
+{"timestamp":"2026-10-01T14:00:01.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-codex-3","started_at":"2026-10-01T14:00:01.000Z"}}
+{"timestamp":"2026-10-01T14:00:02.000Z","type":"turn_context","payload":{"turn_id":"turn-codex-3","model":"gpt-5.5-codex"}}
+{"timestamp":"2026-10-01T14:00:03.000Z","type":"token_usage_record","payload":{"turn_id":"turn-codex-3","session_id":"88888888-8888-4888-8888-888888888888","response_id":"resp-codex-3","usage":{"input_tokens":50,"cached_input_tokens":10,"output_tokens":15}}}
+{"timestamp":"2026-10-01T14:00:04.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-codex-3","completed_at":"2026-10-01T14:00:04.000Z"}}

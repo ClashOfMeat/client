@@ -1,0 +1,4 @@
+{"type":"user","_audit_timestamp":"2026-10-01T13:00:00.000Z","session_id":"44444444-4444-4444-8444-444444444444","uuid":"prompt-cowork-2","parent_tool_use_id":null,"message":{"role":"user","content":"fixture prompt 2"}}
+{"type":"system","_audit_timestamp":"2026-10-01T13:00:01.000Z","session_id":"66666666-6666-4666-8666-666666666666","subtype":"init","claude_code_version":"2.1.87"}
+{"type":"assistant","_audit_timestamp":"2026-10-01T13:00:02.000Z","session_id":"66666666-6666-4666-8666-666666666666","parent_tool_use_id":null,"message":{"id":"msg-cowork-2","model":"mystery-model","usage":{"input_tokens":6,"output_tokens":4},"content":[{"type":"tool_use","id":"tool-cowork-read","name":"Read","input":{}}]}}
+{"type":"result","_audit_timestamp":"2026-10-01T13:00:03.000Z","session_id":"66666666-6666-4666-8666-666666666666","is_error":false,"result":"fixture response 2"}

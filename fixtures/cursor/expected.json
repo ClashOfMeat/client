@@ -1,0 +1,72 @@
+[
+  {
+    "id": "14996321-2102-5fb2-ad06-7d138d63000f",
+    "session_id": "cccccccc-3333-4333-8333-333333333333",
+    "at": "2026-10-01T16:00:04.000Z",
+    "key": "output_tokens",
+    "value": 12,
+    "kind": "counter",
+    "provider": "cursor",
+    "model": null
+  },
+  {
+    "id": "b7195573-e134-5020-a109-3e4915c1cf46",
+    "session_id": "cccccccc-3333-4333-8333-333333333333",
+    "at": "2026-10-01T16:00:04.000Z",
+    "key": "input_tokens",
+    "value": 110,
+    "kind": "counter",
+    "provider": "cursor",
+    "model": null
+  },
+  {
+    "id": "cfdfb71b-89ef-55fc-a398-36b97c6d95c8",
+    "session_id": "dddddddd-4444-4444-8444-444444444444",
+    "at": "2026-10-01T17:01:01.000Z",
+    "key": "input_tokens",
+    "value": 11,
+    "kind": "counter",
+    "provider": "cursor",
+    "model": null
+  },
+  {
+    "id": "d336fd88-f6bd-584b-a4f1-23b479451b5d",
+    "session_id": "dddddddd-4444-4444-8444-444444444444",
+    "at": "2026-10-01T17:01:01.000Z",
+    "key": "output_tokens",
+    "value": 4,
+    "kind": "counter",
+    "provider": "cursor",
+    "model": null
+  },
+  {
+    "id": "e665089b-ecab-52e5-a3c7-5185a2d39c2f",
+    "session_id": "cccccccc-3333-4333-8333-333333333333",
+    "at": "2026-10-01T16:00:04.000Z",
+    "key": "cache_read_tokens",
+    "value": 30,
+    "kind": "counter",
+    "provider": "cursor",
+    "model": null
+  },
+  {
+    "id": "e693f698-4bbb-5e09-acc3-5f6640a3b8bc",
+    "session_id": "dddddddd-4444-4444-8444-444444444444",
+    "at": "2026-10-01T17:00:02.000Z",
+    "key": "output_tokens",
+    "value": 8,
+    "kind": "counter",
+    "provider": "cursor",
+    "model": null
+  },
+  {
+    "id": "fb8a7c48-c7d9-5e59-ac9b-7360085cf61a",
+    "session_id": "dddddddd-4444-4444-8444-444444444444",
+    "at": "2026-10-01T17:00:02.000Z",
+    "key": "input_tokens",
+    "value": 40,
+    "kind": "counter",
+    "provider": "cursor",
+    "model": null
+  }
+]

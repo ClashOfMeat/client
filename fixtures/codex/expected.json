@@ -1,0 +1,162 @@
+[
+  {
+    "id": "19668ca3-501a-54af-aff1-884cdbba9905",
+    "session_id": "77777777-7777-4777-8777-777777777777",
+    "at": "2026-10-01T09:00:04.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "2a0dd872-372e-5020-a88c-d88847d6f7bb",
+    "session_id": "88888888-8888-4888-8888-888888888888",
+    "at": "2026-10-01T14:00:03.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "2cf60032-0d48-5cf1-ae36-92e17b218890",
+    "session_id": "88888888-8888-4888-8888-888888888888",
+    "at": "2026-10-01T14:00:03.000Z",
+    "key": "cache_read_tokens",
+    "value": 10,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "4671de4b-e562-5744-a26f-47f73dec287b",
+    "session_id": "77777777-7777-4777-8777-777777777777",
+    "at": "2026-10-01T09:01:02.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "53b7d98c-16ad-5302-afee-ec70277ae9f5",
+    "session_id": "77777777-7777-4777-8777-777777777777",
+    "at": "2026-10-01T09:00:04.000Z",
+    "key": "output_tokens",
+    "value": 20,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "5ad0654c-a108-58d1-a4b3-3469b1a16f8c",
+    "session_id": "77777777-7777-4777-8777-777777777777",
+    "at": "2026-10-01T09:01:02.000Z",
+    "key": "cache_read_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "5faf8af3-3691-5621-a53b-59427b2a2c76",
+    "session_id": "77777777-7777-4777-8777-777777777777",
+    "at": "2026-10-01T09:01:02.000Z",
+    "key": "input_tokens",
+    "value": 25,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "690d0dee-937d-5451-a100-13bda3444a59",
+    "session_id": "99999999-9999-4999-8999-999999999999",
+    "at": "2026-10-01T09:00:02.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "970dff60-29cb-5409-a134-87762d692ccd",
+    "session_id": "99999999-9999-4999-8999-999999999999",
+    "at": "2026-10-01T09:00:02.000Z",
+    "key": "output_tokens",
+    "value": 4,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "ae964380-fcb8-5663-a864-f2bf5b161071",
+    "session_id": "77777777-7777-4777-8777-777777777777",
+    "at": "2026-10-01T09:01:02.000Z",
+    "key": "output_tokens",
+    "value": 10,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "b82b3b4a-dae6-58f1-a911-03b1bfbb2664",
+    "session_id": "77777777-7777-4777-8777-777777777777",
+    "at": "2026-10-01T09:00:04.000Z",
+    "key": "input_tokens",
+    "value": 110,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "bbd9902f-894b-5d3e-a195-68dc8006d64c",
+    "session_id": "88888888-8888-4888-8888-888888888888",
+    "at": "2026-10-01T14:00:03.000Z",
+    "key": "output_tokens",
+    "value": 15,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "c4e5144e-3ab9-5f4f-ac9a-42d00401c883",
+    "session_id": "88888888-8888-4888-8888-888888888888",
+    "at": "2026-10-01T14:00:03.000Z",
+    "key": "input_tokens",
+    "value": 40,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "c5216c5c-848d-57ba-aeaf-cd40c6e7b8db",
+    "session_id": "99999999-9999-4999-8999-999999999999",
+    "at": "2026-10-01T09:00:02.000Z",
+    "key": "input_tokens",
+    "value": 40,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "cce6a8b4-b915-5f0b-ac55-8f190e1ee60c",
+    "session_id": "77777777-7777-4777-8777-777777777777",
+    "at": "2026-10-01T09:00:04.000Z",
+    "key": "cache_read_tokens",
+    "value": 40,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  },
+  {
+    "id": "f47bae02-bf90-5308-a28e-543f8e25e590",
+    "session_id": "99999999-9999-4999-8999-999999999999",
+    "at": "2026-10-01T09:00:02.000Z",
+    "key": "cache_read_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "codex",
+    "model": null
+  }
+]

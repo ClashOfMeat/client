@@ -1,0 +1,8 @@
+{"sessionId":"aaaaaaaa-1111-4111-8111-111111111111","projectHash":"project-hash","startTime":"2026-10-01T08:00:00.000Z","kind":"main"}
+{"id":"user-gemini-1","timestamp":"2026-10-01T08:00:01.000Z","type":"user","content":"fixture prompt 1"}
+{"id":"answer-gemini-1","timestamp":"2026-10-01T08:00:02.000Z","type":"gemini","model":"gemini-3-pro","content":"fixture response 1","tokens":{"input":30,"cached":10,"output":3,"thoughts":1,"tool":0}}
+{"id":"answer-gemini-1","timestamp":"2026-10-01T08:00:03.000Z","type":"gemini","model":"gemini-3-pro","content":"fixture response 1","tokens":{"input":50,"cached":20,"output":12,"thoughts":4,"tool":2},"toolCalls":[{"id":"tool-gemini-1","name":"read_file","args":{"path":"fixture.txt"}},{"id":"tool-gemini-agent","name":"delegate_task","args":{}}]}
+{"$set":{"summary":"fixture summary"}}
+{malformed fixture line
+{"id":"user-gemini-2","timestamp":"2026-10-01T08:01:00.000Z","type":"user","content":"fixture prompt 2"}
+{"id":"answer-gemini-2","timestamp":"2026-10-01T08:01:01.000Z","type":"gemini","model":"unknown-model","content":"fixture response 2","tokens":{"input":9,"output":5,"cached":0,"thoughts":0,"tool":0}}

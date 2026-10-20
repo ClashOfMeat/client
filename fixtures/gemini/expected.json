@@ -1,0 +1,162 @@
+[
+  {
+    "id": "03b69cb1-95c1-5646-abb0-5fe219c86ed6",
+    "session_id": "aaaaaaaa-1111-4111-8111-111111111111",
+    "at": "2026-10-01T08:01:01.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "08abd2da-d639-594e-aee0-90f07d6f4180",
+    "session_id": "545344b3-abdb-5fb0-a2d3-70680fdeee37",
+    "at": "2026-10-01T08:00:04.000Z",
+    "key": "input_tokens",
+    "value": 15,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "0ae1e8c1-a9b6-58af-a2c7-62203ca5cbfe",
+    "session_id": "aaaaaaaa-1111-4111-8111-111111111111",
+    "at": "2026-10-01T08:01:01.000Z",
+    "key": "cache_read_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "1c911cc2-78bf-5db6-ab64-9904cfbc0c8a",
+    "session_id": "545344b3-abdb-5fb0-a2d3-70680fdeee37",
+    "at": "2026-10-01T08:00:04.000Z",
+    "key": "output_tokens",
+    "value": 3,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "34fbfd8d-ee6c-54a8-a670-4474c87ea2f3",
+    "session_id": "bbbbbbbb-2222-4222-8222-222222222222",
+    "at": "2026-10-01T15:00:02.000Z",
+    "key": "output_tokens",
+    "value": 9,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "3d99e347-2ad1-585e-a24c-bf6feb25fbb0",
+    "session_id": "545344b3-abdb-5fb0-a2d3-70680fdeee37",
+    "at": "2026-10-01T08:00:04.000Z",
+    "key": "cache_read_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "58bc1918-9935-5314-a2e0-691faceda398",
+    "session_id": "aaaaaaaa-1111-4111-8111-111111111111",
+    "at": "2026-10-01T08:00:03.000Z",
+    "key": "input_tokens",
+    "value": 32,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "6437c1c5-e5e2-558b-a388-275060127bf7",
+    "session_id": "aaaaaaaa-1111-4111-8111-111111111111",
+    "at": "2026-10-01T08:00:03.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "88bc1a39-149b-5b37-a31a-c37c1794f671",
+    "session_id": "bbbbbbbb-2222-4222-8222-222222222222",
+    "at": "2026-10-01T15:00:02.000Z",
+    "key": "cache_read_tokens",
+    "value": 5,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "8a0c3b0c-8765-556b-aca5-7d4f9d85e5c7",
+    "session_id": "bbbbbbbb-2222-4222-8222-222222222222",
+    "at": "2026-10-01T15:00:02.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "8b722ec7-2d8c-597d-a861-780bfda6df72",
+    "session_id": "bbbbbbbb-2222-4222-8222-222222222222",
+    "at": "2026-10-01T15:00:02.000Z",
+    "key": "input_tokens",
+    "value": 15,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "b9174eb9-eb4f-5c77-a461-cf8842b1d265",
+    "session_id": "aaaaaaaa-1111-4111-8111-111111111111",
+    "at": "2026-10-01T08:01:01.000Z",
+    "key": "output_tokens",
+    "value": 5,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "b9e28f3b-7d00-5361-a5ee-e9f37d007c99",
+    "session_id": "aaaaaaaa-1111-4111-8111-111111111111",
+    "at": "2026-10-01T08:01:01.000Z",
+    "key": "input_tokens",
+    "value": 9,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "bb97cb02-f4de-5985-a30a-3c262679c47e",
+    "session_id": "aaaaaaaa-1111-4111-8111-111111111111",
+    "at": "2026-10-01T08:00:03.000Z",
+    "key": "cache_read_tokens",
+    "value": 20,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "db73980e-d109-5b7e-a4a7-9c88b8b88af2",
+    "session_id": "545344b3-abdb-5fb0-a2d3-70680fdeee37",
+    "at": "2026-10-01T08:00:04.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  },
+  {
+    "id": "def6f450-f9f4-52ac-ab3c-bbd822961475",
+    "session_id": "aaaaaaaa-1111-4111-8111-111111111111",
+    "at": "2026-10-01T08:00:03.000Z",
+    "key": "output_tokens",
+    "value": 16,
+    "kind": "counter",
+    "provider": "gemini",
+    "model": null
+  }
+]
