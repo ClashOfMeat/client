@@ -510,7 +510,7 @@ fn sync_loop(
             if expired {
                 pairing = None;
                 let _ = main.send(Message::PairState(
-                    json!({"status":"failed","reason":"expired"}),
+                    json!({"status":"failed","reason":"expired","message":"Clash of Meat: This code expired. Run the command again."}),
                 ));
             } else if let Ok(client) = make_client(&env, &version, None) {
                 match client.pair_exchange(pair) {
@@ -524,7 +524,7 @@ fn sync_loop(
                             Err(error) => {
                                 pairing = None;
                                 let _ = main.send(Message::PairState(
-                                    json!({"status":"failed","reason":error.to_string()}),
+                                    json!({"status":"failed","reason":null,"message":error.to_string()}),
                                 ));
                             }
                         }
@@ -533,11 +533,12 @@ fn sync_loop(
                     Err(sync::ApiError::Status {
                         status: 400..=499,
                         message,
+                        reason,
                         ..
                     }) => {
                         pairing = None;
                         let _ = main.send(Message::PairState(
-                            json!({"status":"failed","reason":message}),
+                            json!({"status":"failed","reason":reason,"message":message}),
                         ));
                     }
                     Err(_) => next_poll = Instant::now() + Duration::from_secs(3),
