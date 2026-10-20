@@ -7,6 +7,7 @@ use std::time::Duration;
 use clashofmeat_core::{Env, Event, EventKind, Store};
 use clashofmeat_daemon::config;
 use clashofmeat_daemon::config::store_path;
+use clashofmeat_daemon::hero;
 use clashofmeat_daemon::run::{self, RunOptions};
 use serde_json::{json, Value};
 use tempfile::tempdir;
@@ -213,6 +214,23 @@ fn socket_lifecycle_and_requests() {
     fs::write(&path, b"stale").unwrap();
     let handle = start(home);
     assert!(UnixStream::connect(handle.socket_path()).is_ok());
+    handle.stop().unwrap();
+}
+
+#[test]
+fn snapshot_returns_large_hero_cache_intact() {
+    let dir = tempdir().unwrap();
+    let large_field = "A".repeat(1_200_000);
+    let hero_view = json!({"character":{"image":large_field}});
+    hero::save_cache(&config::home(&Env::for_home(dir.path())), &hero_view).unwrap();
+    let handle = start(dir.path());
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    let snapshot = request(&mut stream, &json!({"id":1,"method":"snapshot"}));
+    let returned = snapshot["result"]["hero"]["character"]["image"]
+        .as_str()
+        .unwrap();
+    assert_eq!(returned.len(), 1_200_000);
+    assert_eq!(returned, large_field);
     handle.stop().unwrap();
 }
 

@@ -84,6 +84,9 @@ impl BoundSocket {
             while !stopping.load(Ordering::Relaxed) {
                 match self.listener.accept() {
                     Ok((stream, _)) => {
+                        if stream.set_nonblocking(false).is_err() {
+                            continue;
+                        }
                         let requests = requests.clone();
                         let stopping = stopping.clone();
                         clients.push(thread::spawn(move || {
@@ -192,7 +195,7 @@ fn serve_client(
 }
 
 fn stream_events(stream: &mut UnixStream, events: Receiver<Value>, stopping: &AtomicBool) {
-    let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
     while !stopping.load(Ordering::Relaxed) {
         match events.recv_timeout(Duration::from_millis(200)) {
             Ok(event) => {
@@ -207,6 +210,7 @@ fn stream_events(stream: &mut UnixStream, events: Receiver<Value>, stopping: &At
 }
 
 fn write_line(stream: &mut UnixStream, value: &Value) -> std::io::Result<()> {
-    serde_json::to_writer(&mut *stream, value)?;
-    stream.write_all(b"\n")
+    let mut line = serde_json::to_vec(value)?;
+    line.push(b'\n');
+    stream.write_all(&line)
 }
