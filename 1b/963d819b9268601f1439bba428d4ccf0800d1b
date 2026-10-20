@@ -1,0 +1,36 @@
+crates/core/src/reader.rs
+  s_406f27f50625e2::t_f9287d1653225c 379-381
+  s_406f27f50625e2::t_e6e4533f16fdea 199-200,202,207-209
+  s_3a239575ca19c2::t_3cd3dee03d9881 210-211
+crates/daemon/tests/engine.rs
+  s_406f27f50625e2::t_2c8c26b28c0351 246-301
+  s_3a239575ca19c2::t_d5cea8b50f80b4 245
+crates/daemon/src/engine.rs
+  s_406f27f50625e2::t_107f8a6fe74fcb 6,116-121,401,403-404,406-424,426-435
+  s_406f27f50625e2::t_23b797ea2a5ebe 402,405,425
+  s_3a239575ca19c2::t_716bc910eb5890 436-437
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1b963d819b9268601f1439bba428d4ccf0800d1b",
+  "prompts": {},
+  "sessions": {
+    "s_3a239575ca19c2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159c7-5e9c-7623-8529-edda4725e3bd",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    },
+    "s_406f27f50625e2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159cb-a468-7220-acc7-5d5241784a62",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
