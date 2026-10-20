@@ -7,8 +7,10 @@ use std::thread;
 use std::time::Duration;
 
 use clashofmeat_core::env::Env;
+use clashofmeat_core::observer;
 use clashofmeat_core::signal::{Event, EventKind};
 use clashofmeat_core::store::Store;
+use clashofmeat_core::{Observation, TaskRef};
 use clashofmeat_daemon::config::{app_origin, read_config, store_path, update_config};
 use clashofmeat_daemon::run::{self, RunOptions};
 use clashofmeat_daemon::sync::{mark_paired, sync_once, ApiError, Client};
@@ -169,6 +171,136 @@ fn event(identity: &str, kind: EventKind, at: &str, value: u64) -> Event {
         model: None,
         provider: None,
     }
+}
+
+fn completed_task(store: &mut Store, key: &str, source: &str) -> String {
+    let task = format!("task-{key}");
+    observer::apply(
+        store,
+        "codex",
+        &[
+            Observation::Start {
+                context: task.clone(),
+                task_key: task.clone(),
+                source_key: source.into(),
+                session_id: ID.into(),
+                at: NOW.into(),
+                client_version: String::new(),
+                close_previous_completed: false,
+            },
+            Observation::Finish {
+                task: TaskRef::Key(task),
+                at: NOW.into(),
+                status: "completed".into(),
+                active_guard: false,
+            },
+        ],
+        "0.1.0",
+    )
+    .unwrap();
+    observer::completed_payloads(store, 100)
+        .unwrap()
+        .last()
+        .unwrap()["task"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[test]
+fn observer_upload_groups_by_source_and_acknowledges_duplicates() {
+    let mut store = Store::open_in_memory().unwrap();
+    completed_task(&mut store, "a", "first");
+    completed_task(&mut store, "b", "first");
+    completed_task(&mut store, "c", "second");
+    let server = Server::start(vec![
+        Reply::ok(json!({"accepted": 1, "duplicates": 1})),
+        Reply::ok(json!({"accepted": 0, "duplicates": 1})),
+    ]);
+    assert_eq!(
+        client(&server).upload_observer_tasks(&mut store).unwrap(),
+        3
+    );
+    assert!(observer::completed_payloads(&mut store, 10)
+        .unwrap()
+        .is_empty());
+    let requests = server.finish();
+    assert_eq!(requests.len(), 2);
+    assert!(requests
+        .iter()
+        .all(|request| request.path == "/api/observer/tasks"));
+    assert_eq!(requests[0].body["source"]["sourceKey"], "first");
+    assert_eq!(requests[0].body["tasks"].as_array().unwrap().len(), 2);
+    assert_eq!(requests[1].body["source"]["sourceKey"], "second");
+    assert_eq!(requests[1].body["tasks"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn observer_upload_retries_400_individually_and_rejects_bad_task() {
+    let mut store = Store::open_in_memory().unwrap();
+    completed_task(&mut store, "a", "first");
+    completed_task(&mut store, "b", "first");
+    let server = Server::start(vec![
+        Reply::error(400, json!({"error": "invalid batch"})),
+        Reply::ok(json!({"accepted": 1, "duplicates": 0})),
+        Reply::error(400, json!({"error": "invalid task"})),
+    ]);
+    assert_eq!(
+        client(&server).upload_observer_tasks(&mut store).unwrap(),
+        1
+    );
+    assert!(observer::completed_payloads(&mut store, 10)
+        .unwrap()
+        .is_empty());
+    let requests = server.finish();
+    assert_eq!(
+        requests
+            .iter()
+            .map(|request| request.body["tasks"].as_array().unwrap().len())
+            .collect::<Vec<_>>(),
+        vec![2, 1, 1]
+    );
+}
+
+#[test]
+fn observer_upload_invalid_ack_keeps_all_tasks_pending() {
+    let mut store = Store::open_in_memory().unwrap();
+    completed_task(&mut store, "a", "first");
+    completed_task(&mut store, "b", "first");
+    let server = Server::start(vec![Reply::ok(json!({"accepted": 1, "duplicates": 0}))]);
+    assert!(matches!(
+        client(&server).upload_observer_tasks(&mut store),
+        Err(ApiError::Invalid(_))
+    ));
+    assert_eq!(
+        observer::completed_payloads(&mut store, 10).unwrap().len(),
+        2
+    );
+    server.finish();
+}
+
+#[test]
+fn observer_upload_401_unpairs_without_acknowledging() {
+    let mut store = Store::open_in_memory().unwrap();
+    store.set_meta("installation.token", TOKEN).unwrap();
+    store.set_meta("installation.id", ID).unwrap();
+    completed_task(&mut store, "a", "first");
+    let server = Server::start(vec![
+        Reply::ok(json!({"connected": true})),
+        Reply::error(401, json!({"error": "expired"})),
+    ]);
+    let result = sync_once(&client(&server), &mut store, now());
+    assert!(matches!(
+        result.error,
+        Some(ApiError::Status { status: 401, .. })
+    ));
+    assert!(store.meta("installation.token").unwrap().is_none());
+    assert_eq!(store.meta("reauth").unwrap().as_deref(), Some("true"));
+    assert_eq!(
+        observer::completed_payloads(&mut store, 10).unwrap().len(),
+        1
+    );
+    server.finish();
 }
 
 #[test]

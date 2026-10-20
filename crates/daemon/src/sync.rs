@@ -2,6 +2,7 @@ use std::fmt;
 use std::time::Duration;
 
 use clashofmeat_core::ids::is_uuid;
+use clashofmeat_core::observer;
 use clashofmeat_core::signal::EventKind;
 use clashofmeat_core::store::{Store, StoredEvent};
 use serde_json::{json, Map, Value};
@@ -257,6 +258,69 @@ impl Client {
             readings: readings.len(),
         })
     }
+
+    /// Uploads only the completed payloads assembled by the private observer.
+    pub fn upload_observer_tasks(&self, store: &mut Store) -> Result<usize, ApiError> {
+        let payloads = observer::completed_payloads(store, usize::MAX).map_err(store_error)?;
+        let mut groups: Vec<(Value, Vec<Value>)> = Vec::new();
+        for payload in payloads {
+            let source = payload["source"].clone();
+            let task = payload["task"].clone();
+            if let Some((_, tasks)) = groups.iter_mut().find(|(key, _)| *key == source) {
+                tasks.push(task);
+            } else {
+                groups.push((source, vec![task]));
+            }
+        }
+        let mut uploaded = 0;
+        for (source, tasks) in groups {
+            match self.send_observer_tasks(store, &source, &tasks) {
+                Ok(()) => uploaded += tasks.len(),
+                Err(ApiError::Status { status: 400, .. }) => {
+                    for task in tasks {
+                        match self.send_observer_tasks(store, &source, std::slice::from_ref(&task))
+                        {
+                            Ok(()) => uploaded += 1,
+                            Err(ApiError::Status { status: 400, .. }) => {
+                                observer::reject(store, task["id"].as_str().unwrap_or_default())
+                                    .map_err(store_error)?;
+                            }
+                            Err(error) => return Err(error),
+                        }
+                    }
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(uploaded)
+    }
+
+    fn send_observer_tasks(
+        &self,
+        store: &mut Store,
+        source: &Value,
+        tasks: &[Value],
+    ) -> Result<(), ApiError> {
+        let response = self.post(
+            "/api/observer/tasks",
+            &json!({"source": source, "tasks": tasks}),
+        )?;
+        let accepted = response["accepted"].as_u64();
+        let duplicates = response["duplicates"].as_u64();
+        if accepted.zip(duplicates).and_then(|(a, b)| a.checked_add(b)) != Some(tasks.len() as u64)
+        {
+            return Err(ApiError::Invalid(
+                "Clash of Meat returned an invalid observer acknowledgement.".into(),
+            ));
+        }
+        for task in tasks {
+            let id = task["id"]
+                .as_str()
+                .ok_or_else(|| ApiError::Invalid("observer payload has no task ID".into()))?;
+            observer::acknowledge(store, id).map_err(store_error)?;
+        }
+        Ok(())
+    }
 }
 
 fn snapshot(event: &StoredEvent) -> (String, u64, String) {
@@ -371,12 +435,21 @@ pub fn sync_once(client: &Client, store: &mut Store, now: OffsetDateTime) -> Syn
             Ok(outcome) => {
                 result.uploaded += outcome.sent;
                 if outcome.counters < 100 && outcome.readings < 50 {
-                    return result;
+                    break;
                 }
             }
             Err(error) => return fail(client, store, now, result, error),
         }
     }
+    match client.upload_observer_tasks(store) {
+        Ok(uploaded) => result.uploaded += uploaded,
+        Err(error @ ApiError::Status { status: 401, .. }) => {
+            return fail(client, store, now, result, error);
+        }
+        // Calibration errors leave observer tasks queued without failing the sync.
+        Err(_) => {}
+    }
+    result
 }
 
 fn fail(

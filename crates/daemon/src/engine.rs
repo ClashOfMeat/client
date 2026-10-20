@@ -7,8 +7,8 @@ use std::time::UNIX_EPOCH;
 
 use anyhow::Result;
 use clashofmeat_core::{
-    reader, Cx, Env, Event, FileCursor, FileEntry, Provider, Record, Signal, SourceFormat, Store,
-    Turn, TurnPhase,
+    observer, reader, Cx, Env, Event, FileCursor, FileEntry, Observation, Provider, Record, Signal,
+    SourceFormat, Store, Turn, TurnPhase,
 };
 use serde::{Serialize, Serializer};
 use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
@@ -16,6 +16,7 @@ use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
 pub struct Engine {
     env: Env,
     providers: Vec<Box<dyn Provider>>,
+    client_version: String,
     sessions: HashMap<(String, String), SessionActivity>,
 }
 
@@ -67,10 +68,11 @@ fn serialize_time<S: Serializer>(
 }
 
 impl Engine {
-    pub fn new(env: Env, providers: Vec<Box<dyn Provider>>) -> Self {
+    pub fn new(env: Env, providers: Vec<Box<dyn Provider>>, client_version: &str) -> Self {
         Self {
             env,
             providers,
+            client_version: client_version.to_owned(),
             sessions: HashMap::new(),
         }
     }
@@ -146,6 +148,7 @@ impl Engine {
                         now,
                         &mut report,
                         &mut counts,
+                        &self.client_version,
                     );
                     if read_result.is_err() {
                         counts.errors += 1;
@@ -166,6 +169,13 @@ impl Engine {
                         }
                     }
                 }
+            }
+            if changed.is_none() {
+                let idle = match manifest.id {
+                    "codex" | "cursor" => std::time::Duration::from_secs(30 * 60),
+                    _ => std::time::Duration::from_secs(10 * 60),
+                };
+                observer::finalize_idle(store, manifest.id, now, idle)?;
             }
         }
         Ok(report)
@@ -225,6 +235,7 @@ fn scan_file(
     now: OffsetDateTime,
     report: &mut ScanReport,
     counts: &mut FileCounts,
+    client_version: &str,
 ) -> Result<()> {
     match format {
         SourceFormat::Jsonl | SourceFormat::Spool => loop {
@@ -234,6 +245,7 @@ fn scan_file(
             counts.malformed += u64::from(batch.malformed);
             counts.oversized += u64::from(batch.oversized);
             let mut events = Vec::new();
+            let mut observations = Vec::new();
             for line in batch.lines {
                 collect_signals(
                     provider,
@@ -246,6 +258,7 @@ fn scan_file(
                     now,
                     report,
                     &mut events,
+                    &mut observations,
                 );
             }
             save_pass(
@@ -256,6 +269,8 @@ fn scan_file(
                 file_key,
                 paired_at,
                 &events,
+                &observations,
+                client_version,
                 report,
             )?;
             if !batch.more || cursor.offset == before {
@@ -272,6 +287,7 @@ fn scan_file(
             if let Some(value) = reader::read_json(path, cursor)? {
                 counts.records += 1;
                 let mut events = Vec::new();
+                let mut observations = Vec::new();
                 collect_signals(
                     provider,
                     source_index,
@@ -283,6 +299,7 @@ fn scan_file(
                     now,
                     report,
                     &mut events,
+                    &mut observations,
                 );
                 cursor.offset = cursor.len;
                 save_pass(
@@ -293,6 +310,8 @@ fn scan_file(
                     file_key,
                     paired_at,
                     &events,
+                    &observations,
+                    client_version,
                     report,
                 )?;
             } else {
@@ -321,6 +340,7 @@ fn collect_signals(
     now: OffsetDateTime,
     report: &mut ScanReport,
     events: &mut Vec<Event>,
+    observations: &mut Vec<Observation>,
 ) {
     let record = Record {
         source: source_index,
@@ -335,7 +355,7 @@ fn collect_signals(
     for signal in provider.parse(&record, &mut cx) {
         match signal {
             Signal::Event(event) => events.push(event),
-            Signal::Observer(_) => {}
+            Signal::Observer(observation) => observations.push(observation),
             Signal::Turn(turn) => {
                 report.activity_changed |= apply_turn(sessions, turn, now);
             }
@@ -352,11 +372,14 @@ fn save_pass(
     file_key: &str,
     paired_at: Option<&str>,
     events: &[Event],
+    observations: &[Observation],
+    client_version: &str,
     report: &mut ScanReport,
 ) -> Result<()> {
     if let Some(paired_at) = paired_at {
         report.events_saved +=
             store.save_events(provider.manifest().id, events, Some(paired_at))?;
+        observer::apply(store, provider.manifest().id, observations, client_version)?;
     }
     store.put_cursor(provider.manifest().id, source_index, file_key, cursor)?;
     Ok(())

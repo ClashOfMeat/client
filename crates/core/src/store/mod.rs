@@ -229,6 +229,30 @@ mod tests {
     }
 
     #[test]
+    fn token_totals_include_synced_events_and_filter_time_and_keys() {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut input = event("today-input", "input_tokens", 5, "2026-10-20T00:00:00Z");
+        input.provider = Some("claude".into());
+        let mut output = event("today-output", "output_tokens", 7, "2026-10-20T01:00:00Z");
+        output.provider = Some("codex".into());
+        let old = event("old", "cache_read_tokens", 20, "2026-10-19T23:59:59Z");
+        let other = event("other", "session_count", 10, "2026-10-20T02:00:00Z");
+        let future = event("future", "cache_write_tokens", 30, "2026-10-21T00:00:00Z");
+        store
+            .save_events("codex", &[input.clone(), output, old, other, future], None)
+            .unwrap();
+        store
+            .mark_synced(&[(input.id(), input.value, input.at)])
+            .unwrap();
+        assert_eq!(
+            store
+                .token_totals_between("2026-10-20T00:00:00Z", "2026-10-20T12:00:00Z")
+                .unwrap(),
+            vec![("claude".into(), 5), ("codex".into(), 7)]
+        );
+    }
+
+    #[test]
     fn cursor_meta_and_health_roundtrip() {
         let mut store = Store::open_in_memory().unwrap();
         let mut cursor = FileCursor {
@@ -430,6 +454,22 @@ impl Store {
                 model: row.get(7)?,
                 provider: row.get(8)?,
             })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Sums persisted counter tokens by event provider, including uploaded rows.
+    pub fn token_totals_between(&self, since: &str, until: &str) -> Result<Vec<(String, u64)>> {
+        let mut statement = self.conn.prepare(
+            "SELECT provider, SUM(value) FROM events
+             WHERE kind='counter' AND provider IS NOT NULL
+               AND key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens')
+               AND julianday(at)>=julianday(?1) AND julianday(at)<=julianday(?2)
+             GROUP BY provider ORDER BY provider",
+        )?;
+        let rows = statement.query_map(params![since, until], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(Into::into)

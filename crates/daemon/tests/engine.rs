@@ -4,11 +4,12 @@ use std::path::Path;
 use std::time::{Duration as StdDuration, SystemTime};
 
 use clashofmeat_core::{
-    Cx, Detect, Env, Event, EventKind, Manifest, Provider, Record, Signal, Source, SourceFormat,
-    Store, Turn, TurnPhase,
+    observer, Cx, Detect, Env, Event, EventKind, Manifest, Observation, Provider, Record, Signal,
+    Source, SourceFormat, Store, Turn, TurnPhase,
 };
 use clashofmeat_daemon::engine::{Engine, SessionState};
 use clashofmeat_providers::claude_code::ClaudeCode;
+use clashofmeat_providers::codex::Codex;
 use serde_json::json;
 use tempfile::TempDir;
 use time::{format_description::well_known::Rfc3339, macros::datetime, Duration, OffsetDateTime};
@@ -86,8 +87,82 @@ fn setup(paired: bool) -> (TempDir, Store, Engine) {
     let engine = Engine::new(
         Env::for_home(dir.path()),
         vec![Box::new(ClaudeCode), Box::new(JsonProvider)],
+        "daemon-test",
     );
     (dir, store, engine)
+}
+
+#[test]
+fn observer_signals_require_pairing_and_idle_finalization_requires_full_scan() {
+    let (dir, mut store, mut engine) = setup(false);
+    let path = claude_path(dir.path(), "observer.jsonl");
+    let started = now() - Duration::minutes(11);
+    fs::write(&path, prompt(started, "observer-prompt")).unwrap();
+    engine.scan(&mut store, None, started).unwrap();
+    assert!(observer::completed_payloads(&mut store, 10)
+        .unwrap()
+        .is_empty());
+    store.set_meta("paired_at", PAIRED).unwrap();
+    append(
+        &path,
+        &prompt(started + Duration::seconds(1), "paired-prompt"),
+    );
+    engine
+        .scan(
+            &mut store,
+            Some(std::slice::from_ref(&path)),
+            started + Duration::seconds(1),
+        )
+        .unwrap();
+    engine
+        .scan(&mut store, Some(std::slice::from_ref(&path)), now())
+        .unwrap();
+    assert!(observer::completed_payloads(&mut store, 10)
+        .unwrap()
+        .is_empty());
+    engine.scan(&mut store, None, now()).unwrap();
+    let tasks = observer::completed_payloads(&mut store, 10).unwrap();
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0]["task"]["status"], "completed");
+}
+
+#[test]
+fn codex_idle_tasks_wait_thirty_minutes() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = Store::open_in_memory().unwrap();
+    store.set_meta("paired_at", PAIRED).unwrap();
+    let started = now() - Duration::minutes(11);
+    observer::apply(
+        &mut store,
+        "codex",
+        &[Observation::Start {
+            context: "codex-context".into(),
+            task_key: "codex-task".into(),
+            source_key: "collector".into(),
+            session_id: SESSION.into(),
+            at: iso(started),
+            client_version: String::new(),
+            close_previous_completed: false,
+        }],
+        "daemon-test",
+    )
+    .unwrap();
+    let mut engine = Engine::new(
+        Env::for_home(dir.path()),
+        vec![Box::new(Codex)],
+        "daemon-test",
+    );
+    engine.scan(&mut store, None, now()).unwrap();
+    assert!(observer::completed_payloads(&mut store, 10)
+        .unwrap()
+        .is_empty());
+    engine
+        .scan(&mut store, None, started + Duration::minutes(31))
+        .unwrap();
+    assert_eq!(
+        observer::completed_payloads(&mut store, 10).unwrap().len(),
+        1
+    );
 }
 
 fn claude_path(home: &Path, name: &str) -> std::path::PathBuf {

@@ -1,6 +1,6 @@
 //! Long-running daemon coordination.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -12,7 +12,7 @@ use anyhow::Result;
 use clashofmeat_core::{Env, EventKind, Store};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use serde_json::{json, Value};
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use time::{format_description::well_known::Rfc3339, OffsetDateTime, UtcOffset};
 
 use crate::{
     config, detect,
@@ -107,7 +107,11 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
     let bound = BoundSocket::bind(&home)?;
     let socket_path = bound.path().to_path_buf();
     let mut store = Store::open(config::store_path(&opts.env))?;
-    let mut engine = Engine::new(opts.env.clone(), clashofmeat_providers::all());
+    let mut engine = Engine::new(
+        opts.env.clone(),
+        clashofmeat_providers::all(),
+        &opts.version,
+    );
     engine.scan(&mut store, None, OffsetDateTime::now_utc())?;
     let cached = hero::load_cache(&home).unwrap_or(None);
     let (sender, inbox) = unbounded();
@@ -345,7 +349,7 @@ fn handle_request(
         subscriber,
     } = request;
     let result = match method.as_str() {
-        "status" => status(opts, store),
+        "status" => status(opts, store, &params),
         "snapshot" => Ok(json!({"activity":activity,"hero":cached})),
         "subscribe" => {
             if let Some(subscriber) = subscriber {
@@ -430,7 +434,64 @@ fn handle_request(
     Some((reply, result))
 }
 
-fn status(opts: &RunOptions, store: &Store) -> std::result::Result<Value, SocketError> {
+/// Returns today's persisted token counters by provider ID.
+/// Claude Code and Cowork both store `claude`; the store cannot identify their origin,
+/// so their shared total is reported under `claude-code`.
+pub fn today_tokens(
+    store: &Store,
+    now: OffsetDateTime,
+    utc_offset: UtcOffset,
+) -> HashMap<String, u64> {
+    let midnight = now
+        .to_offset(utc_offset)
+        .date()
+        .midnight()
+        .assume_offset(utc_offset);
+    token_totals(store, midnight, now).unwrap_or_default()
+}
+
+fn token_totals(
+    store: &Store,
+    since: OffsetDateTime,
+    now: OffsetDateTime,
+) -> std::result::Result<HashMap<String, u64>, SocketError> {
+    let mut totals = HashMap::new();
+    for (provider, value) in store
+        .token_totals_between(
+            &since.format(&Rfc3339).map_err(internal)?,
+            &now.format(&Rfc3339).map_err(internal)?,
+        )
+        .map_err(internal)?
+    {
+        let key = if provider == "claude" {
+            "claude-code"
+        } else {
+            &provider
+        };
+        *totals.entry(key.to_owned()).or_insert(0) += value;
+    }
+    Ok(totals)
+}
+
+fn status(
+    opts: &RunOptions,
+    store: &Store,
+    params: &Value,
+) -> std::result::Result<Value, SocketError> {
+    let now = OffsetDateTime::now_utc();
+    let since = match params.get("today_since") {
+        Some(Value::String(value)) => OffsetDateTime::parse(value, &Rfc3339).map_err(|_| {
+            SocketError::new("bad_request", "today_since must be ISO-8601 with offset")
+        })?,
+        Some(_) => {
+            return Err(SocketError::new(
+                "bad_request",
+                "today_since must be a timestamp",
+            ))
+        }
+        None => now.date().midnight().assume_utc(),
+    };
+    let today = token_totals(store, since, now)?;
     let meta = |key| store.meta(key).map_err(internal);
     let blocked = meta("blocked")?.and_then(|raw| sync::blocked_message(&raw, &opts.version));
     let off: HashSet<String> = meta("providers_off")?
@@ -440,7 +501,7 @@ fn status(opts: &RunOptions, store: &Store) -> std::result::Result<Value, Socket
     let providers: Vec<Value> = clashofmeat_providers::all().iter().map(|provider| {
         let manifest = provider.manifest();
         let row = health.iter().find(|row| row.provider == manifest.id);
-        json!({"id":manifest.id,"name":manifest.name,"detected":detect::detect(&opts.env,manifest),"enabled":!off.contains(manifest.id),"health":row.map(|row| json!({"records":row.records,"malformed":row.malformed,"oversized":row.oversized,"errors":row.errors,"last_at":row.last_at})).unwrap_or_else(|| json!({"records":0,"malformed":0,"oversized":0,"errors":0,"last_at":null}))})
+        json!({"id":manifest.id,"name":manifest.name,"detected":detect::detect(&opts.env,manifest),"enabled":!off.contains(manifest.id),"today_tokens":today.get(manifest.id).copied().unwrap_or(0),"health":row.map(|row| json!({"records":row.records,"malformed":row.malformed,"oversized":row.oversized,"errors":row.errors,"last_at":row.last_at})).unwrap_or_else(|| json!({"records":0,"malformed":0,"oversized":0,"errors":0,"last_at":null}))})
     }).collect();
     let counters = store
         .pending(EventKind::Counter, usize::MAX)
@@ -451,7 +512,7 @@ fn status(opts: &RunOptions, store: &Store) -> std::result::Result<Value, Socket
         .map_err(internal)?
         .len();
     Ok(
-        json!({"version":opts.version,"paired":meta("installation.token")?.is_some(),"app_url":config::read_config(&opts.env).map_err(internal)?.app_url,"blocked":blocked,"reauth":meta("reauth")?.as_deref()==Some("true"),"pending":{"counters":counters,"readings":readings},"last_sync_at":meta("last_sync_at")?,"providers":providers}),
+        json!({"version":opts.version,"paired":meta("installation.token")?.is_some(),"app_url":config::read_config(&opts.env).map_err(internal)?.app_url,"blocked":blocked,"reauth":meta("reauth")?.as_deref()==Some("true"),"pending":{"counters":counters,"readings":readings},"last_sync_at":meta("last_sync_at")?,"providers":providers,"today_tokens":today}),
     )
 }
 
