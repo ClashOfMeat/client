@@ -1,0 +1,36 @@
+crates/core/src/signal.rs
+  s_9cca0ab9f58dff::t_cf3e8807d758f0 30-32
+crates/core/src/lib.rs
+  s_9cca0ab9f58dff::t_cf3e8807d758f0 7,19
+crates/core/src/store/migrations.rs
+  s_9cca0ab9f58dff::t_cf3e8807d758f0 1-80
+crates/core/src/store/mod.rs
+  s_44b9d9214ad7db::t_6202f286361cff 69-77,89-95,99-107,109-116,125-131,134-137,140-143,145-155,159-164,171-180,189-204,211-217,220-227,236-238,240-247,254-256,259-267,298-301,336-340,428-429,436-437,447-452,454-463,467-473,491-495,501-502,507-512,531-539,559-570
+  s_44b9d9214ad7db::t_c88293074e62eb 315,546-548
+  s_44b9d9214ad7db::t_591c00556b35a8 39,59-68,78-88,96-98,108,117-124,132-133,138-139,144,156-158,165-170,181-188,205-210,218-219,228-235,239,248-253,257-258,268-269
+  s_44b9d9214ad7db::t_be9b1cb3d871ec 1-38,40-58,270-297,302-314,316-335,341-427,430-435,438-446,453,464-466,474-490,496-500,503-506,513-530,540-545,549-558,571-572
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "29c01be473f5923473f66b7b8ce29c46e1bc8eb0",
+  "prompts": {},
+  "sessions": {
+    "s_44b9d9214ad7db": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159b9-735e-7961-bb44-6e07ab4632da",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    },
+    "s_9cca0ab9f58dff": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1598e-3905-7c93-8335-2b57bbdc205c",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
