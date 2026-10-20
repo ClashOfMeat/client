@@ -1,0 +1,35 @@
+apps/desktop/src-tauri/tauri.conf.json
+  s_3ee20165e74dce::t_d710d1c05e3f5f 19-21
+apps/desktop/src-tauri/updater.pub
+  s_3ee20165e74dce::t_d710d1c05e3f5f 1
+.gitignore
+  s_3ee20165e74dce::t_d710d1c05e3f5f 4
+.github/workflows/ci.yml
+  s_3ee20165e74dce::t_03a3080d206dcb 1-22
+scripts/package.sh
+  s_3ee20165e74dce::t_d710d1c05e3f5f 1-45
+scripts/README.md
+  s_3ee20165e74dce::t_c9be1781df38a1 1-21
+.github/workflows/desktop-release.yml
+  s_3ee20165e74dce::t_03a3080d206dcb 1-140
+scripts/update-manifest.sh
+  s_3ee20165e74dce::t_47ffc4d43dc87f 1-8,10-18,20-100,102-123
+  s_3ee20165e74dce::t_1037b21eaf7756 9
+  s_3ee20165e74dce::t_3208d3f2966ac4 19,101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7d2de7d6902161f9630c59d80330b65ec72d8536",
+  "prompts": {},
+  "sessions": {
+    "s_3ee20165e74dce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159e7-55fc-7740-99e8-31c33bd2025a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
