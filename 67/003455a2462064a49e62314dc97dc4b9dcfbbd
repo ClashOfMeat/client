@@ -1,0 +1,39 @@
+.gitignore
+  s_06ed9d8c83611e::t_140f08c0597d0e 1-3
+Cargo.lock
+  s_06ed9d8c83611e::t_d04656c23efa0f 1-1404
+Cargo.toml
+  s_06ed9d8c83611e::t_19629be5431487 1-35
+crates/cli/Cargo.toml
+  s_06ed9d8c83611e::t_c04d11d6fa9a3c 1-17
+crates/cli/src/main.rs
+  s_06ed9d8c83611e::t_e6e9c56b80b4ce 1
+crates/core/Cargo.toml
+  s_06ed9d8c83611e::t_ae0b46d39878c7 1-20
+crates/core/src/lib.rs
+  s_06ed9d8c83611e::t_c3dd60219802a3 1
+crates/daemon/Cargo.toml
+  s_06ed9d8c83611e::t_80d0cab82f44e4 1-20
+crates/daemon/src/lib.rs
+  s_06ed9d8c83611e::t_b03ae11cf2d4ed 1
+crates/providers/Cargo.toml
+  s_06ed9d8c83611e::t_8e0073ef6a44c8 1-16
+crates/providers/src/lib.rs
+  s_06ed9d8c83611e::t_7a7897264d2987 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "67003455a2462064a49e62314dc97dc4b9dcfbbd",
+  "prompts": {},
+  "sessions": {
+    "s_06ed9d8c83611e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d702cc3f-99c9-4e88-9694-115fc0f6d057",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
