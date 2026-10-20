@@ -1,0 +1,22 @@
+crates/providers/src/cursor.rs
+  s_addcaff1a07099::t_7047d21a0e1a5f 144-151,215-218,241-243
+  s_addcaff1a07099::t_e4495fe01a6a7d 1,3-11,20-21,23-27,31-110,116-143,152-214,219-240,244-265
+crates/providers/tests/parity_cursor.rs
+  s_addcaff1a07099::t_5540e3407f16e2 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76d3e67533e0f4cab2e479674f72dce8a0fd6c85",
+  "prompts": {},
+  "sessions": {
+    "s_addcaff1a07099": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159c6-0344-71d1-ad93-ca66002cc7b5",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
