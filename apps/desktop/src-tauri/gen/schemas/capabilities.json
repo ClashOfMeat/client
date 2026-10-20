@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"","local":true,"windows":["*"],"permissions":["core:default"]}}
+{"hero":{"identifier":"hero","description":"","local":true,"windows":["hero"],"permissions":["core:event:allow-listen","core:event:allow-emit","core:window:allow-show","core:window:allow-hide","core:window:allow-set-position","core:window:allow-set-size"]},"settings":{"identifier":"settings","description":"","local":true,"windows":["settings"],"permissions":["core:event:allow-listen"]}}
