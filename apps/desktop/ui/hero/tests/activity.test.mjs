@@ -36,7 +36,7 @@ test('working schedules a short stroll and stands between strolls', () => {
   hero.update({ busy: true, sessions: [session('Busy')] }, 0)
   assert.deepEqual(hero.snapshot(0, { width: 300 }), { state: 'idle', elapsed: 0, x: 0, facing: 'right', until: 12000 })
   assert.deepEqual(hero.snapshot(11999, { width: 300 }), { state: 'idle', elapsed: 11999, x: 0, facing: 'right', until: 1 })
-  assert.deepEqual(hero.snapshot(12000, { width: 300 }), { state: 'walk', elapsed: 0, x: 0, facing: 'left', until: Infinity })
+  assert.deepEqual(hero.snapshot(12000, { width: 300 }), { state: 'walk', elapsed: 0, x: 0, facing: 'right', until: Infinity })
   assert.equal(hero.snapshot(12500, { width: 300 }).x, 24)
   const arrived = hero.snapshot(13250, { width: 300 })
   assert.equal(arrived.state, 'idle')
@@ -46,7 +46,7 @@ test('working schedules a short stroll and stands between strolls', () => {
   assert.equal(hero.snapshot(120000, { width: 300 }).state, 'idle', 'working never sits or sleeps')
   const late = heroActivity(0, { random: random(0, 0.5, 0, 0.9, 0) })
   late.update({ busy: true }, 0)
-  assert.deepEqual(late.snapshot(14000, { width: 300 }), { state: 'idle', elapsed: 750, x: 60, facing: 'left', until: 11250 })
+  assert.deepEqual(late.snapshot(14000, { width: 300 }), { state: 'idle', elapsed: 750, x: 60, facing: 'right', until: 11250 })
 })
 
 test('a scheduled turn flips facing without moving', () => {
@@ -64,9 +64,27 @@ test('a stroll uses the other side near an edge and clamps its target', () => {
   hero.snapshot(0, { width: 100 })
   hero.drag(90, 0)
   hero.update({ busy: true }, 0)
-  assert.equal(hero.snapshot(12000, { width: 100 }).facing, 'right')
+  assert.equal(hero.snapshot(12000, { width: 100 }).facing, 'left')
   assert.equal(hero.snapshot(14000, { width: 100 }).x, 0)
   assert.equal(hero.snapshot(14000, { width: 100 }).state, 'idle')
+})
+
+test('a stroll faces its direction during and after walking', () => {
+  const right = heroActivity(0, { random: random(0, 0.5, 0, 0, 0) })
+  right.update({ busy: true }, 0)
+  const rightWalking = right.snapshot(12500, { width: 100 })
+  assert.deepEqual([rightWalking.state, rightWalking.x, rightWalking.facing], ['walk', 24, 'right'])
+  const rightArrived = right.snapshot(13250, { width: 100 })
+  assert.deepEqual([rightArrived.state, rightArrived.x, rightArrived.facing], ['idle', 60, 'right'])
+
+  const left = heroActivity(0, { random: random(0, 0.5, 0, 0.9, 0) })
+  left.snapshot(0, { width: 100 })
+  left.drag(90, 0)
+  left.update({ busy: true }, 0)
+  const leftWalking = left.snapshot(12500, { width: 100 })
+  assert.deepEqual([leftWalking.state, leftWalking.x, leftWalking.facing], ['walk', 66, 'left'])
+  const leftArrived = left.snapshot(13250, { width: 100 })
+  assert.deepEqual([leftArrived.state, leftArrived.x, leftArrived.facing], ['idle', 30, 'left'])
 })
 
 test('until counts down to a stroll and still postpones its start', () => {
@@ -75,7 +93,7 @@ test('until counts down to a stroll and still postpones its start', () => {
   assert.equal(hero.snapshot(5000, { width: 300 }).until, 21000)
   assert.equal(hero.snapshot(26000, { width: 300, still: true }).until, Infinity)
   assert.equal(hero.snapshot(27000, { width: 300, still: true }).state, 'idle')
-  assert.deepEqual(hero.snapshot(28000, { width: 300 }), { state: 'walk', elapsed: 0, x: 0, facing: 'left', until: Infinity })
+  assert.deepEqual(hero.snapshot(28000, { width: 300 }), { state: 'walk', elapsed: 0, x: 0, facing: 'right', until: Infinity })
   assert.equal(hero.snapshot(28500, { width: 300 }).x, 24)
 })
 
@@ -108,7 +126,7 @@ test('drag during a stroll stops it at the dragged position', () => {
   hero.snapshot(12000, { width: 200 })
   assert.equal(hero.snapshot(12500, { width: 200 }).x, 24)
   hero.drag(80, 12500)
-  assert.deepEqual(hero.snapshot(12500, { width: 200 }), { state: 'idle', elapsed: 0, x: 80, facing: 'left', until: 12000 })
+  assert.deepEqual(hero.snapshot(12500, { width: 200 }), { state: 'idle', elapsed: 0, x: 80, facing: 'right', until: 12000 })
   assert.equal(hero.snapshot(20000, { width: 200 }).x, 80)
 })
 

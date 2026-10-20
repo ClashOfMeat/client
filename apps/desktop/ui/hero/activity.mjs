@@ -65,7 +65,7 @@ export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
       return
     }
     movedAt = at
-    facing = direction > 0 ? 'left' : 'right'
+    facing = direction > 0 ? 'right' : 'left'
     setState('walk', at)
   }
 
