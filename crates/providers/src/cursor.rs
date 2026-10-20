@@ -1,8 +1,8 @@
 //! Content-free Cursor hook spool records.
 
 use clashofmeat_core::{
-    ids, Cx, Detect, Event, EventKind, Manifest, Provider, Record, Signal, Source, SourceFormat,
-    Turn, TurnPhase,
+    ids, observer, Cx, Detect, Event, EventKind, Manifest, Observation, Provider, Record, Signal,
+    Source, SourceFormat, TaskRef, Turn, TurnPhase, Usage,
 };
 use serde_json::Value;
 use time::{
@@ -124,6 +124,88 @@ impl Provider for Cursor {
         };
         let session_id = ids::session_uuid("cursor", conversation);
         let mut signals = Vec::new();
+        let task = TaskRef::Key(generation.into());
+        let event_type = value.get("event").and_then(Value::as_str);
+        if event_type == Some("beforeSubmitPrompt") {
+            signals.push(Signal::Observer(Observation::Start {
+                context: conversation.into(),
+                task_key: generation.into(),
+                source_key: "collector".into(),
+                session_id: conversation.into(),
+                at: at.clone(),
+                client_version: value
+                    .get("version")
+                    .and_then(Value::as_str)
+                    .map(observer::client_label)
+                    .unwrap_or("unknown")
+                    .into(),
+                close_previous_completed: false,
+            }));
+        }
+        if event_type == Some("postToolUse") {
+            let name = value.get("tool").and_then(Value::as_str).unwrap_or("");
+            signals.push(Signal::Observer(Observation::Tool {
+                task: task.clone(),
+                tool_id: format!("{generation}:{}", record.offset)
+                    .chars()
+                    .take(128)
+                    .collect(),
+                category: observer::category(name).into(),
+                subagent: value.get("subagent").and_then(Value::as_bool) == Some(true),
+                at: at.clone(),
+            }));
+        }
+        if !matches!(event_type, Some("beforeSubmitPrompt" | "postToolUse")) {
+            let cache_read = count(value.get("cache_read_tokens"));
+            let cache_write = count(value.get("cache_write_tokens"));
+            if [
+                "input_tokens",
+                "output_tokens",
+                "cache_read_tokens",
+                "cache_write_tokens",
+            ]
+            .iter()
+            .any(|key| value.get(*key).is_some())
+            {
+                signals.push(Signal::Observer(Observation::Request {
+                    task: task.clone(),
+                    response_id: generation.into(),
+                    usage: Usage {
+                        input: count(value.get("input_tokens"))
+                            .saturating_sub(cache_read)
+                            .saturating_sub(cache_write),
+                        output: count(value.get("output_tokens")),
+                        cache_read,
+                        cache_write,
+                        reasoning: 0,
+                    },
+                    model: value
+                        .get("model")
+                        .and_then(Value::as_str)
+                        .map(|model| observer::model_label(model, "cursor")),
+                    at: at.clone(),
+                }));
+            }
+            if let Some(model) = value.get("model").and_then(Value::as_str) {
+                signals.push(Signal::Observer(Observation::Model {
+                    task: task.clone(),
+                    model: observer::model_label(model, "cursor"),
+                }));
+            }
+            if event_type == Some("stop") {
+                let status = match value.get("status").and_then(Value::as_str) {
+                    Some("aborted") => "interrupted",
+                    Some("error") => "failed",
+                    _ => "completed",
+                };
+                signals.push(Signal::Observer(Observation::Finish {
+                    task,
+                    at: at.clone(),
+                    status: status.into(),
+                    active_guard: false,
+                }));
+            }
+        }
 
         if !matches!(
             value.get("event").and_then(Value::as_str),
@@ -204,7 +286,7 @@ mod tests {
             .iter()
             .filter_map(|signal| match signal {
                 Signal::Turn(turn) => Some(turn),
-                Signal::Event(_) => None,
+                Signal::Event(_) | Signal::Observer(_) => None,
             })
             .collect();
         assert_eq!(turns.len(), 2);
@@ -240,7 +322,7 @@ mod tests {
             record["input_tokens"] = json!(10);
             assert!(parse(record)
                 .iter()
-                .all(|signal| matches!(signal, Signal::Turn(_))));
+                .all(|signal| !matches!(signal, Signal::Event(_))));
         }
     }
 
@@ -255,7 +337,7 @@ mod tests {
             .into_iter()
             .filter_map(|signal| match signal {
                 Signal::Event(event) => Some(event),
-                Signal::Turn(_) => None,
+                Signal::Turn(_) | Signal::Observer(_) => None,
             })
             .collect();
         assert_eq!(events.len(), 3);

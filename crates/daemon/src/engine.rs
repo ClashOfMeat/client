@@ -335,6 +335,7 @@ fn collect_signals(
     for signal in provider.parse(&record, &mut cx) {
         match signal {
             Signal::Event(event) => events.push(event),
+            Signal::Observer(_) => {}
             Signal::Turn(turn) => {
                 report.activity_changed |= apply_turn(sessions, turn, now);
             }

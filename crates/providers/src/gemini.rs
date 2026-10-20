@@ -1,8 +1,8 @@
 //! Gemini CLI chat recordings, including legacy single-document sessions.
 
 use clashofmeat_core::{
-    ids, Cx, Detect, Event, EventKind, Manifest, Provider, Record, Signal, Source, SourceFormat,
-    Turn, TurnPhase,
+    ids, observer, Cx, Detect, Event, EventKind, Manifest, Observation, Provider, Record, Signal,
+    Source, SourceFormat, TaskRef, Turn, TurnPhase, Usage,
 };
 use serde_json::Value;
 use time::{
@@ -108,7 +108,7 @@ fn begin(record: &Record, cx: &mut Cx) {
     }
 }
 
-fn observe(message: &Value, cx: &Cx) -> Vec<Signal> {
+fn observe(message: &Value, cx: &Cx, record: &Record) -> Vec<Signal> {
     let Some(id) = message
         .get("id")
         .and_then(Value::as_str)
@@ -130,6 +130,24 @@ fn observe(message: &Value, cx: &Cx) -> Vec<Signal> {
         _ => None,
     };
     let mut signals = Vec::new();
+    let task_key: String = format!("{session_id}:{id}").chars().take(128).collect();
+    let context = ids::stable_id(&format!(
+        "gemini-file:{}:{}",
+        record.source, record.file_key
+    ));
+    let task = TaskRef::Active(context.clone());
+    let subagent = cx.file_state.get("subagent").and_then(Value::as_bool) == Some(true);
+    if message_type == Some("user") && !subagent {
+        signals.push(Signal::Observer(Observation::Start {
+            context,
+            task_key: task_key.clone(),
+            source_key: "collector".into(),
+            session_id: session_id.into(),
+            at: at.clone(),
+            client_version: "unknown".into(),
+            close_previous_completed: true,
+        }));
+    }
     if let Some(phase) = phase {
         signals.push(Signal::Turn(Turn {
             provider: "gemini".into(),
@@ -140,6 +158,48 @@ fn observe(message: &Value, cx: &Cx) -> Vec<Signal> {
     }
     if message_type != Some("gemini") {
         return signals;
+    }
+    if !subagent {
+        if let Some(tokens) = message
+            .get("tokens")
+            .filter(|tokens| tokens.is_object() || tokens.is_array())
+        {
+            let input = count(tokens.get("input"));
+            let cached = count(tokens.get("cached"));
+            let thoughts = count(tokens.get("thoughts"));
+            signals.push(Signal::Observer(Observation::Request {
+                task: task.clone(),
+                response_id: id.into(),
+                usage: Usage {
+                    input: input.saturating_sub(cached) + count(tokens.get("tool")),
+                    output: count(tokens.get("output")) + thoughts,
+                    cache_read: cached,
+                    cache_write: 0,
+                    reasoning: thoughts,
+                },
+                model: message
+                    .get("model")
+                    .and_then(Value::as_str)
+                    .map(|model| observer::model_label(model, "gemini")),
+                at: at.clone(),
+            }));
+        }
+        if let Some(calls) = message.get("toolCalls").and_then(Value::as_array) {
+            for call in calls {
+                if let Some(id) = call.get("id").and_then(Value::as_str) {
+                    let name = call.get("name").and_then(Value::as_str).unwrap_or("");
+                    signals.push(Signal::Observer(Observation::Tool {
+                        task: task.clone(),
+                        tool_id: id.into(),
+                        category: observer::category(name).into(),
+                        subagent: ["subagent", "delegate"]
+                            .iter()
+                            .any(|part| name.to_ascii_lowercase().contains(part)),
+                        at: at.clone(),
+                    }));
+                }
+            }
+        }
     }
     let Some(tokens) = message
         .get("tokens")
@@ -161,7 +221,6 @@ fn observe(message: &Value, cx: &Cx) -> Vec<Signal> {
         ("cache_read_tokens", cached),
         ("cache_write_tokens", 0),
     ];
-    let task_key: String = format!("{session_id}:{id}").chars().take(128).collect();
     for (key, value) in counts {
         if value > ids::MAX_OBSERVATION_VALUE {
             continue;
@@ -210,7 +269,7 @@ impl Provider for Gemini {
                         return Vec::new();
                     }
                 }
-                observe(value, cx)
+                observe(value, cx, record)
             }
             Some(SourceFormat::Json) => {
                 if let Some(session_id) = record
@@ -233,7 +292,7 @@ impl Provider for Gemini {
                     .into_iter()
                     .flatten()
                     .skip(start)
-                    .flat_map(|message| observe(message, cx))
+                    .flat_map(|message| observe(message, cx, record))
                     .collect();
                 cx.file_state
                     .insert("seen".into(), Value::from(messages.map_or(0, Vec::len)));
@@ -293,11 +352,17 @@ mod tests {
                     assert_eq!(turn.session_id, "aaaaaaaa-1111-4111-8111-111111111111");
                     Some(turn.phase.clone())
                 }
-                Signal::Event(_) => None,
+                Signal::Event(_) | Signal::Observer(_) => None,
             })
             .collect();
         assert_eq!(turns, vec![TurnPhase::Start, TurnPhase::Step]);
-        assert_eq!(signals.len(), 2);
+        assert_eq!(
+            signals
+                .iter()
+                .filter(|signal| !matches!(signal, Signal::Observer(_)))
+                .count(),
+            2
+        );
     }
 
     #[test]
@@ -321,7 +386,7 @@ mod tests {
             .iter()
             .filter_map(|signal| match signal {
                 Signal::Event(event) => Some((event.key.as_str(), event.value)),
-                Signal::Turn(_) => None,
+                Signal::Turn(_) | Signal::Observer(_) => None,
             })
             .collect();
         assert_eq!(

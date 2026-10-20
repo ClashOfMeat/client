@@ -1,7 +1,8 @@
 //! Claude desktop Cowork audit records, mapped to Claude transcript events.
 
 use clashofmeat_core::{
-    ids, Cx, Detect, Manifest, Provider, Record, Signal, Source, SourceFormat, TurnPhase,
+    ids, Cx, Detect, Manifest, Observation, Provider, Record, Signal, Source, SourceFormat,
+    TaskRef, TurnPhase,
 };
 use serde_json::{Map, Value};
 
@@ -46,17 +47,43 @@ impl Provider for ClaudeCowork {
                     .insert(SESSION_KEY.into(), Value::from(session_id));
             }
         }
-        let Some(session_id) = cx.file_state.get(SESSION_KEY).and_then(Value::as_str) else {
+        let Some(session_id) = cx
+            .file_state
+            .get(SESSION_KEY)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
             return Vec::new();
         };
 
         let record_type = value.get("type").and_then(Value::as_str);
+        if record_type == Some("system")
+            && value.get("subtype").and_then(Value::as_str) == Some("init")
+        {
+            if let Some(version) = value
+                .get("claude_code_version")
+                .and_then(Value::as_str)
+                .filter(|v| {
+                    !v.is_empty()
+                        && v.len() <= 64
+                        && v.bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b"_.+-".contains(&b))
+                })
+            {
+                cx.file_state
+                    .insert("observerVersion".into(), Value::from(version));
+                return vec![Signal::Observer(Observation::ClientVersion {
+                    task: TaskRef::Active(session_id),
+                    client_version: version.into(),
+                })];
+            }
+        }
         if !matches!(record_type, Some("user" | "assistant" | "result")) {
             return Vec::new();
         }
 
         let mut mapped = Map::new();
-        mapped.insert(SESSION_KEY.into(), Value::from(session_id));
+        mapped.insert(SESSION_KEY.into(), Value::from(session_id.as_str()));
         if let Some(timestamp) = value.get("_audit_timestamp") {
             mapped.insert("timestamp".into(), timestamp.clone());
         }
@@ -76,6 +103,9 @@ impl Provider for ClaudeCowork {
             if let Some(message) = value.get("message") {
                 mapped.insert("message".into(), message.clone());
             }
+            if let Some(version) = cx.file_state.get("observerVersion") {
+                mapped.insert("version".into(), version.clone());
+            }
             mapped.insert(
                 "isSidechain".into(),
                 Value::Bool(
@@ -93,6 +123,38 @@ impl Provider for ClaudeCowork {
             value: Value::Object(mapped),
         };
         let mut signals = ClaudeCode.parse(&mapped_record, cx);
+        if record_type == Some("result") {
+            if let Some(at) = signals.iter().find_map(|signal| match signal {
+                Signal::Turn(turn) => Some(turn.at.clone()),
+                _ => None,
+            }) {
+                signals.push(Signal::Observer(Observation::Finish {
+                    task: TaskRef::Active(session_id.clone()),
+                    at,
+                    status: if value.get("is_error").and_then(Value::as_bool) == Some(true) {
+                        "failed"
+                    } else {
+                        "completed"
+                    }
+                    .into(),
+                    active_guard: true,
+                }));
+            }
+        }
+        let source_key = record.file_key.split('/').next().unwrap_or("collector");
+        for signal in &mut signals {
+            if let Signal::Observer(Observation::Start {
+                source_key: key, ..
+            }) = signal
+            {
+                *key = if ids::is_uuid(source_key) {
+                    source_key
+                } else {
+                    "collector"
+                }
+                .into();
+            }
+        }
         // Cowork's explicit lifecycle uses prompts, assistant messages, and
         // results. Tool-result user records carry no additional Turn phase.
         if record_type == Some("user") {
@@ -139,7 +201,7 @@ mod tests {
                     assert_eq!(turn.at, "2026-10-01T12:00:00.000Z");
                     Some(turn.phase.clone())
                 }
-                Signal::Event(_) => None,
+                Signal::Event(_) | Signal::Observer(_) => None,
             })
             .collect()
     }

@@ -2,6 +2,7 @@ pub mod config_writer;
 pub mod env;
 pub mod ids;
 pub mod manifest;
+pub mod observer;
 pub mod provider;
 pub mod reader;
 pub mod signal;
@@ -17,5 +18,5 @@ pub use provider::{Cx, Provider, Record};
 pub use reader::{
     list_files, read_json, read_jsonl, FileCursor, FileEntry, Line, ReadBatch, CHUNK,
 };
-pub use signal::{Event, EventKind, Signal, Turn, TurnPhase};
+pub use signal::{Event, EventKind, Observation, Signal, TaskRef, Turn, TurnPhase, Usage};
 pub use store::{HealthRow, Store, StoreError, StoredEvent};

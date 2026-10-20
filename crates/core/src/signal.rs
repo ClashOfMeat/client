@@ -75,4 +75,70 @@ pub enum Signal {
     Event(Event),
     /// Turn activity to show.
     Turn(Turn),
+    /// Private, content-free task telemetry.
+    Observer(Observation),
+}
+
+/// A reference to a task, either by its active context or its opaque task key.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum TaskRef {
+    Active(String),
+    Key(String),
+}
+
+/// Normalized per-response token counters.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+pub struct Usage {
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+    pub reasoning: u64,
+}
+
+/// Private task observer entry points. Keys are opaque identifiers; categories are allowlisted.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum Observation {
+    Start {
+        context: String,
+        task_key: String,
+        source_key: String,
+        session_id: String,
+        at: String,
+        client_version: String,
+        close_previous_completed: bool,
+    },
+    Request {
+        task: TaskRef,
+        response_id: String,
+        usage: Usage,
+        model: Option<String>,
+        at: String,
+    },
+    Tool {
+        task: TaskRef,
+        tool_id: String,
+        category: String,
+        subagent: bool,
+        at: String,
+    },
+    Compaction {
+        task: TaskRef,
+        compaction_id: String,
+        at: String,
+    },
+    Model {
+        task: TaskRef,
+        model: String,
+    },
+    Finish {
+        task: TaskRef,
+        at: String,
+        status: String,
+        active_guard: bool,
+    },
+    ClientVersion {
+        task: TaskRef,
+        client_version: String,
+    },
 }

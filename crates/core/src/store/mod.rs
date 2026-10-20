@@ -294,6 +294,10 @@ pub struct Store {
 }
 
 impl Store {
+    /// Connection for the private task observer's normalized tables.
+    pub(crate) fn observer_connection(&mut self) -> &mut Connection {
+        &mut self.conn
+    }
     /// Opens a database, creating private parent and database paths as needed.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();

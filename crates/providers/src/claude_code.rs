@@ -1,8 +1,8 @@
 //! Claude Code transcript records.
 
 use clashofmeat_core::{
-    ids, Cx, Detect, Event, EventKind, Manifest, Provider, Record, Signal, Source, SourceFormat,
-    Turn, TurnPhase,
+    ids, observer, Cx, Detect, Event, EventKind, Manifest, Observation, Provider, Record, Signal,
+    Source, SourceFormat, TaskRef, Turn, TurnPhase, Usage,
 };
 use serde_json::Value;
 use time::{
@@ -141,6 +141,81 @@ impl Provider for ClaudeCode {
                     .as_array()
                     .is_some_and(|blocks| !blocks.is_empty() && !has_tool_result(content)));
 
+        let task = TaskRef::Active(session_id.to_owned());
+        if human {
+            let version = value
+                .get("version")
+                .and_then(Value::as_str)
+                .filter(|v| {
+                    !v.is_empty()
+                        && v.len() <= 64
+                        && v.bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b"_.+-".contains(&b))
+                })
+                .unwrap_or("unknown");
+            signals.push(Signal::Observer(Observation::Start {
+                context: session_id.into(),
+                task_key: uuid.unwrap().into(),
+                source_key: "collector".into(),
+                session_id: session_id.into(),
+                at: at.clone(),
+                client_version: version.into(),
+                close_previous_completed: true,
+            }));
+        }
+        if record_type == Some("assistant") {
+            if let (Some(id), Some(usage)) = (
+                message.get("id").and_then(Value::as_str),
+                message.get("usage"),
+            ) {
+                signals.push(Signal::Observer(Observation::Request {
+                    task: task.clone(),
+                    response_id: id.into(),
+                    usage: Usage {
+                        input: js_number(usage.get("input_tokens")),
+                        output: js_number(usage.get("output_tokens")),
+                        cache_read: js_number(usage.get("cache_read_input_tokens")),
+                        cache_write: js_number(usage.get("cache_creation_input_tokens")),
+                        reasoning: 0,
+                    },
+                    model: message
+                        .get("model")
+                        .and_then(Value::as_str)
+                        .map(|model| observer::model_label(model, "claude")),
+                    at: at.clone(),
+                }));
+            }
+            if let Some(blocks) = content.as_array() {
+                for block in blocks {
+                    if block.get("type").and_then(Value::as_str) == Some("tool_use") {
+                        if let Some(id) = block.get("id").and_then(Value::as_str) {
+                            let name = block.get("name").and_then(Value::as_str).unwrap_or("");
+                            signals.push(Signal::Observer(Observation::Tool {
+                                task: task.clone(),
+                                tool_id: id.into(),
+                                category: observer::category(name).into(),
+                                subagent: matches!(name, "Agent" | "Task")
+                                    || value.get("isSidechain").is_some_and(|v| truthy(Some(v)))
+                                        && record.file_key.ends_with("audit.jsonl"),
+                                at: at.clone(),
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+        if record_type == Some("system")
+            && value.get("subtype").and_then(Value::as_str) == Some("compact_boundary")
+        {
+            if let Some(id) = uuid {
+                signals.push(Signal::Observer(Observation::Compaction {
+                    task,
+                    compaction_id: id.into(),
+                    at: at.clone(),
+                }));
+            }
+        }
+
         let mut put = |identity: String, key: &str, amount: u64, model: Option<&str>| {
             signals.push(Signal::Event(Event {
                 identity,
@@ -273,7 +348,7 @@ mod tests {
                 assert_eq!(turn.at, "2026-10-02T12:00:00.000Z");
                 Some(turn.phase.clone())
             }
-            Signal::Event(_) => None,
+            Signal::Event(_) | Signal::Observer(_) => None,
         })
     }
 

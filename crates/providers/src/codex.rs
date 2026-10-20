@@ -1,8 +1,8 @@
 //! Codex rollout records from active and archived sessions.
 
 use clashofmeat_core::{
-    ids, Cx, Detect, Event, EventKind, Manifest, Provider, Record, Signal, Source, SourceFormat,
-    Turn, TurnPhase,
+    ids, observer, Cx, Detect, Event, EventKind, Manifest, Observation, Provider, Record, Signal,
+    Source, SourceFormat, TaskRef, Turn, TurnPhase, Usage,
 };
 use serde_json::Value;
 use time::{
@@ -144,6 +144,19 @@ impl Provider for Codex {
         };
         let kind = value.get("type").and_then(Value::as_str);
         if kind == Some("session_meta") {
+            if let Some(version) = payload
+                .get("cli_version")
+                .and_then(Value::as_str)
+                .filter(|v| {
+                    !v.is_empty()
+                        && v.len() <= 64
+                        && v.bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b"_.+-".contains(&b))
+                })
+            {
+                cx.file_state
+                    .insert("observerVersion".into(), Value::from(version));
+            }
             if let Some(id) = printable_id(payload.get("id")) {
                 cx.file_state.insert("session_id".into(), Value::from(id));
             }
@@ -158,6 +171,10 @@ impl Provider for Codex {
         }
 
         let session_id = session_id(payload, cx, record);
+        let context = context_key(record);
+        let task = printable_id(payload.get("turn_id"))
+            .map(|key| TaskRef::Key(key.into()))
+            .unwrap_or_else(|| TaskRef::Active(context.clone()));
         if kind == Some("event_msg") {
             match payload.get("type").and_then(Value::as_str) {
                 Some("task_started")
@@ -165,18 +182,108 @@ impl Provider for Codex {
                         && cx.file_state.get("subagent") != Some(&Value::Bool(true)) =>
                 {
                     let started = payload.get("started_at").and_then(iso).unwrap_or(at);
-                    return vec![turn(session_id, TurnPhase::Start, started)];
+                    return vec![
+                        turn(session_id.clone(), TurnPhase::Start, started.clone()),
+                        Signal::Observer(Observation::Start {
+                            context,
+                            task_key: printable_id(payload.get("turn_id")).unwrap().into(),
+                            source_key: "collector".into(),
+                            session_id: cx
+                                .file_state
+                                .get("session_id")
+                                .and_then(Value::as_str)
+                                .unwrap_or(&session_id)
+                                .into(),
+                            at: started.clone(),
+                            client_version: cx
+                                .file_state
+                                .get("observerVersion")
+                                .and_then(Value::as_str)
+                                .unwrap_or("unknown")
+                                .into(),
+                            close_previous_completed: false,
+                        }),
+                    ];
                 }
                 Some("task_complete") => {
                     let completed = payload.get("completed_at").and_then(iso).unwrap_or(at);
-                    return vec![turn(session_id, TurnPhase::Stop, completed)];
+                    return vec![
+                        Signal::Observer(Observation::Finish {
+                            task: TaskRef::Active(context),
+                            at: completed.clone(),
+                            status: "completed".into(),
+                            active_guard: true,
+                        }),
+                        turn(session_id, TurnPhase::Stop, completed),
+                    ];
                 }
-                Some("turn_aborted") => return vec![turn(session_id, TurnPhase::Stop, at)],
+                Some("turn_aborted") => {
+                    return vec![
+                        Signal::Observer(Observation::Finish {
+                            task: TaskRef::Active(context),
+                            at: at.clone(),
+                            status: "interrupted".into(),
+                            active_guard: true,
+                        }),
+                        turn(session_id, TurnPhase::Stop, at),
+                    ]
+                }
                 _ => {}
             }
         }
         if kind == Some("response_item") {
-            return vec![turn(session_id, TurnPhase::Step, at)];
+            let mut signals = Vec::new();
+            if matches!(
+                payload.get("type").and_then(Value::as_str),
+                Some("function_call" | "custom_tool_call")
+            ) {
+                if let Some(id) = printable_id(
+                    payload
+                        .get("call_id")
+                        .filter(|v| !v.is_null())
+                        .or_else(|| payload.get("id")),
+                ) {
+                    let name = payload.get("name").and_then(Value::as_str).unwrap_or("");
+                    signals.push(Signal::Observer(Observation::Tool {
+                        task,
+                        tool_id: id.into(),
+                        category: observer::category(name).into(),
+                        subagent: ["spawn_agent", "delegate", "subagent"]
+                            .iter()
+                            .any(|part| name.to_ascii_lowercase().contains(part)),
+                        at: at.clone(),
+                    }));
+                }
+            }
+            signals.push(turn(session_id, TurnPhase::Step, at));
+            return signals;
+        }
+        if kind == Some("turn_context") {
+            return payload
+                .get("model")
+                .and_then(Value::as_str)
+                .map(|model| {
+                    vec![Signal::Observer(Observation::Model {
+                        task,
+                        model: observer::model_label(model, "codex"),
+                    })]
+                })
+                .unwrap_or_default();
+        }
+        if kind == Some("compacted") {
+            let ordinal = value
+                .get("ordinal")
+                .filter(|v| !v.is_null())
+                .map(|v| match v {
+                    Value::String(text) => text.clone(),
+                    other => other.to_string(),
+                })
+                .unwrap_or_else(|| at.clone());
+            return vec![Signal::Observer(Observation::Compaction {
+                task,
+                compaction_id: format!("compact:{ordinal}").chars().take(128).collect(),
+                at,
+            })];
         }
         if kind != Some("token_usage_record") {
             return Vec::new();
@@ -201,6 +308,19 @@ impl Provider for Codex {
             ),
         ];
         let mut signals = Vec::with_capacity(5);
+        signals.push(Signal::Observer(Observation::Request {
+            task,
+            response_id: response_id.into(),
+            usage: Usage {
+                input: input.saturating_sub(cached),
+                output: count(usage.get("output_tokens")),
+                cache_read: cached,
+                cache_write: count(usage.get("cache_write_input_tokens")),
+                reasoning: count(usage.get("reasoning_output_tokens")),
+            },
+            model: None,
+            at: at.clone(),
+        }));
         for (key, amount) in values {
             if amount > ids::MAX_OBSERVATION_VALUE {
                 continue;
@@ -251,7 +371,7 @@ mod tests {
                     assert_eq!(turn.provider, "codex");
                     Some(turn.phase.clone())
                 }
-                Signal::Event(_) => None,
+                Signal::Event(_) | Signal::Observer(_) => None,
             })
             .collect()
     }
@@ -326,7 +446,7 @@ mod tests {
             .iter()
             .filter_map(|signal| match signal {
                 Signal::Event(event) => Some(event),
-                Signal::Turn(_) => None,
+                Signal::Turn(_) | Signal::Observer(_) => None,
             })
             .collect();
         assert_eq!(events.len(), 3);
