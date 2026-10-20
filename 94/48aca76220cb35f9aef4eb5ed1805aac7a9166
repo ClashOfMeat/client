@@ -1,0 +1,56 @@
+crates/daemon/src/wiring.rs
+  s_4db7661165a83b::t_bd8e00a21f940a 49-55,86-89,165-167
+  s_4db7661165a83b::t_2b7921476bf6c9 1-22,30-48,56-85,90-117,119-124,127-164,168-173
+  s_4db7661165a83b::t_71eb9016f52808 26-28
+  s_4db7661165a83b::t_df7212495c105a 23-25,29
+  s_4db7661165a83b::t_761d85c0a35f9c 118,125-126
+crates/cli/tests/install.rs
+  s_4db7661165a83b::t_bd8e00a21f940a 28-32,36-41,44-46,59-62,66-71,85-92,97-114,116-120,165-167,171-196,205-224,226-228,243-249
+  s_4db7661165a83b::t_6fe3cbac02f09c 1-27,33-35,42-43,47-58,63-65,72-84,93-96,115,121-131,155-164,168-170,197-204,225,229-242,250-255
+  s_4db7661165a83b::t_c17ecb779e1ddf 135-138,142-154
+  s_4db7661165a83b::t_58d1bbb894090c 132-134,139-141
+crates/daemon/tests/socket.rs
+  s_4db7661165a83b::t_1cde5a357c5924 189-194,201,206-208,215,220-223
+  s_4db7661165a83b::t_bd8e00a21f940a 195-200,202-205,209-214,216-219
+  s_4db7661165a83b::t_dc95eb44f0db9d 188
+crates/cli/Cargo.toml
+  s_4db7661165a83b::t_ff565df8570490 20-22
+crates/cli/src/main.rs
+  s_4db7661165a83b::t_25981172b920b6 3-4,37-48,109-115
+  s_4db7661165a83b::t_bd8e00a21f940a 104-108
+crates/cli/src/install.rs
+  s_4db7661165a83b::t_bd8e00a21f940a 32-41,51-54,73-76,135-143,160-164,171-175
+  s_4db7661165a83b::t_b374c2751a6c57 1-31,42-50,55-72,77-134,144-159,165-170,176-181
+crates/cli/src/migrate.rs
+  s_4db7661165a83b::t_71eb9016f52808 39-48
+  s_4db7661165a83b::t_761d85c0a35f9c 52
+  s_4db7661165a83b::t_23f4b94c0bf9fd 53,58-72,75-80
+  s_4db7661165a83b::t_ff565df8570490 1-25,31-37,49-51,54-57,73-74,81-91,97-99,103-107,116-124,128-132,136-154,158-172,185-200,203
+  s_4db7661165a83b::t_bd8e00a21f940a 26-30,92-96,100-102,108-115,125-127,133-135,155-157,173-184,201-202
+  s_4db7661165a83b::t_82990e7afd0579 38
+crates/daemon/src/lib.rs
+  s_4db7661165a83b::t_f832d59cd28382 9
+crates/providers/src/cursor.rs
+  s_4db7661165a83b::t_f832d59cd28382 28
+crates/daemon/src/run.rs
+  s_4db7661165a83b::t_bd8e00a21f940a 399-400
+  s_4db7661165a83b::t_65bd592d6f280c 22,397-398,401-407,515-519
+Cargo.lock
+  s_4db7661165a83b::t_d7261ed1211385 171-172,174
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9448aca76220cb35f9aef4eb5ed1805aac7a9166",
+  "prompts": {},
+  "sessions": {
+    "s_4db7661165a83b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159ea-ae36-7183-91c8-6a53e013d96b",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
