@@ -27,6 +27,9 @@ pub struct Event {
     pub session_id: String,
     /// ISO-8601 UTC timestamp with milliseconds.
     pub at: String,
+    /// ISO-8601 UTC time when a rate-limit reading resets, when known.
+    #[serde(default)]
+    pub resets_at: Option<String>,
     /// Model family, when known.
     pub model: Option<String>,
     /// Provider identifier, when present.

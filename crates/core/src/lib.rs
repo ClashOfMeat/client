@@ -4,6 +4,7 @@ pub mod manifest;
 pub mod provider;
 pub mod reader;
 pub mod signal;
+pub mod store;
 
 pub use env::Env;
 pub use ids::{
@@ -15,3 +16,4 @@ pub use reader::{
     list_files, read_json, read_jsonl, FileCursor, FileEntry, Line, ReadBatch, CHUNK,
 };
 pub use signal::{Event, EventKind, Signal, Turn, TurnPhase};
+pub use store::{HealthRow, Store, StoreError, StoredEvent};
