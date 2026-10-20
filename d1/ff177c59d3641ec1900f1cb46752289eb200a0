@@ -1,0 +1,19 @@
+apps/desktop/src-tauri/src/main.rs
+  s_5060944784a6a6::t_1bcbebb38afb31 37-41,55-62,68-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d1ff177c59d3641ec1900f1cb46752289eb200a0",
+  "prompts": {},
+  "sessions": {
+    "s_5060944784a6a6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15a87-739c-70f1-a763-e013a64aca88",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
