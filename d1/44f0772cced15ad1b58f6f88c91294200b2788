@@ -1,0 +1,31 @@
+crates/providers/src/claude_code.rs
+  s_fd35dd704462ee::t_be3389c8dc440b 9-10,46-54,69-87,135-137,179
+  s_fd35dd704462ee::t_4957193767f16c 8,11,41-43,59-64,100-102,113-117,140-142,166-168,177-178,180,185-190,198-201,209-211,220-229,254-259,261-264,292-295,300-306,311-317,322-335
+  s_fd35dd704462ee::t_0f701d3e323ad1 1-7,12-40,44-45,55-58,65-68,88-99,103-112,118-134,138-139,143-165,169-176,181-184,191-197,202-208,212-219,230-245
+  s_fd35dd704462ee::t_0838fd1751c45b 246-253,260,265-291,296-299,307-310,318-321,336-357
+crates/providers/src/lib.rs
+  s_fd35dd704462ee::t_0f701d3e323ad1 1-8
+crates/providers/tests/common/mod.rs
+  s_fd35dd704462ee::t_4957193767f16c 1-5,7-9,14-16,51-60,69-74,78-79,81-105,107-109
+  s_fd35dd704462ee::t_bafe2c9198818a 6,10-13,17-50,61-68,75-77,80,106,110-141
+crates/providers/tests/parity_claude_code.rs
+  s_fd35dd704462ee::t_4957193767f16c 14-18,21-24,26-27,30
+  s_fd35dd704462ee::t_bafe2c9198818a 1-13,19-20,29,31
+  s_fd35dd704462ee::t_25f7e665efbb8d 25,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d144f0772cced15ad1b58f6f88c91294200b2788",
+  "prompts": {},
+  "sessions": {
+    "s_fd35dd704462ee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159bc-f0ba-7bc3-a5f8-32f41252ea42",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
