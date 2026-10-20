@@ -1,0 +1,23 @@
+apps/desktop/ui/hero/activity.mjs
+  s_a989244a7ecf3e::t_a25afa58066eed 68
+apps/desktop/ui/hero/tests/activity.test.mjs
+  s_a989244a7ecf3e::t_9dd39f1b871acb 72-74,79-83,88-89
+  s_a989244a7ecf3e::t_a25afa58066eed 39,49,67,96,129
+  s_a989244a7ecf3e::t_6ce859e4611825 75-78,84-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8e83641c9257c4aa4f7bd353b385ff64eb156f48",
+  "prompts": {},
+  "sessions": {
+    "s_a989244a7ecf3e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15afd-e7c1-7741-a417-1cc77ce7a2fb",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
