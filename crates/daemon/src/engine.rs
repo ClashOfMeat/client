@@ -1,0 +1,428 @@
+//! Turns provider source files into durable observations and live activity.
+
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use anyhow::Result;
+use clashofmeat_core::{
+    reader, Cx, Env, Event, FileCursor, FileEntry, Provider, Record, Signal, SourceFormat, Store,
+    Turn, TurnPhase,
+};
+use serde::{Serialize, Serializer};
+use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
+
+pub struct Engine {
+    env: Env,
+    providers: Vec<Box<dyn Provider>>,
+    sessions: HashMap<(String, String), SessionActivity>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
+pub struct ScanReport {
+    pub files_read: usize,
+    pub records: u64,
+    pub events_saved: usize,
+    pub activity_changed: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionActivity {
+    pub provider: String,
+    pub session_id: String,
+    pub phase: TurnPhase,
+    #[serde(serialize_with = "serialize_time")]
+    pub last_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Activity {
+    pub busy: bool,
+    pub sessions: Vec<SessionView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionView {
+    pub provider: String,
+    pub session_id: String,
+    pub state: SessionState,
+    #[serde(serialize_with = "serialize_time")]
+    pub last_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionState {
+    Busy,
+    Done,
+    Idle,
+}
+
+fn serialize_time<S: Serializer>(
+    at: &OffsetDateTime,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    serializer.serialize_str(&at.format(&Rfc3339).map_err(serde::ser::Error::custom)?)
+}
+
+impl Engine {
+    pub fn new(env: Env, providers: Vec<Box<dyn Provider>>) -> Self {
+        Self {
+            env,
+            providers,
+            sessions: HashMap::new(),
+        }
+    }
+
+    pub fn scan(
+        &mut self,
+        store: &mut Store,
+        changed: Option<&[PathBuf]>,
+        now: OffsetDateTime,
+    ) -> Result<ScanReport> {
+        let paired_at = store.meta("paired_at")?;
+        let since_ms = paired_at
+            .as_deref()
+            .and_then(|at| OffsetDateTime::parse(at, &Rfc3339).ok())
+            .unwrap_or(now - Duration::hours(1))
+            .unix_timestamp_nanos()
+            / 1_000_000;
+        let since_ms = i64::try_from(since_ms).unwrap_or(i64::MIN);
+        let off: HashSet<String> = store
+            .meta("providers_off")?
+            .and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        let changed: Option<HashSet<PathBuf>> =
+            changed.map(|paths| paths.iter().map(|path| canonical_or_self(path)).collect());
+        let now_iso = now.format(&Rfc3339)?;
+        let mut report = ScanReport::default();
+        self.sessions
+            .retain(|_, session| now - session.last_at <= Duration::minutes(30));
+
+        for provider in &self.providers {
+            let manifest = provider.manifest();
+            if off.contains(manifest.id) {
+                continue;
+            }
+            for (source_index, source) in manifest.sources.iter().enumerate() {
+                let root = self.env.resolve(source.root);
+                if !root.is_dir() {
+                    continue;
+                }
+                // A file reported by the watcher may have an old mtime (for example, an
+                // atomic rename). Match it against the source glob without the since gate.
+                let files = reader::list_files(
+                    &root,
+                    source.glob,
+                    4,
+                    changed.as_ref().map_or(Some(since_ms), |_| None),
+                );
+                for file in files {
+                    if changed
+                        .as_ref()
+                        .is_some_and(|paths| !paths.contains(&canonical_or_self(&file.path)))
+                    {
+                        continue;
+                    }
+                    let file_key = file
+                        .path
+                        .strip_prefix(&root)?
+                        .to_string_lossy()
+                        .into_owned();
+                    let mut cursor = store
+                        .cursor(manifest.id, source_index, &file_key)?
+                        .unwrap_or_default();
+                    if cursor_complete(&cursor, &file, source.format) {
+                        continue;
+                    }
+                    report.files_read += 1;
+                    let mut counts = FileCounts::default();
+                    let read_result = scan_file(
+                        provider.as_ref(),
+                        source_index,
+                        &file_key,
+                        &file.path,
+                        source.format,
+                        &mut cursor,
+                        &mut self.sessions,
+                        store,
+                        paired_at.as_deref(),
+                        now,
+                        &mut report,
+                        &mut counts,
+                    );
+                    if read_result.is_err() {
+                        counts.errors += 1;
+                    }
+                    report.records += counts.records;
+                    store.record_health(
+                        manifest.id,
+                        counts.records,
+                        counts.malformed,
+                        counts.oversized,
+                        counts.errors,
+                        Some(&now_iso),
+                    )?;
+                    // Reader I/O is file-local; store failures still abort the scan.
+                    if let Err(error) = read_result {
+                        if !error.is::<std::io::Error>() {
+                            return Err(error);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(report)
+    }
+
+    pub fn activity(&self, now: OffsetDateTime) -> Activity {
+        let mut sessions: Vec<_> = self
+            .sessions
+            .values()
+            .filter_map(|session| {
+                let age = now - session.last_at;
+                if age > Duration::minutes(30) {
+                    return None;
+                }
+                let state = match session.phase {
+                    TurnPhase::Start | TurnPhase::Step if age <= Duration::seconds(120) => {
+                        SessionState::Busy
+                    }
+                    TurnPhase::Stop if age <= Duration::seconds(10) => SessionState::Done,
+                    _ => SessionState::Idle,
+                };
+                Some(SessionView {
+                    provider: session.provider.clone(),
+                    session_id: session.session_id.clone(),
+                    state,
+                    last_at: session.last_at,
+                })
+            })
+            .collect();
+        sessions.sort_by(|a, b| (&a.provider, &a.session_id).cmp(&(&b.provider, &b.session_id)));
+        let busy = sessions
+            .iter()
+            .any(|session| session.state == SessionState::Busy);
+        Activity { busy, sessions }
+    }
+}
+
+#[derive(Default)]
+struct FileCounts {
+    records: u64,
+    malformed: u64,
+    oversized: u64,
+    errors: u64,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn scan_file(
+    provider: &dyn Provider,
+    source_index: usize,
+    file_key: &str,
+    path: &Path,
+    format: SourceFormat,
+    cursor: &mut FileCursor,
+    sessions: &mut HashMap<(String, String), SessionActivity>,
+    store: &mut Store,
+    paired_at: Option<&str>,
+    now: OffsetDateTime,
+    report: &mut ScanReport,
+    counts: &mut FileCounts,
+) -> Result<()> {
+    match format {
+        SourceFormat::Jsonl | SourceFormat::Spool => loop {
+            let before = cursor.offset;
+            let batch = reader::read_jsonl(path, cursor)?;
+            counts.records += batch.lines.len() as u64;
+            counts.malformed += u64::from(batch.malformed);
+            counts.oversized += u64::from(batch.oversized);
+            let mut events = Vec::new();
+            for line in batch.lines {
+                collect_signals(
+                    provider,
+                    source_index,
+                    file_key,
+                    line.offset,
+                    line.value,
+                    cursor,
+                    sessions,
+                    now,
+                    report,
+                    &mut events,
+                );
+            }
+            save_pass(
+                provider,
+                store,
+                cursor,
+                source_index,
+                file_key,
+                paired_at,
+                &events,
+                report,
+            )?;
+            if !batch.more || cursor.offset == before {
+                break;
+            }
+        },
+        SourceFormat::Json => {
+            // read_json checks length and mtime, so an atomic replacement with the
+            // same length and timestamp needs its old length cleared first.
+            let metadata = fs::metadata(path)?;
+            if cursor.inode != file_inode(&metadata) {
+                cursor.len = 0;
+            }
+            if let Some(value) = reader::read_json(path, cursor)? {
+                counts.records += 1;
+                let mut events = Vec::new();
+                collect_signals(
+                    provider,
+                    source_index,
+                    file_key,
+                    0,
+                    value,
+                    cursor,
+                    sessions,
+                    now,
+                    report,
+                    &mut events,
+                );
+                cursor.offset = cursor.len;
+                save_pass(
+                    provider,
+                    store,
+                    cursor,
+                    source_index,
+                    file_key,
+                    paired_at,
+                    &events,
+                    report,
+                )?;
+            } else {
+                if cursor.len > 32 * 1024 * 1024 {
+                    counts.oversized += 1;
+                } else {
+                    counts.malformed += 1;
+                }
+                cursor.offset = cursor.len;
+                store.put_cursor(provider.manifest().id, source_index, file_key, cursor)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_signals(
+    provider: &dyn Provider,
+    source_index: usize,
+    file_key: &str,
+    offset: u64,
+    value: serde_json::Value,
+    cursor: &mut FileCursor,
+    sessions: &mut HashMap<(String, String), SessionActivity>,
+    now: OffsetDateTime,
+    report: &mut ScanReport,
+    events: &mut Vec<Event>,
+) {
+    let record = Record {
+        source: source_index,
+        file_key: file_key.to_owned(),
+        offset,
+        value,
+    };
+    let mut cx = Cx {
+        file_state: &mut cursor.state,
+        now,
+    };
+    for signal in provider.parse(&record, &mut cx) {
+        match signal {
+            Signal::Event(event) => events.push(event),
+            Signal::Turn(turn) => {
+                report.activity_changed |= apply_turn(sessions, turn, now);
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn save_pass(
+    provider: &dyn Provider,
+    store: &mut Store,
+    cursor: &FileCursor,
+    source_index: usize,
+    file_key: &str,
+    paired_at: Option<&str>,
+    events: &[Event],
+    report: &mut ScanReport,
+) -> Result<()> {
+    if let Some(paired_at) = paired_at {
+        report.events_saved +=
+            store.save_events(provider.manifest().id, events, Some(paired_at))?;
+    }
+    store.put_cursor(provider.manifest().id, source_index, file_key, cursor)?;
+    Ok(())
+}
+
+fn apply_turn(
+    sessions: &mut HashMap<(String, String), SessionActivity>,
+    turn: Turn,
+    now: OffsetDateTime,
+) -> bool {
+    let Ok(at) = OffsetDateTime::parse(&turn.at, &Rfc3339) else {
+        return false;
+    };
+    if at < now - Duration::minutes(10) {
+        return false;
+    }
+    let key = (turn.provider.clone(), turn.session_id.clone());
+    if sessions
+        .get(&key)
+        .is_some_and(|session| at < session.last_at)
+    {
+        return false;
+    }
+    let changed = sessions
+        .get(&key)
+        .is_none_or(|session| session.last_at != at || session.phase != turn.phase);
+    sessions.insert(
+        key,
+        SessionActivity {
+            provider: turn.provider,
+            session_id: turn.session_id,
+            phase: turn.phase,
+            last_at: at,
+        },
+    );
+    changed
+}
+
+fn canonical_or_self(path: &Path) -> PathBuf {
+    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn cursor_complete(cursor: &FileCursor, file: &FileEntry, format: SourceFormat) -> bool {
+    let Ok(metadata) = fs::metadata(&file.path) else {
+        return false;
+    };
+    cursor.inode == file_inode(&metadata)
+        && cursor.len == file.len
+        && cursor.offset == file.len
+        && (format != SourceFormat::Json || cursor.mtime_ms == file.mtime_ms)
+}
+
+fn file_inode(metadata: &fs::Metadata) -> u64 {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        metadata.ino()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = metadata;
+        0
+    }
+}
