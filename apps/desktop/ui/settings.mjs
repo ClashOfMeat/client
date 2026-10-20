@@ -4,7 +4,7 @@ const { invoke } = window.__TAURI__.core
 const { listen } = window.__TAURI__.event
 const $ = id => document.getElementById(id)
 let daemon = { connected: false, status: null, snapshot: null, heartbeat: null }
-let hero = { show: true, screen: 'main' }
+let hero = { show: true, screen: 'main', still: false }
 let displays = []
 let device = 'This Mac'
 let updater = {}
@@ -41,6 +41,7 @@ function render() {
   $('today-total').hidden = view.totalTokens === null
   $('today-total').textContent = view.totalTokens === null ? '' : `today ${view.totalTokens} tokens`
   $('show-hero').checked = hero.show
+  $('stay-still').checked = hero.still
   const select = $('screen')
   select.querySelectorAll('option[data-display]').forEach(option => option.remove())
   for (const display of displays) {
@@ -115,11 +116,15 @@ $('connect').addEventListener('click', async () => {
   } catch (reason) { error(reason) }
 })
 $('show-hero').addEventListener('change', async event => {
-  try { hero = await invoke('set_hero_settings', { show: event.target.checked, screen: hero.screen }) }
+  try { hero = await invoke('set_hero_settings', { show: event.target.checked, screen: hero.screen, still: hero.still }) }
+  catch (reason) { error(reason); render() }
+})
+$('stay-still').addEventListener('change', async event => {
+  try { hero = await invoke('set_hero_settings', { show: hero.show, screen: hero.screen, still: event.target.checked }) }
   catch (reason) { error(reason); render() }
 })
 $('screen').addEventListener('change', async event => {
-  try { hero = await invoke('set_hero_settings', { show: hero.show, screen: event.target.value }) }
+  try { hero = await invoke('set_hero_settings', { show: hero.show, screen: event.target.value, still: hero.still }) }
   catch (reason) { error(reason); render() }
 })
 

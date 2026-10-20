@@ -11,6 +11,8 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 pub struct HeroSettings {
     pub show: bool,
     pub screen: String,
+    #[serde(default)]
+    pub still: bool,
 }
 
 impl Default for HeroSettings {
@@ -18,6 +20,7 @@ impl Default for HeroSettings {
         Self {
             show: true,
             screen: "main".into(),
+            still: false,
         }
     }
 }
@@ -130,8 +133,9 @@ pub fn set_hero_settings(
     app: tauri::AppHandle,
     show: bool,
     screen: String,
+    still: Option<bool>,
 ) -> Result<HeroSettings, String> {
-    set(&app, HeroSettings { show, screen })
+    set(&app, HeroSettings { show, screen, still: still.unwrap_or_else(|| current(&app).still) })
 }
 
 #[tauri::command]

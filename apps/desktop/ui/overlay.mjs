@@ -1,6 +1,7 @@
 import { heroActivity } from './hero/activity.mjs'
 import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
 import { xpGain, bubbleFrame, levelUpFrame, visitPose } from './hero/effects.mjs'
+import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit } from './hero/validate.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
 
@@ -11,11 +12,13 @@ const canvas = document.getElementById('hero')
 const ctx = canvas.getContext('2d')
 const stats = document.getElementById('stats')
 const menu = document.getElementById('menu')
+const emotes = document.getElementById('emotes')
+const stillButton = document.getElementById('still')
 const activity = heroActivity()
 const images = new Map()
 let workArea, animation, character, progression, player, sessions = []
 let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
-let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false
+let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = false
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
 let lastActivityAt = Date.now()
@@ -82,13 +85,40 @@ function updateStats() {
   document.getElementById('providers').textContent = active.length ? active.join(' · ') : 'No active providers'
 }
 
+function updateEmotes() {
+  emotes.replaceChildren()
+  for (const name of ['wave', 'laugh', 'victory', 'kiss', 'angry']) {
+    if (!animation?.clips[name]) continue
+    const button = document.createElement('button')
+    button.textContent = name[0].toUpperCase() + name.slice(1)
+    button.addEventListener('click', () => {
+      statsOpen = false
+      activity.emote(name, Date.now(), animation.clips[name].durations.reduce((sum, ms) => sum + ms, 0))
+      wake()
+    })
+    emotes.append(button)
+  }
+}
+
+function setStayStill(next) {
+  if (next && !stayStill && workArea) {
+    const now = Date.now()
+    activity.drag(activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: true }).x, now)
+  }
+  stayStill = next
+  stillButton.textContent = stayStill ? 'Walk around' : 'Stay in place'
+  wake()
+}
+
 async function setHero(data, heartbeat = false) {
   const now = Date.now()
   const candidate = validateCharacter(data?.character)
   const nextAnimation = validateAnimation(data?.animation ?? candidate?.animation)
   const previous = character
+  const previousAnimation = animation
   character = candidate
   animation = nextAnimation
+  if (animation !== previousAnimation) updateEmotes()
   progression = data?.progression ?? null
   player = data?.player ?? null
   aura = validateLevelUp(data?.levelUp ?? data?.level_up)
@@ -131,10 +161,8 @@ function deadline(now, pose) {
   const delays = []
   const clip = frameDelay(animation, pose.state, pose.elapsed)
   if (Number.isFinite(clip)) delays.push(clip)
+  if (Number.isFinite(pose.until)) delays.push(pose.until)
   if (pose.state === 'walk' && !paused) delays.push(83)
-  if (pose.state === 'talk') delays.push(Math.max(0, 1500 - pose.elapsed))
-  if (pose.state === 'idle') delays.push(Math.max(0, lastActivityAt + 20000 - now))
-  if (pose.state === 'sit') delays.push(Math.max(0, lastActivityAt + 90000 - now))
   if (gained && bubbleFrame(gained, now).visible) delays.push(83, Math.max(0, gained.startedAt + 1800 - now))
   if (aura && now - auraStarted < aura.durationMs) delays.push(83, aura.durationMs - (now - auraStarted))
   if (visitor && now - visitorStarted < 8000) delays.push(83, 8000 - (now - visitorStarted))
@@ -145,7 +173,7 @@ async function draw() {
   timer = undefined
   if (!character || !animation || !workArea || hidden || paused) return
   const now = Date.now()
-  const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - 128) })
+  const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: stayStill || statsOpen || menuOpen })
   const expanded = statsOpen || menuOpen || Boolean(visitor && now - visitorStarted < 8000)
   const nextRect = windowRect(pose.x, { workArea, bubble: expanded })
   const changed = !lastPlaced || Math.abs(nextRect.x - lastPlaced.x) >= 1 || nextRect.y !== lastPlaced.y || nextRect.width !== lastPlaced.width || nextRect.height !== lastPlaced.height
@@ -178,21 +206,7 @@ async function draw() {
     drawImage(aura.frames[levelUpFrame(aura, now - auraStarted)], rect.spriteX, rect.spriteY, 128)
   }
   if (gained) {
-    const bubble = bubbleFrame(gained, now)
-    if (bubble.visible) {
-      ctx.save()
-      ctx.globalAlpha = bubble.opacity
-      ctx.fillStyle = '#fff3a3'
-      ctx.strokeStyle = '#352641'
-      ctx.lineWidth = 3
-      ctx.font = 'bold 14px monospace'
-      const label = `+${formatTokens(gained.amount)} XP`
-      const x = rect.spriteX + 64 - ctx.measureText(label).width / 2
-      const y = Math.max(16, rect.spriteY + 10 + bubble.dy)
-      ctx.strokeText(label, x, y)
-      ctx.fillText(label, x, y)
-      ctx.restore()
-    }
+    drawXpText(ctx, xpTextFrame(gained.amount, now - gained.startedAt, { centerX: rect.spriteX + 64, areaHeight: rect.spriteY + 16, scale: 2, maxWidth: rect.width }))
   }
   stats.hidden = !statsOpen || menuOpen
   menu.hidden = !menuOpen
@@ -244,6 +258,13 @@ document.getElementById('pause').addEventListener('click', async () => {
   await nativeWindow.hide()
   visible = false
 })
+stillButton.addEventListener('click', async () => {
+  menuOpen = false
+  const next = !stayStill
+  setStayStill(next)
+  try { await invoke('set_hero_settings', { show: true, screen, still: next }) }
+  catch (error) { console.error('hero settings:', error); setStayStill(!next) }
+})
 document.getElementById('quit').addEventListener('click', async () => {
   hidden = true
   menuOpen = false
@@ -283,11 +304,13 @@ await listen('daemon', ({ payload }) => {
 })
 const initial = await invoke('desktop_state')
 screen = initial.hero?.screen ?? 'main'
+setStayStill(initial.hero?.still === true)
 setPaused(initial.hero?.show === false)
 const snapshot = initial.daemon?.snapshot
 if (snapshot) normaliseActivity(snapshot.activity)
 if (snapshot) void setHero(snapshot.hero)
 await listen('hero-settings', ({ payload }) => {
+  setStayStill(payload?.still === true)
   const nextScreen = payload?.screen ?? 'main'
   if (screen !== nextScreen) { screen = nextScreen; workArea = undefined; lastPlaced = undefined; void invoke('hero_geometry', { screen }).then(value => { workArea = value.work_area; wake() }) }
   setPaused(payload?.show === false)
