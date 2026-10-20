@@ -1,0 +1,22 @@
+apps/desktop/ui/hero/tests/xp-text.test.mjs
+  s_6f24f853b0d83a::t_a3eca4fa23f1b8 10,30
+  s_6f24f853b0d83a::t_b938d819527361 1-9,11-29,31-58
+apps/desktop/ui/hero/xp-text.mjs
+  s_6f24f853b0d83a::t_b938d819527361 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ccc7a4e6e3308a9ea57add457893db91955a7844",
+  "prompts": {},
+  "sessions": {
+    "s_6f24f853b0d83a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15a27-9965-7df1-817b-b284f5a1e6c2",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
