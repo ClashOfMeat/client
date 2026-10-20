@@ -108,6 +108,37 @@ pub fn run_fixture(provider: &dyn Provider, fixture: &str, oversized_file: &str)
                         break;
                     }
                 },
+                SourceFormat::Json => {
+                    if let Some(value) =
+                        clashofmeat_core::reader::read_json(&file.path, &mut cursor).unwrap()
+                    {
+                        let record = Record {
+                            source: source_index,
+                            file_key: file_key.clone(),
+                            offset: 0,
+                            value,
+                        };
+                        let mut cx = Cx {
+                            file_state: &mut cursor.state,
+                            now,
+                        };
+                        let events: Vec<_> = provider
+                            .parse(&record, &mut cx)
+                            .into_iter()
+                            .filter_map(|signal| match signal {
+                                Signal::Event(event) => Some(event),
+                                Signal::Turn(_) => None,
+                            })
+                            .collect();
+                        store
+                            .save_events(
+                                provider.manifest().id,
+                                &events,
+                                Some("2000-01-01T00:00:00.000Z"),
+                            )
+                            .unwrap();
+                    }
+                }
                 other => panic!("unsupported fixture source format: {other:?}"),
             }
         }
