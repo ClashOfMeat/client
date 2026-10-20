@@ -48,9 +48,9 @@ export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
     }
   }
 
-  function startStroll(at) {
+  function startStroll(at, mayTurn = true) {
     strollAt = Infinity
-    if (random() < 0.25) {
+    if (mayTurn && random() < 0.25) {
       facing = facing === 'left' ? 'right' : 'left'
       schedule(at)
       return
@@ -183,6 +183,15 @@ export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
       lastActivity = clock
       talkStarted = null
       setState(manual ?? 'idle')
+    },
+    // Starts a real stroll at once, even between agent turns, so "Start walking" shows its effect.
+    strollNow(at) {
+      advance(at)
+      finishEmote()
+      if (target !== null || emoteUntil !== null) return
+      manual = undefined
+      lastActivity = clock
+      startStroll(clock, false)
     },
     emote(pose, at, durationMs) {
       advance(at)

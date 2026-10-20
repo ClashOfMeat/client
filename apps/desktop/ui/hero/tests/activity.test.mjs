@@ -168,3 +168,14 @@ test('an initial Done report does not invent a completed turn', () => {
   assert.equal(hero.snapshot(100, { width: 10, canMirror: false }).x, 0)
   assert.equal(hero.snapshot(100, { width: 0 }).x, 0)
 })
+
+test('strollNow walks at once, even with no agent working', () => {
+  const values = [0.9, 0.1]
+  const hero = heroActivity(0, { random: () => values.shift() ?? 0.5 })
+  hero.snapshot(0, { width: 300 })
+  hero.strollNow(1000)
+  const pose = hero.snapshot(1000, { width: 300 })
+  assert.equal(pose.state, 'walk')
+  assert.equal(pose.facing, 'right')
+  assert(hero.snapshot(3000, { width: 300 }).x > 0)
+})
