@@ -1,0 +1,25 @@
+crates/providers/tests/parity_codex.rs
+  s_00ee52a1ac0ee3::t_d4ebb9200d4024 1-31
+crates/providers/src/codex.rs
+  s_00ee52a1ac0ee3::t_d59fc0679d311e 112
+  s_00ee52a1ac0ee3::t_ebbc0f78c5269e 155-156,263-266,268-270,272-275,277-304,310-313,321-331,333-340
+  s_00ee52a1ac0ee3::t_934f783a00310f 1,3-11,19-21,23-34,38-97,108-110,113-127,133-153,157-185,189-262,267,271,276,305-309,314-320,332
+  s_00ee52a1ac0ee3::t_1d27d0b8290a6c 99-107,111,154,186-188,341
+  s_00ee52a1ac0ee3::t_58eb19c0752469 98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "878fbec27c1943ebdcd43effc9b1b22fa84f9705",
+  "prompts": {},
+  "sessions": {
+    "s_00ee52a1ac0ee3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159c2-5551-7d10-abc2-cab3a3623f42",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
