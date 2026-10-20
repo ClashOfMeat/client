@@ -34,6 +34,11 @@ fn main() {
             tray::create(handle)?;
             tray::set_update_ready(handle, false);
             updater::start(handle);
+            let mut config = settings::current(handle);
+            if !config.show {
+                config.show = true;
+                settings::set(handle, config).map_err(std::io::Error::other)?;
+            }
             let updater_handle = handle.clone();
             handle.listen("daemon", move |event| {
                 if let Ok(message) = serde_json::from_str::<serde_json::Value>(event.payload()) {
@@ -47,15 +52,28 @@ fn main() {
                 let action = serde_json::from_str::<serde_json::Value>(event.payload())
                     .ok()
                     .and_then(|value| value["action"].as_str().map(str::to_owned));
-                if matches!(action.as_deref(), Some("pause" | "quit")) {
-                    let mut config = settings::current(&control);
-                    config.show = false;
-                    let _ = settings::set(&control, config);
+                match action.as_deref() {
+                    Some("pause") => {
+                        let mut config = settings::current(&control);
+                        config.show = false;
+                        let _ = settings::set(&control, config);
+                    }
+                    Some("quit") => control.exit(0),
+                    _ => {}
                 }
             });
             overlay::create(handle)?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("failed to run Clash of Meat desktop app");
+        .build(tauri::generate_context!())
+        .expect("failed to run Clash of Meat desktop app")
+        .run(|app, event| {
+            if let tauri::RunEvent::Reopen { .. } = event {
+                let mut config = settings::current(app);
+                if !config.show {
+                    config.show = true;
+                    let _ = settings::set(app, config);
+                }
+            }
+        });
 }
