@@ -2,6 +2,7 @@ pub mod env;
 pub mod ids;
 pub mod manifest;
 pub mod provider;
+pub mod reader;
 pub mod signal;
 
 pub use env::Env;
@@ -10,4 +11,7 @@ pub use ids::{
 };
 pub use manifest::{Detect, Manifest, Source, SourceFormat};
 pub use provider::{Cx, Provider, Record};
+pub use reader::{
+    list_files, read_json, read_jsonl, FileCursor, FileEntry, Line, ReadBatch, CHUNK,
+};
 pub use signal::{Event, EventKind, Signal, Turn, TurnPhase};
