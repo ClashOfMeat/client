@@ -1,0 +1,41 @@
+crates/core/src/manifest.rs
+  s_7f3e7cb9b74574::t_8ba6f88b592c35 1-47
+crates/core/src/provider.rs
+  s_7f3e7cb9b74574::t_8ba6f88b592c35 1-39
+crates/core/src/signal.rs
+  s_7f3e7cb9b74574::t_8ba6f88b592c35 1-75
+crates/core/src/env.rs
+  s_7f3e7cb9b74574::t_ee8f6c79e8db66 1-64,69-99
+  s_7f3e7cb9b74574::t_5ad54f86368269 65-68
+crates/core/src/lib.rs
+  s_81f16f691420fe::t_7bd2398ca581bf 6
+  s_7f3e7cb9b74574::t_5ad54f86368269 8-10
+  s_7f3e7cb9b74574::t_61673eb0d83b3c 1-5,7,11-13
+crates/core/src/ids.rs
+  s_7f3e7cb9b74574::t_5ad54f86368269 76-87,98-102,104-113,115-119,126-135,137-146,148-152
+  s_7f3e7cb9b74574::t_0c79639c29f94b 1-75,88-97,103,114,120-125,136,147,153-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c80fc06fcf9d80314d8ff45fd316ada00bdd1ad",
+  "prompts": {},
+  "sessions": {
+    "s_7f3e7cb9b74574": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15987-8822-7fb1-9e69-8ae02a19521d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    },
+    "s_81f16f691420fe": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15984-b187-7470-811c-7a2ac0f242f4",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
