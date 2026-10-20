@@ -1,0 +1,25 @@
+install/install.sh
+  s_a319110f3ce555::t_00c1f499aabc52 1-90,92-129
+  s_a319110f3ce555::t_022f0a4a15ec70 91
+install/tests/install.test.mjs
+  s_a319110f3ce555::t_4ff2fe407fa6fc 1-149
+install/README.md
+  s_a319110f3ce555::t_cc37c40b17d479 30
+  s_a319110f3ce555::t_260c755ce733e7 1-29,31-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cfdd51525d9f317a4049b66eefc7d114449dd699",
+  "prompts": {},
+  "sessions": {
+    "s_a319110f3ce555": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159ca-1051-7262-8f83-f2a9c48defb6",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
