@@ -5,6 +5,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use clashofmeat_core::{Env, Event, EventKind, Store};
+use clashofmeat_daemon::config;
 use clashofmeat_daemon::config::store_path;
 use clashofmeat_daemon::run::{self, RunOptions};
 use serde_json::{json, Value};
@@ -26,6 +27,36 @@ fn start(home: &Path) -> run::DaemonHandle {
         version: "test".into(),
     })
     .unwrap()
+}
+
+#[test]
+fn updater_config_uses_app_url_and_installation_token() {
+    let dir = tempdir().unwrap();
+    let env = Env::for_home(dir.path());
+    let handle = start(dir.path());
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    let empty = request(&mut stream, &json!({"id":1,"method":"updater_config"}));
+    assert!(empty["result"]["endpoint"].is_null());
+    assert!(empty["result"]["authorization"].is_null());
+    config::update_config(&env, |config| {
+        config.app_url = Some("https://clashofmeat.app/".into())
+    })
+    .unwrap();
+    let unpaired = request(&mut stream, &json!({"id":2,"method":"updater_config"}));
+    assert_eq!(unpaired["result"]["endpoint"], "https://clashofmeat.app/api/clients/desktop/update?target={{target}}&arch={{arch}}&current={{current_version}}");
+    assert!(unpaired["result"]["authorization"].is_null());
+    // The daemon owns its store connection, so set the token before a fresh start.
+    handle.stop().unwrap();
+    let mut store = Store::open(store_path(&env)).unwrap();
+    store
+        .set_meta("installation.token", "secret-token")
+        .unwrap();
+    drop(store);
+    let handle = start(dir.path());
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    let paired = request(&mut stream, &json!({"id":3,"method":"updater_config"}));
+    assert_eq!(paired["result"]["authorization"], "Bearer secret-token");
+    handle.stop().unwrap();
 }
 
 fn token_event(identity: &str, provider: &str, key: &str, value: u64, at: OffsetDateTime) -> Event {

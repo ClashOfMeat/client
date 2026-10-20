@@ -350,6 +350,21 @@ fn handle_request(
     } = request;
     let result = match method.as_str() {
         "status" => status(opts, store, &params),
+        "updater_config" => {
+            let endpoint = config::read_config(&opts.env)
+                .map_err(internal)
+                .map(|config| {
+                    config.app_url.map(|url| format!(
+                        "{}/api/clients/desktop/update?target={{{{target}}}}&arch={{{{arch}}}}&current={{{{current_version}}}}",
+                        url.trim_end_matches('/')
+                    ))
+                });
+            endpoint.and_then(|endpoint| {
+                store.meta("installation.token").map_err(internal).map(|token| {
+                    json!({"endpoint": endpoint, "authorization": token.map(|token| format!("Bearer {token}"))})
+                })
+            })
+        }
         "snapshot" => Ok(json!({"activity":activity,"hero":cached})),
         "subscribe" => {
             if let Some(subscriber) = subscriber {

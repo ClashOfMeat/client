@@ -31,7 +31,25 @@ export function providerView(provider, busy = new Set(), showTokens = false) {
     tokens: showTokens && Number.isFinite(tokens) ? formatTokens(tokens) : null }
 }
 
-export function settingsView(status, snapshot, heartbeat, { connected = true, now = Date.now() } = {}) {
+export function updateView(update = {}, daemonBlocked = false) {
+  const phase = update.phase ?? 'up to date'
+  const current = update.current ?? '0.1.0'
+  const available = update.available
+  const blocked = Boolean(update.blocked || daemonBlocked)
+  const ready = phase === 'ready'
+  const failed = phase === 'failed'
+  let line = `v${current} · up to date`
+  if (phase === 'checking') line = `v${current} · checking…`
+  if (phase === 'downloading') line = `v${current} · downloading ${available ?? 'update'}…`
+  if (ready) line = `v${current} · ${update.security ? '⚠ ' : ''}${available ?? 'update'} ready${update.security ? ' (security fix)' : ''}`
+  if (failed) line = `v${current} · update failed`
+  if (phase === 'installing') line = `v${current} · installing update…`
+  return { line, blocked, ready, failed, security: ready && Boolean(update.security),
+    action: ready ? 'Restart' : failed ? 'Retry' : null,
+    error: failed ? update.error ?? 'Could not update. Try again.' : null }
+}
+
+export function settingsView(status, snapshot, heartbeat, { connected = true, now = Date.now(), updater = {} } = {}) {
   const paired = connected && status?.paired === true
   const providers = Array.isArray(status?.providers) ? status.providers : []
   const showTokens = providers.some(provider => Number.isFinite(provider.today_tokens ?? provider.todayTokens))
@@ -45,8 +63,7 @@ export function settingsView(status, snapshot, heartbeat, { connected = true, no
     providers: providers.map(provider => providerView(provider, busyProviders(snapshot), showTokens)),
     showTokens,
     totalTokens: Number.isFinite(status?.today_tokens) ? formatTokens(status.today_tokens) : null,
-    version: status?.version ?? '0.1.0',
-    update: status?.blocked ? 'update required' : 'up to date',
+    update: updateView(updater, status?.blocked),
     hero: heartbeat ?? snapshot?.hero ?? null,
   }
 }

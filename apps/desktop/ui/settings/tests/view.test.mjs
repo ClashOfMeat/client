@@ -1,6 +1,22 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { relativeSyncTime, providerView, settingsView } from '../view.mjs'
+import { relativeSyncTime, providerView, settingsView, updateView } from '../view.mjs'
+
+test('update view covers optional, security, failure, and blocked states', () => {
+  const base = { current: '0.1.0', available: '0.2.0' }
+  assert.equal(updateView(base).line, 'v0.1.0 · up to date')
+  assert.equal(updateView({ ...base, phase: 'checking' }).line, 'v0.1.0 · checking…')
+  assert.equal(updateView({ ...base, phase: 'downloading' }).line, 'v0.1.0 · downloading 0.2.0…')
+  assert.deepEqual(updateView({ ...base, phase: 'ready' }).action, 'Restart')
+  const security = updateView({ ...base, phase: 'ready', security: true })
+  assert.equal(security.line, 'v0.1.0 · ⚠ 0.2.0 ready (security fix)')
+  assert.equal(security.security, true)
+  const failed = updateView({ ...base, phase: 'failed', error: 'offline', blocked: true })
+  assert.equal(failed.action, 'Retry')
+  assert.equal(failed.error, 'offline')
+  assert.equal(failed.blocked, true)
+  assert.equal(updateView(base, 'minimum version required').blocked, true)
+})
 
 test('relative sync time handles absent, recent, and older timestamps', () => {
   const now = Date.parse('2026-10-20T12:00:00Z')

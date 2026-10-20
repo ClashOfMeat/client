@@ -45,6 +45,9 @@ pub fn current(app: &tauri::AppHandle) -> HeroSettings {
 }
 
 pub fn set(app: &tauri::AppHandle, next: HeroSettings) -> Result<HeroSettings, String> {
+    if crate::updater::status(app).blocked {
+        return Err("This version must be updated before changing hero settings".into());
+    }
     if next.screen != "main" && next.screen != "cursor" && !next.screen.starts_with("display:") {
         return Err("invalid screen".into());
     }
@@ -95,7 +98,7 @@ pub fn desktop_state(app: tauri::AppHandle) -> Value {
         .map(|name| name.trim().to_owned())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "This Mac".into());
-    json!({"daemon":crate::daemon::state(&app),"hero":current(&app),"displays":displays(&app),"device":device})
+    json!({"daemon":crate::daemon::state(&app),"hero":current(&app),"displays":displays(&app),"device":device,"updater":crate::updater::status(&app)})
 }
 
 #[tauri::command]

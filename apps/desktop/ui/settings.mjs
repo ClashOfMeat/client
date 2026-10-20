@@ -7,6 +7,7 @@ let daemon = { connected: false, status: null, snapshot: null, heartbeat: null }
 let hero = { show: true, screen: 'main' }
 let displays = []
 let device = 'This Mac'
+let updater = {}
 
 function error(message) {
   $('error').textContent = String(message)
@@ -16,7 +17,14 @@ function error(message) {
 async function request(method, params = {}) { return invoke('daemon_request', { method, params }) }
 
 function render() {
-  const view = settingsView(daemon.status, daemon.snapshot, daemon.heartbeat, { connected: daemon.connected })
+  const view = settingsView(daemon.status, daemon.snapshot, daemon.heartbeat, { connected: daemon.connected, updater })
+  $('update-required').hidden = !view.update.blocked
+  for (const section of document.querySelectorAll('main > section:not(#update-required)')) section.hidden = view.update.blocked
+  $('required-install').hidden = !view.update.ready
+  $('required-retry').hidden = !view.update.failed
+  $('required-error').hidden = !view.update.error
+  $('required-error').textContent = view.update.error ?? ''
+  $('error').hidden = view.update.blocked || !$('error').textContent
   $('account-status').textContent = view.account
   const pairedAt = daemon.status?.paired_at
   const since = pairedAt && Number.isFinite(Date.parse(pairedAt))
@@ -26,7 +34,10 @@ function render() {
   $('connect').disabled = !daemon.connected
   $('sync').hidden = !view.paired
   $('last-sync').textContent = view.paired ? `last sync ${view.sync}` : ''
-  $('about-line').textContent = `v${view.version} · ${view.update}`
+  $('about-line').textContent = view.update.line
+  $('about-line').classList.toggle('security', view.update.security)
+  $('about-action').hidden = !view.update.action
+  $('about-action').textContent = view.update.action ?? ''
   $('today-total').hidden = view.totalTokens === null
   $('today-total').textContent = view.totalTokens === null ? '' : `today ${view.totalTokens} tokens`
   $('show-hero').checked = hero.show
@@ -112,11 +123,23 @@ $('screen').addEventListener('change', async event => {
   catch (reason) { error(reason); render() }
 })
 
+async function updateAction() {
+  try {
+    error('')
+    if (updater.phase === 'ready') await invoke('update_restart')
+    else await invoke('update_check')
+  } catch (reason) { error(reason) }
+}
+$('about-action').addEventListener('click', updateAction)
+$('required-install').addEventListener('click', updateAction)
+$('required-retry').addEventListener('click', updateAction)
+
 const initial = await invoke('desktop_state')
 daemon = initial.daemon
 hero = initial.hero
 displays = initial.displays
 device = initial.device
+updater = initial.updater ?? {}
 render()
 await listen('daemon', ({ payload }) => {
   if (payload.kind === 'snapshot') daemon.snapshot = payload.data
@@ -134,5 +157,6 @@ await listen('daemon', ({ payload }) => {
   render()
 })
 await listen('hero-settings', ({ payload }) => { hero = payload; render() })
+await listen('updater', ({ payload }) => { updater = payload; render() })
 setInterval(render, 60_000)
 void refresh()
