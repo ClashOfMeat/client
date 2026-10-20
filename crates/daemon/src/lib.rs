@@ -1,3 +1,8 @@
 pub mod config;
+pub mod detect;
 pub mod engine;
+pub mod hero;
+pub mod run;
+pub mod socket;
 pub mod sync;
+pub mod watch;
