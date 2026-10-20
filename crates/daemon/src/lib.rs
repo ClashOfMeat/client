@@ -1,1 +1,2 @@
-// clashofmeat-daemon
+pub mod config;
+pub mod sync;
