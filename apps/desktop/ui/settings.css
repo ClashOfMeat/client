@@ -1,0 +1,41 @@
+:root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-size: 13px; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #f6f6f7; color: #24242b; }
+main { padding: 22px 24px 16px; display: flex; flex-direction: column; gap: 24px; }
+section { min-width: 0; }
+h2 { margin: 0 0 10px; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #777780; }
+.section-heading { display: flex; align-items: baseline; justify-content: space-between; }
+.muted { color: #777780; font-size: 12px; }
+#account-status { font-weight: 600; margin-bottom: 3px; }
+.account-actions { display: flex; gap: 10px; align-items: center; margin-top: 13px; }
+button, select { font: inherit; border: 1px solid #c9c9ce; border-radius: 6px; background: #fff; color: inherit; padding: 5px 10px; }
+button { cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+.pair-code { margin-top: 9px; color: #555; font-size: 12px; }
+.pair-code strong { letter-spacing: .15em; font-size: 14px; }
+.providers { display: flex; flex-direction: column; gap: 3px; }
+.provider { display: grid; grid-template-columns: 17px minmax(0, 1fr) auto auto auto; align-items: center; gap: 5px; min-height: 27px; }
+.provider-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.provider-state { color: #777780; white-space: nowrap; font-size: 12px; }
+.provider-state.active { color: #2c8a58; }
+.provider-state.warning { color: #aa7224; }
+.provider-tokens { text-align: right; min-width: 36px; color: #777780; font-size: 12px; }
+.provider button { padding: 2px 6px; font-size: 11px; }
+.provider input { margin: 0; }
+.hero-settings { display: flex; align-items: center; gap: 8px; }
+.hero-settings label[for="screen"] { margin-left: auto; }
+.hero-settings select { max-width: 132px; }
+.about { display: flex; align-items: baseline; gap: 10px; }
+.about h2 { margin: 0; }
+.about span { color: #777780; font-size: 12px; }
+.error { margin: -12px 0 0; color: #b53131; font-size: 12px; }
+[hidden] { display: none !important; }
+@media (prefers-color-scheme: dark) {
+  body { background: #25252a; color: #f4f4f5; }
+  .muted, h2, .provider-state, .provider-tokens, .about span { color: #aaaab2; }
+  button, select { background: #393940; border-color: #575760; }
+  .provider-state.active { color: #68c997; }
+  .provider-state.warning { color: #e0ae63; }
+  .pair-code { color: #ccc; }
+  .error { color: #ff8c8c; }
+}

@@ -1,0 +1,7 @@
+{
+  "identifier": "settings",
+  "windows": ["settings"],
+  "permissions": [
+    "core:event:allow-listen"
+  ]
+}

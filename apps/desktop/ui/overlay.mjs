@@ -15,7 +15,7 @@ const activity = heroActivity()
 const images = new Map()
 let workArea, animation, character, progression, player, sessions = []
 let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
-let paused = false, hidden = false, statsOpen = false, menuOpen = false
+let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
 let lastActivityAt = Date.now()
@@ -103,7 +103,7 @@ async function setHero(data, heartbeat = false) {
     try { await decodeHero() } catch (error) { console.error('hero image decoding:', error); return }
     if (current !== generation) return
     if (!workArea) {
-      try { ({ work_area: workArea } = await invoke('hero_geometry')) }
+      try { ({ work_area: workArea } = await invoke('hero_geometry', { screen })) }
       catch (error) { console.error('hero geometry:', error); return }
     }
     updateStats()
@@ -258,6 +258,17 @@ function setPaused(next) {
   paused = next
 }
 window.addEventListener('resize', wake)
+setInterval(async () => {
+  if (screen !== 'cursor' || paused) return
+  try {
+    const { work_area: next } = await invoke('hero_geometry', { screen })
+    if (!workArea || Object.keys(next).some(key => next[key] !== workArea[key])) {
+      workArea = next
+      lastPlaced = undefined
+      wake()
+    }
+  } catch (error) { console.error('hero geometry:', error) }
+}, 2000)
 
 await listen('daemon', ({ payload }) => {
   if (payload?.kind === 'snapshot') {
@@ -269,6 +280,16 @@ await listen('daemon', ({ payload }) => {
   } else if (payload?.kind === 'status' && payload.data?.connected === false) {
     normaliseActivity({ busy: false, sessions: [] })
   }
+})
+const initial = await invoke('desktop_state')
+screen = initial.hero?.screen ?? 'main'
+setPaused(initial.hero?.show === false)
+await listen('hero-settings', ({ payload }) => {
+  const nextScreen = payload?.screen ?? 'main'
+  if (screen !== nextScreen) { screen = nextScreen; workArea = undefined; lastPlaced = undefined; void invoke('hero_geometry', { screen }).then(value => { workArea = value.work_area; wake() }) }
+  setPaused(payload?.show === false)
+  if (paused) { if (timer) clearTimeout(timer); timer = undefined; void nativeWindow.hide(); visible = false }
+  else { hidden = false; wake() }
 })
 await listen('hero-control', ({ payload }) => {
   setPaused(Boolean(payload?.paused))

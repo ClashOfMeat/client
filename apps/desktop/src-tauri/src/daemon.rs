@@ -2,12 +2,28 @@ use std::env;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
+
+#[derive(Default)]
+pub struct DaemonState(pub Mutex<DesktopState>);
+
+#[derive(Default, Clone, Serialize)]
+pub struct DesktopState {
+    pub connected: bool,
+    pub status: Option<Value>,
+    pub snapshot: Option<Value>,
+    pub heartbeat: Option<Value>,
+}
+
+pub fn state(app: &AppHandle) -> DesktopState {
+    app.state::<DaemonState>().0.lock().unwrap().clone()
+}
 
 #[derive(Clone, Serialize)]
 struct DaemonMessage {
@@ -73,17 +89,49 @@ fn socket_path() -> PathBuf {
     home.join("daemon.sock")
 }
 
-fn request(stream: &mut UnixStream, id: u64, method: &str) -> Result<(), String> {
-    writeln!(stream, "{}", json!({"id":id,"method":method,"params":{}})).map_err(|e| e.to_string())
+fn request(stream: &mut UnixStream, id: u64, method: &str, params: &Value) -> Result<(), String> {
+    writeln!(
+        stream,
+        "{}",
+        json!({"id":id,"method":method,"params":params})
+    )
+    .map_err(|e| e.to_string())
 }
 
 fn emit(app: &AppHandle, kind: &'static str, data: Value) {
-    let _ = app.emit_to("hero", "daemon", DaemonMessage { kind, data });
+    {
+        let binding = app.state::<DaemonState>();
+        let mut state = binding.0.lock().unwrap();
+        match kind {
+            "snapshot" => state.snapshot = Some(data.clone()),
+            "status" if data.get("connected").is_some() => {
+                state.connected = data["connected"].as_bool().unwrap_or(false)
+            }
+            "status" => state.status = Some(data.clone()),
+            "event" => {
+                if data["event"] == "heartbeat" {
+                    state.heartbeat = Some(data["data"].clone());
+                }
+                if data["event"] == "activity" {
+                    if let Some(snapshot) = state.snapshot.as_mut() {
+                        snapshot["activity"] = data["data"].clone();
+                    }
+                }
+                if data["event"] == "paired" {
+                    if let Some(status) = state.status.as_mut() {
+                        status["paired"] = true.into();
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let _ = app.emit("daemon", DaemonMessage { kind, data });
 }
 
 fn connect(app: &AppHandle) -> Result<(), String> {
     let mut stream = UnixStream::connect(socket_path()).map_err(|e| e.to_string())?;
-    request(&mut stream, 1, "snapshot")?;
+    request(&mut stream, 1, "snapshot", &json!({}))?;
     let mut reader = BufReader::new(stream.try_clone().map_err(|e| e.to_string())?);
     let mut line = String::new();
     if reader.read_line(&mut line).map_err(|e| e.to_string())? == 0 {
@@ -94,13 +142,16 @@ fn connect(app: &AppHandle) -> Result<(), String> {
         ParsedLine::Error { message, .. } => return Err(message),
         _ => return Err("unexpected snapshot response".into()),
     }
-    request(&mut stream, 2, "subscribe")?;
+    request(&mut stream, 2, "subscribe", &json!({}))?;
     line.clear();
     if reader.read_line(&mut line).map_err(|e| e.to_string())? == 0 {
         return Err("daemon closed before subscribe".into());
     }
     match parse_line(&line)? {
-        ParsedLine::Result { id: 2, .. } => emit(app, "status", json!({"connected":true})),
+        ParsedLine::Result { id: 2, .. } => {
+            emit(app, "status", json!({"connected":true}));
+            refresh_status(app);
+        }
         ParsedLine::Error { message, .. } => return Err(message),
         _ => return Err("unexpected subscribe response".into()),
     }
@@ -111,7 +162,11 @@ fn connect(app: &AppHandle) -> Result<(), String> {
         }
         match parse_line(&line)? {
             ParsedLine::Event { name, data } => {
-                emit(app, "event", json!({"event":name,"data":data}))
+                let refresh = matches!(name.as_str(), "sync" | "paired" | "pair_failed");
+                emit(app, "event", json!({"event":name,"data":data}));
+                if refresh {
+                    refresh_status(app);
+                }
             }
             _ => return Err("unexpected subscription line".into()),
         }
@@ -133,11 +188,19 @@ pub fn start(app: AppHandle) {
 }
 
 pub fn send(method: &str) -> Result<Value, String> {
+    send_with_params(method, json!({}))
+}
+
+pub fn send_with_params(method: &str, params: Value) -> Result<Value, String> {
     let mut stream = UnixStream::connect(socket_path()).map_err(|e| e.to_string())?;
     stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
+        .set_read_timeout(Some(Duration::from_secs(if method == "pair_start" {
+            30
+        } else {
+            5
+        })))
         .map_err(|e| e.to_string())?;
-    request(&mut stream, 1, method)?;
+    request(&mut stream, 1, method, &params)?;
     let mut line = String::new();
     if BufReader::new(stream)
         .read_line(&mut line)
@@ -151,6 +214,16 @@ pub fn send(method: &str) -> Result<Value, String> {
         ParsedLine::Error { message, .. } => Err(message),
         _ => Err("unexpected daemon response".into()),
     }
+}
+
+pub fn refresh_status(app: &AppHandle) {
+    if let Ok(value) = send("status") {
+        emit(app, "status", value);
+    }
+}
+
+pub fn publish_status(app: &AppHandle, value: Value) {
+    emit(app, "status", value);
 }
 
 #[cfg(test)]

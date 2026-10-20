@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clash of Meat</title>
+  <link rel="stylesheet" href="./settings.css">
+</head>
+<body>
+  <main>
+    <section>
+      <h2>Account</h2>
+      <div id="account-status">Loading…</div>
+      <div id="device" class="muted"></div>
+      <div class="account-actions"><button id="connect" hidden>Connect</button><button id="sync">Sync now</button><span id="last-sync" class="muted"></span></div>
+      <div id="pair-code" class="pair-code" hidden></div>
+    </section>
+    <section>
+      <div class="section-heading"><h2>Providers</h2><span id="today-total" class="muted" hidden></span></div>
+      <div id="providers" class="providers"></div>
+    </section>
+    <section>
+      <h2>Hero</h2>
+      <div class="hero-settings"><label for="show-hero">Show hero</label><input id="show-hero" type="checkbox"><label for="screen">Screen</label><select id="screen"><option value="main">Main screen</option><option value="cursor">Follow cursor</option></select></div>
+    </section>
+    <section class="about"><h2>About</h2><span id="about-line"></span></section>
+    <p id="error" class="error" role="alert" hidden></p>
+  </main>
+  <script type="module" src="./settings.mjs"></script>
+</body>
+</html>

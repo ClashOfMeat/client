@@ -46,12 +46,32 @@ pub fn create(app: &tauri::AppHandle) -> tauri::Result<WebviewWindow> {
 }
 
 #[tauri::command]
-pub fn hero_geometry(window: WebviewWindow) -> Result<Geometry, String> {
-    let monitor = window
-        .current_monitor()
-        .map_err(|e| e.to_string())?
-        .or(window.primary_monitor().map_err(|e| e.to_string())?)
-        .ok_or("no monitor available")?;
+pub fn hero_geometry(window: WebviewWindow, screen: Option<String>) -> Result<Geometry, String> {
+    let monitors = window.available_monitors().map_err(|e| e.to_string())?;
+    let selection = screen.as_deref().unwrap_or("main");
+    let monitor = if selection == "cursor" {
+        let cursor = window.cursor_position().map_err(|e| e.to_string())?;
+        monitors
+            .iter()
+            .find(|monitor| {
+                let position = monitor.position();
+                let size = monitor.size();
+                cursor.x >= position.x as f64
+                    && cursor.x < (position.x as f64 + size.width as f64)
+                    && cursor.y >= position.y as f64
+                    && cursor.y < (position.y as f64 + size.height as f64)
+            })
+            .cloned()
+    } else if let Some(index) = selection
+        .strip_prefix("display:")
+        .and_then(|s| s.parse::<usize>().ok())
+    {
+        monitors.get(index).cloned()
+    } else {
+        None
+    }
+    .or(window.primary_monitor().map_err(|e| e.to_string())?)
+    .ok_or("no monitor available")?;
     let scale = monitor.scale_factor();
     let work = monitor.work_area();
     let size = monitor.size();
