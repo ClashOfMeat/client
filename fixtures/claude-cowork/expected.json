@@ -1,0 +1,252 @@
+[
+  {
+    "id": "10ce5e39-3eef-5d6a-af20-07bd3ef9648b",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:02.000Z",
+    "key": "tool_call_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "22d531c1-4689-5bf3-a985-59bb9cbadaec",
+    "session_id": "44444444-4444-4444-8444-444444444444",
+    "at": "2026-10-01T13:00:00.000Z",
+    "key": "prompt_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "238ed18d-a9da-5599-a79a-889b4c57a3f3",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:04.000Z",
+    "key": "model_step_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "27c63ceb-9a00-503a-aaa9-53bb524fcc8d",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:03.000Z",
+    "key": "cache_read_tokens",
+    "value": 5,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "opus"
+  },
+  {
+    "id": "28c622ed-997a-5221-ab21-51fcd8b470ce",
+    "session_id": "44444444-4444-4444-8444-444444444444",
+    "at": "2026-10-01T13:00:02.000Z",
+    "key": "input_tokens",
+    "value": 6,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "unknown"
+  },
+  {
+    "id": "2b31ab3b-f6b3-57b3-a7e5-f47f4b8fcc58",
+    "session_id": "44444444-4444-4444-8444-444444444444",
+    "at": "2026-10-01T13:00:02.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "unknown"
+  },
+  {
+    "id": "30151c33-840a-5934-addf-4aaa68aecdfe",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:03.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "opus"
+  },
+  {
+    "id": "32fc37d0-5104-5d3c-aa7a-98fc1cca2911",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:04.000Z",
+    "key": "tool_call_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "3684a28f-1ef1-5465-a621-9f973ce5327e",
+    "session_id": "44444444-4444-4444-8444-444444444444",
+    "at": "2026-10-01T13:00:02.000Z",
+    "key": "model_step_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "3fb3e6a0-2a9f-55f5-a5a4-4c284c0d6469",
+    "session_id": "44444444-4444-4444-8444-444444444444",
+    "at": "2026-10-01T13:00:02.000Z",
+    "key": "tool_call_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "469a40e5-57f8-5cc0-a27a-0045b93580a2",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:00.000Z",
+    "key": "session_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "59f6420f-0e27-5906-af05-14b8df464ada",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:04.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "haiku"
+  },
+  {
+    "id": "6371536e-f124-5893-ac4e-d015cecbfa29",
+    "session_id": "44444444-4444-4444-8444-444444444444",
+    "at": "2026-10-01T13:00:00.000Z",
+    "key": "prompt_chars",
+    "value": 16,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "6595b65d-f6c5-50b5-a244-7a020faddb03",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:03.000Z",
+    "key": "output_tokens",
+    "value": 9,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "opus"
+  },
+  {
+    "id": "93953c01-2f37-5b39-ad44-43c00e3e741b",
+    "session_id": "44444444-4444-4444-8444-444444444444",
+    "at": "2026-10-01T13:00:02.000Z",
+    "key": "output_tokens",
+    "value": 4,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "unknown"
+  },
+  {
+    "id": "962270b6-efb1-528f-a1c5-69c0c89ed1b3",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:03.000Z",
+    "key": "input_tokens",
+    "value": 3,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "opus"
+  },
+  {
+    "id": "9a0fff67-fdf8-5a24-a0f6-44e85bc43c2c",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:00.000Z",
+    "key": "prompt_chars",
+    "value": 16,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "b29c9ad1-a87a-5a5c-ade9-a932da23603d",
+    "session_id": "44444444-4444-4444-8444-444444444444",
+    "at": "2026-10-01T13:00:02.000Z",
+    "key": "cache_read_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "unknown"
+  },
+  {
+    "id": "b479bda5-3aff-5c44-ae9b-7a4b5e735be5",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:02.000Z",
+    "key": "subagent_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "d24fe417-6626-5145-aba5-a36dd3537fe7",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:04.000Z",
+    "key": "output_tokens",
+    "value": 4,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "haiku"
+  },
+  {
+    "id": "e16ecbb0-0d6a-5c31-a561-269f20d3a778",
+    "session_id": "44444444-4444-4444-8444-444444444444",
+    "at": "2026-10-01T13:00:00.000Z",
+    "key": "session_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "eb5b7967-9f82-5bf0-aefb-1e2b7916fc4e",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:04.000Z",
+    "key": "input_tokens",
+    "value": 2,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "haiku"
+  },
+  {
+    "id": "f79711c5-8e60-5833-a0b6-5c1c99365dd1",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:03.000Z",
+    "key": "model_step_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "fbaf287f-da65-56a4-adff-09c990b2c191",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:00.000Z",
+    "key": "prompt_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "fe1a644a-f7ee-541e-ae63-ecbebf88cd92",
+    "session_id": "33333333-3333-4333-8333-333333333333",
+    "at": "2026-10-01T12:00:04.000Z",
+    "key": "cache_read_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "haiku"
+  }
+]

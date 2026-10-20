@@ -1,0 +1,11 @@
+{"event":"beforeSubmitPrompt","at":"2026-10-01T16:00:00.000Z","conversation":"cccccccc-3333-4333-8333-333333333333","generation":"eeeeeeee-5555-4555-8555-555555555555","version":"2.3.1"}
+{"event":"postToolUse","at":"2026-10-01T16:00:01.000Z","conversation":"cccccccc-3333-4333-8333-333333333333","generation":"eeeeeeee-5555-4555-8555-555555555555","version":"2.3.1","tool":"read"}
+{"event":"postToolUse","at":"2026-10-01T16:00:02.000Z","conversation":"cccccccc-3333-4333-8333-333333333333","generation":"eeeeeeee-5555-4555-8555-555555555555","version":"2.3.1","tool":"other","subagent":true}
+{"event":"afterAgentResponse","at":"2026-10-01T16:00:03.000Z","conversation":"cccccccc-3333-4333-8333-333333333333","generation":"eeeeeeee-5555-4555-8555-555555555555","version":"2.3.1","model":"claude-4.5-sonnet","input_tokens":100,"cache_read_tokens":20,"output_tokens":5}
+{"event":"stop","at":"2026-10-01T16:00:04.000Z","conversation":"cccccccc-3333-4333-8333-333333333333","generation":"eeeeeeee-5555-4555-8555-555555555555","version":"2.3.1","model":"claude-4.5-sonnet","status":"completed","input_tokens":140,"cache_read_tokens":30,"output_tokens":12}
+{malformed fixture line
+{"event":"beforeSubmitPrompt","at":"2026-10-01T17:00:00.000Z","conversation":"dddddddd-4444-4444-8444-444444444444","generation":"ffffffff-6666-4666-8666-666666666666","version":"2.3.1"}
+{"event":"afterAgentResponse","at":"2026-10-01T17:00:01.000Z","conversation":"dddddddd-4444-4444-8444-444444444444","generation":"ffffffff-6666-4666-8666-666666666666","version":"2.3.1","model":"unknown-model","input_tokens":30,"output_tokens":3}
+{"event":"stop","at":"2026-10-01T17:00:02.000Z","conversation":"dddddddd-4444-4444-8444-444444444444","generation":"ffffffff-6666-4666-8666-666666666666","version":"2.3.1","model":"unknown-model","status":"aborted","input_tokens":40,"output_tokens":8}
+{"event":"beforeSubmitPrompt","at":"2026-10-01T17:01:00.000Z","conversation":"dddddddd-4444-4444-8444-444444444444","generation":"abcdabcd-7777-4777-8777-777777777777","version":"2.3.1"}
+{"event":"stop","at":"2026-10-01T17:01:01.000Z","conversation":"dddddddd-4444-4444-8444-444444444444","generation":"abcdabcd-7777-4777-8777-777777777777","version":"2.3.1","model":"gemini-3-pro","status":"completed","input_tokens":11,"output_tokens":4}

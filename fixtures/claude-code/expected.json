@@ -1,0 +1,332 @@
+[
+  {
+    "id": "022db911-086f-52d4-acd7-edc09dda6525",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:01:01.000Z",
+    "key": "output_tokens",
+    "value": 7,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "unknown"
+  },
+  {
+    "id": "18b8d50c-b350-532f-a9f0-24394204c856",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:00.000Z",
+    "key": "session_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "2078361d-e917-512e-a918-6aa3aa69f81e",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:01.000Z",
+    "key": "tool_call_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "2c363b42-152a-531f-a775-69aef684e095",
+    "session_id": "22222222-2222-4222-8222-222222222222",
+    "at": "2026-10-01T11:00:00.000Z",
+    "key": "session_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "2f3afd1d-e933-5d13-aed6-ff02fbda028d",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:02.000Z",
+    "key": "output_tokens",
+    "value": 8,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "opus"
+  },
+  {
+    "id": "3c377f04-6d77-5ed4-aa9c-5ddbf7713388",
+    "session_id": "22222222-2222-4222-8222-222222222222",
+    "at": "2026-10-01T11:00:01.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "sonnet"
+  },
+  {
+    "id": "42fc217a-8ea3-5f91-a74b-75de2e6f8943",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:01:01.000Z",
+    "key": "model_step_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "4958d4d8-c152-5d2c-af86-7db87fe6cde5",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:01:01.000Z",
+    "key": "tool_call_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "4ebff818-2946-51bd-a9d0-c27328699043",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:01:01.000Z",
+    "key": "cache_read_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "unknown"
+  },
+  {
+    "id": "6345ac4a-62ad-59b9-adf6-7c3b87657fb1",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:02.000Z",
+    "key": "cache_read_tokens",
+    "value": 3,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "opus"
+  },
+  {
+    "id": "650d23ab-3b92-5651-ac77-6e2a49844e33",
+    "session_id": "22222222-2222-4222-8222-222222222222",
+    "at": "2026-10-01T11:00:00.000Z",
+    "key": "prompt_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "71fa8d81-d96b-5274-afd2-3fae04f4c34a",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:01:01.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "unknown"
+  },
+  {
+    "id": "72632da9-f499-5049-ab40-c4e0b71124a3",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:02.000Z",
+    "key": "input_tokens",
+    "value": 10,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "opus"
+  },
+  {
+    "id": "79fa3773-58c7-5694-a4b5-981fcabc9482",
+    "session_id": "22222222-2222-4222-8222-222222222222",
+    "at": "2026-10-01T11:00:01.000Z",
+    "key": "model_step_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "89551358-2590-5a18-a6ff-905c8a0fe116",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:01:00.000Z",
+    "key": "prompt_chars",
+    "value": 16,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "9708868f-02fd-58b6-aa44-66597868b5be",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:03.000Z",
+    "key": "cache_read_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "haiku"
+  },
+  {
+    "id": "99f63e2b-ccb9-5924-a9d1-4cada5c88d7a",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:00.000Z",
+    "key": "prompt_chars",
+    "value": 16,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "9c8a4220-f851-5f94-abe6-7a5151de9b85",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:03.000Z",
+    "key": "output_tokens",
+    "value": 2,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "haiku"
+  },
+  {
+    "id": "a09b7d6e-da08-5a5d-a96c-214e076ccb0f",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:02.000Z",
+    "key": "model_step_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "af22635b-bdcd-55c5-a0f2-8553e0bad7a7",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:04.000Z",
+    "key": "compaction_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "b75e1279-b914-5a32-adcd-dc591a91f600",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:03.000Z",
+    "key": "cache_write_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "haiku"
+  },
+  {
+    "id": "ba747cf3-438f-5eb0-a8e6-765169683ab5",
+    "session_id": "22222222-2222-4222-8222-222222222222",
+    "at": "2026-10-01T11:00:01.000Z",
+    "key": "input_tokens",
+    "value": 9,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "sonnet"
+  },
+  {
+    "id": "bbce0c3f-7ea1-51cc-a966-689baaa68c2a",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:03.000Z",
+    "key": "input_tokens",
+    "value": 4,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "haiku"
+  },
+  {
+    "id": "c299b1e5-b61b-51cf-a741-d57981fbf961",
+    "session_id": "22222222-2222-4222-8222-222222222222",
+    "at": "2026-10-01T11:00:01.000Z",
+    "key": "cache_read_tokens",
+    "value": 0,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "sonnet"
+  },
+  {
+    "id": "c713e963-15c9-52c2-a066-dcf6b8f9e1c4",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:01:01.000Z",
+    "key": "input_tokens",
+    "value": 5,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "unknown"
+  },
+  {
+    "id": "cc477f1a-477e-50e4-a2b1-794c4c5f567f",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:02.000Z",
+    "key": "cache_write_tokens",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "opus"
+  },
+  {
+    "id": "dda6a2ce-bcc5-5b82-ac16-6300054bfaf6",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:01:00.000Z",
+    "key": "prompt_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "ddcd740c-7f9d-57cb-a35f-67b0a1d3532d",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:00.000Z",
+    "key": "prompt_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "ddfd5ef6-e2a4-5258-a2f4-0a255c0da7ea",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:03.000Z",
+    "key": "model_step_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "e810100e-d1ae-5f34-a264-a5e441e23d24",
+    "session_id": "22222222-2222-4222-8222-222222222222",
+    "at": "2026-10-01T11:00:00.000Z",
+    "key": "prompt_chars",
+    "value": 16,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "e94ec996-1603-5e83-a8b0-be9459d28d9b",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:01:01.000Z",
+    "key": "subagent_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "f3e7d624-8997-5508-afd6-7c2ec84e181b",
+    "session_id": "11111111-1111-4111-8111-111111111111",
+    "at": "2026-10-01T10:00:03.000Z",
+    "key": "tool_call_count",
+    "value": 1,
+    "kind": "counter",
+    "provider": "claude",
+    "model": null
+  },
+  {
+    "id": "f9054e0a-e23b-5eaa-a919-6ea189d681c2",
+    "session_id": "22222222-2222-4222-8222-222222222222",
+    "at": "2026-10-01T11:00:01.000Z",
+    "key": "output_tokens",
+    "value": 6,
+    "kind": "counter",
+    "provider": "claude",
+    "model": "sonnet"
+  }
+]

@@ -1,0 +1,119 @@
+[
+  {
+    "source": {
+      "provider": "claude",
+      "sourceKey": "collector",
+      "clientVersion": "2.1.300",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "ab40d828-e350-52e2-af05-1b24f34d5b65",
+      "sessionId": "11111111-1111-4111-8111-111111111111",
+      "modelFamily": "haiku",
+      "modelRelease": "haiku-4-5",
+      "startedAt": "2026-10-01T10:00:00.000Z",
+      "completedAt": "2026-10-01T10:00:04.000Z",
+      "durationMs": 4000,
+      "status": "completed",
+      "inputTokens": 14,
+      "outputTokens": 10,
+      "cacheReadTokens": 3,
+      "cacheWriteTokens": 1,
+      "reasoningTokens": 0,
+      "totalTokens": 28,
+      "modelCalls": 2,
+      "userTurns": 1,
+      "toolCalls": 2,
+      "subagentCalls": 0,
+      "compactions": 1,
+      "readOperations": 1,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 1,
+      "schemaVersion": 1
+    }
+  },
+  {
+    "source": {
+      "provider": "claude",
+      "sourceKey": "collector",
+      "clientVersion": "unknown",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "c9eed67d-a986-5289-a674-a7aef0582fdf",
+      "sessionId": "11111111-1111-4111-8111-111111111111",
+      "modelFamily": "unknown",
+      "modelRelease": "unknown",
+      "startedAt": "2026-10-01T10:01:00.000Z",
+      "completedAt": "2026-10-01T10:01:01.000Z",
+      "durationMs": 1000,
+      "status": "completed",
+      "inputTokens": 5,
+      "outputTokens": 7,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "totalTokens": 12,
+      "modelCalls": 1,
+      "userTurns": 1,
+      "toolCalls": 1,
+      "subagentCalls": 1,
+      "compactions": 0,
+      "readOperations": 0,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 1,
+      "schemaVersion": 1
+    }
+  },
+  {
+    "source": {
+      "provider": "claude",
+      "sourceKey": "collector",
+      "clientVersion": "unknown",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "cac61f64-fd8c-54ea-aaec-b2f031bb28fb",
+      "sessionId": "22222222-2222-4222-8222-222222222222",
+      "modelFamily": "sonnet",
+      "modelRelease": "sonnet-5",
+      "startedAt": "2026-10-01T11:00:00.000Z",
+      "completedAt": "2026-10-01T11:00:01.000Z",
+      "durationMs": 1000,
+      "status": "completed",
+      "inputTokens": 9,
+      "outputTokens": 6,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "totalTokens": 15,
+      "modelCalls": 1,
+      "userTurns": 1,
+      "toolCalls": 0,
+      "subagentCalls": 0,
+      "compactions": 0,
+      "readOperations": 0,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 0,
+      "schemaVersion": 1
+    }
+  }
+]

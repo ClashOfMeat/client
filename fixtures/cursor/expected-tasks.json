@@ -1,0 +1,119 @@
+[
+  {
+    "source": {
+      "provider": "cursor",
+      "sourceKey": "collector",
+      "clientVersion": "2.3.1",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "1bed8666-0af4-5fbd-aff3-abb4d93dfd2e",
+      "sessionId": "dddddddd-4444-4444-8444-444444444444",
+      "modelFamily": "gemini",
+      "modelRelease": "gemini-3-pro",
+      "startedAt": "2026-10-01T17:01:00.000Z",
+      "completedAt": "2026-10-01T17:01:01.000Z",
+      "durationMs": 1000,
+      "status": "completed",
+      "inputTokens": 11,
+      "outputTokens": 4,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "totalTokens": 15,
+      "modelCalls": 1,
+      "userTurns": 1,
+      "toolCalls": 0,
+      "subagentCalls": 0,
+      "compactions": 0,
+      "readOperations": 0,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 0,
+      "schemaVersion": 1
+    }
+  },
+  {
+    "source": {
+      "provider": "cursor",
+      "sourceKey": "collector",
+      "clientVersion": "2.3.1",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "20dbd55d-fac4-5aed-adf6-b6771e1b0840",
+      "sessionId": "cccccccc-3333-4333-8333-333333333333",
+      "modelFamily": "claude",
+      "modelRelease": "claude-4.5-sonnet",
+      "startedAt": "2026-10-01T16:00:00.000Z",
+      "completedAt": "2026-10-01T16:00:04.000Z",
+      "durationMs": 4000,
+      "status": "completed",
+      "inputTokens": 110,
+      "outputTokens": 12,
+      "cacheReadTokens": 30,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "totalTokens": 152,
+      "modelCalls": 1,
+      "userTurns": 1,
+      "toolCalls": 2,
+      "subagentCalls": 1,
+      "compactions": 0,
+      "readOperations": 1,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 1,
+      "schemaVersion": 1
+    }
+  },
+  {
+    "source": {
+      "provider": "cursor",
+      "sourceKey": "collector",
+      "clientVersion": "2.3.1",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "607eb329-c59e-5b55-a51b-098818ae3ff0",
+      "sessionId": "dddddddd-4444-4444-8444-444444444444",
+      "modelFamily": "unknown",
+      "modelRelease": "unknown",
+      "startedAt": "2026-10-01T17:00:00.000Z",
+      "completedAt": "2026-10-01T17:00:02.000Z",
+      "durationMs": 2000,
+      "status": "interrupted",
+      "inputTokens": 40,
+      "outputTokens": 8,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "totalTokens": 48,
+      "modelCalls": 1,
+      "userTurns": 1,
+      "toolCalls": 0,
+      "subagentCalls": 0,
+      "compactions": 0,
+      "readOperations": 0,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 0,
+      "schemaVersion": 1
+    }
+  }
+]

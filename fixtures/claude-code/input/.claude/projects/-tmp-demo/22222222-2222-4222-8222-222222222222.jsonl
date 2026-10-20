@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"22222222-2222-4222-8222-222222222222","timestamp":"2026-10-01T11:00:00.000Z","uuid":"prompt-code-3","message":{"role":"user","content":"fixture prompt 3"}}
+{"type":"assistant","sessionId":"22222222-2222-4222-8222-222222222222","timestamp":"2026-10-01T11:00:01.000Z","message":{"id":"msg-code-3","model":"claude-sonnet-5","usage":{"input_tokens":9,"output_tokens":6},"content":[]}}

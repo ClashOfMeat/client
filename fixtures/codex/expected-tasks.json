@@ -1,0 +1,119 @@
+[
+  {
+    "source": {
+      "provider": "codex",
+      "sourceKey": "collector",
+      "clientVersion": "0.163.1",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "1d0334bc-289d-5157-a098-38e5afe25643",
+      "sessionId": "77777777-7777-4777-8777-777777777777",
+      "modelFamily": "gpt",
+      "modelRelease": "gpt-6.1-sol",
+      "startedAt": "2026-10-01T09:00:01.000Z",
+      "completedAt": "2026-10-01T09:00:07.000Z",
+      "durationMs": 6000,
+      "status": "completed",
+      "inputTokens": 110,
+      "outputTokens": 20,
+      "cacheReadTokens": 40,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 8,
+      "totalTokens": 170,
+      "modelCalls": 1,
+      "userTurns": 1,
+      "toolCalls": 1,
+      "subagentCalls": 1,
+      "compactions": 1,
+      "readOperations": 0,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 1,
+      "schemaVersion": 1
+    }
+  },
+  {
+    "source": {
+      "provider": "codex",
+      "sourceKey": "collector",
+      "clientVersion": "0.163.1",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "370cc695-e656-530d-aab3-35d7d6c10855",
+      "sessionId": "88888888-8888-4888-8888-888888888888",
+      "modelFamily": "codex",
+      "modelRelease": "gpt-5.5-codex",
+      "startedAt": "2026-10-01T14:00:01.000Z",
+      "completedAt": "2026-10-01T14:00:04.000Z",
+      "durationMs": 3000,
+      "status": "completed",
+      "inputTokens": 40,
+      "outputTokens": 15,
+      "cacheReadTokens": 10,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "totalTokens": 65,
+      "modelCalls": 1,
+      "userTurns": 1,
+      "toolCalls": 0,
+      "subagentCalls": 0,
+      "compactions": 0,
+      "readOperations": 0,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 0,
+      "schemaVersion": 1
+    }
+  },
+  {
+    "source": {
+      "provider": "codex",
+      "sourceKey": "collector",
+      "clientVersion": "0.163.1",
+      "adapterVersion": "0.5.0",
+      "capabilities": [
+        "tasks",
+        "exactTokens"
+      ]
+    },
+    "task": {
+      "id": "ae0f65f4-0eed-5c00-a66e-726a6846bea2",
+      "sessionId": "77777777-7777-4777-8777-777777777777",
+      "modelFamily": "unknown",
+      "modelRelease": "unknown",
+      "startedAt": "2026-10-01T09:01:00.000Z",
+      "completedAt": "2026-10-01T09:01:03.000Z",
+      "durationMs": 3000,
+      "status": "interrupted",
+      "inputTokens": 25,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "reasoningTokens": 0,
+      "totalTokens": 35,
+      "modelCalls": 1,
+      "userTurns": 1,
+      "toolCalls": 0,
+      "subagentCalls": 0,
+      "compactions": 0,
+      "readOperations": 0,
+      "writeOperations": 0,
+      "testOperations": 0,
+      "webOperations": 0,
+      "otherOperations": 0,
+      "schemaVersion": 1
+    }
+  }
+]
