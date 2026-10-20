@@ -41,6 +41,14 @@ test('character accepts uncapped level and XP and preserves shape checks', () =>
     assert.equal(validateCharacter({ ...character, ...bad }), null)
 })
 
+test('character keeps a non-negative safe level floor', () => {
+  const character = { id: uuid, png, levelFloor: 1_000 }
+  assert.equal(validateCharacter(character).levelFloor, 1_000)
+  assert.equal(validateCharacter({ ...character, levelFloor: null }).levelFloor, null)
+  for (const levelFloor of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1])
+    assert.equal(validateCharacter({ ...character, levelFloor }), null)
+})
+
 test('level-up and visit validation preserve bounds without a level cap', () => {
   assert(validateLevelUp(aura))
   assert.equal(validateLevelUp({ ...aura, toLevel: 0 }), null)

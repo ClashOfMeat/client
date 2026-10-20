@@ -74,9 +74,22 @@ function updateStats() {
   document.getElementById('level').textContent = `Lv ${character.level ?? 1} ${player?.name ?? character.heroId ?? 'Hero'}`
   const xp = character.xp
   const next = character.nextLevelAt
-  document.getElementById('xp-text').textContent = Number.isSafeInteger(xp) ? `${formatTokens(xp)} XP${Number.isSafeInteger(next) ? ` / ${formatTokens(next)}` : ''}` : 'XP unavailable'
-  document.getElementById('xp-fill').style.width = Number.isSafeInteger(xp) && Number.isSafeInteger(next) && next > 0
-    ? `${Math.min(100, 100 * xp / next)}%` : '0%'
+  const floor = Number.isSafeInteger(character.levelFloor) ? character.levelFloor : 0
+  const span = next - floor
+  const into = xp - floor
+  const fmt = value => value.toLocaleString('en-US')
+  const xpText = document.getElementById('xp-text')
+  const xpFill = document.getElementById('xp-fill')
+  if (Number.isSafeInteger(xp) && Number.isSafeInteger(next) && span > 0) {
+    xpText.textContent = `${fmt(Math.min(into, span))} / ${fmt(span)} XP${character.canLevelUp === true ? ' · ready to evolve' : ''}`
+    xpFill.style.width = `${Math.max(0, Math.min(1, into / span)) * 100}%`
+  } else if (Number.isSafeInteger(xp) && (next === null || span <= 0)) {
+    xpText.textContent = `${fmt(xp)} XP · max level`
+    xpFill.style.width = '100%'
+  } else {
+    xpText.textContent = 'XP unavailable'
+    xpFill.style.width = '0%'
+  }
   const tokens = tokenCount(progression)
   const tokensLine = document.getElementById('tokens')
   tokensLine.hidden = tokens === null
@@ -106,7 +119,7 @@ function setStayStill(next) {
     activity.drag(activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: true }).x, now)
   }
   stayStill = next
-  stillButton.textContent = stayStill ? 'Walk around' : 'Stay in place'
+  stillButton.textContent = stayStill ? 'Start walking' : 'Stop walking'
   wake()
 }
 

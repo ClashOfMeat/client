@@ -38,11 +38,13 @@ export function validateCharacter(character) {
   const animation = validateAnimation(character.animation)
   if (character.level !== undefined && (!Number.isInteger(character.level) || character.level < 1)) return null
   if (character.xp !== undefined && character.xp !== null && !count(character.xp)) return null
+  if (character.levelFloor !== undefined && character.levelFloor !== null && !count(character.levelFloor)) return null
   if (character.nextLevelAt !== undefined && character.nextLevelAt !== null && !count(character.nextLevelAt)) return null
   if (character.canLevelUp !== undefined && typeof character.canLevelUp !== 'boolean') return null
   if (character.heroId !== undefined && (typeof character.heroId !== 'string' || !/^[a-z0-9_]{1,80}$/.test(character.heroId))) return null
   return { id: character.id, png: character.png,
     ...(character.xp !== undefined ? { xp: character.xp } : {}),
+    ...(character.levelFloor !== undefined ? { levelFloor: character.levelFloor } : {}),
     ...(character.nextLevelAt !== undefined ? { nextLevelAt: character.nextLevelAt } : {}),
     ...(character.canLevelUp !== undefined ? { canLevelUp: character.canLevelUp } : {}),
     ...(character.level !== undefined ? { level: character.level } : {}),

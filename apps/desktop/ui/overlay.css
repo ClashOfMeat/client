@@ -12,6 +12,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 .menu { display: grid; gap: 3px; width: 150px; right: auto; }
 .emotes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .menu button, .emotes button { border: 0; border-radius: 5px; padding: 5px; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.menu button .key { float: right; opacity: .6; }
 .emotes button { padding: 3px 8px; border-radius: 10px; background: rgba(255,255,255,.1); }
 .menu button:hover:not(:disabled) { background: rgba(255,255,255,.14); }
 .emotes button:hover { background: rgba(255,255,255,.2); }
