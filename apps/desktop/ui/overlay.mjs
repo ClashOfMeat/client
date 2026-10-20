@@ -284,6 +284,9 @@ await listen('daemon', ({ payload }) => {
 const initial = await invoke('desktop_state')
 screen = initial.hero?.screen ?? 'main'
 setPaused(initial.hero?.show === false)
+const snapshot = initial.daemon?.snapshot
+if (snapshot) normaliseActivity(snapshot.activity)
+if (snapshot) void setHero(snapshot.hero)
 await listen('hero-settings', ({ payload }) => {
   const nextScreen = payload?.screen ?? 'main'
   if (screen !== nextScreen) { screen = nextScreen; workArea = undefined; lastPlaced = undefined; void invoke('hero_geometry', { screen }).then(value => { workArea = value.work_area; wake() }) }
