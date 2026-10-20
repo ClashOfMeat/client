@@ -186,6 +186,42 @@ fn socket_lifecycle_and_requests() {
 }
 
 #[test]
+fn cursor_wiring_can_be_fixed_through_socket_and_reported_in_status() {
+    let dir = tempdir().unwrap();
+    fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+    let handle = start(dir.path());
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    let status = request(&mut stream, &json!({"id":1,"method":"status"}));
+    let cursor = status["result"]["providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["id"] == "cursor")
+        .unwrap();
+    assert_eq!(cursor["wiring"], "missing");
+    let fixed = request(
+        &mut stream,
+        &json!({"id":2,"method":"wire_provider","params":{"id":"cursor"}}),
+    );
+    assert_eq!(fixed["result"]["wiring"], "ok");
+    assert_eq!(fixed["result"]["changed"], true);
+    let status = request(&mut stream, &json!({"id":3,"method":"status"}));
+    let cursor = status["result"]["providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["id"] == "cursor")
+        .unwrap();
+    assert_eq!(cursor["wiring"], "ok");
+    let error = request(
+        &mut stream,
+        &json!({"id":4,"method":"wire_provider","params":{"id":"codex"}}),
+    );
+    assert_eq!(error["error"]["code"], "not_wirable");
+    handle.stop().unwrap();
+}
+
+#[test]
 fn subscription_reports_transcript_activity() {
     let dir = tempdir().unwrap();
     let home = dir.path();

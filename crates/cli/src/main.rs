@@ -1,5 +1,7 @@
 mod client;
 mod hook;
+mod install;
+mod migrate;
 
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
@@ -31,6 +33,18 @@ enum Action {
         no_open: bool,
         #[arg(long)]
         force: bool,
+    },
+    Install {
+        #[arg(long)]
+        app: String,
+        #[arg(long)]
+        no_connect: bool,
+        #[arg(long)]
+        no_launch_agent: bool,
+    },
+    Uninstall {
+        #[arg(long)]
+        keep_data: bool,
     },
     #[command(hide = true)]
     CursorHook,
@@ -87,6 +101,18 @@ fn execute(cli: Cli, env: &Env) -> Result<()> {
             no_open,
             force,
         } => connect(env, cli.json, app, no_open, force),
+        Action::Install {
+            app,
+            no_connect,
+            no_launch_agent,
+        } => {
+            install::install(env, &app, no_launch_agent)?;
+            if !no_connect {
+                connect(env, cli.json, None, false, false)?;
+            }
+            Ok(())
+        }
+        Action::Uninstall { keep_data } => install::uninstall(env, keep_data),
         Action::CursorHook => Ok(()),
     }
 }

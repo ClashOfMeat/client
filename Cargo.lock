@@ -168,7 +168,10 @@ dependencies = [
  "clashofmeat-core",
  "clashofmeat-daemon",
  "clashofmeat-providers",
+ "hex",
+ "rusqlite",
  "serde_json",
+ "sha2",
  "tempfile",
  "time",
 ]

@@ -19,7 +19,7 @@ use crate::{
     engine::Engine,
     hero,
     socket::{BoundSocket, Request, SocketError},
-    sync, watch,
+    sync, watch, wiring,
 };
 
 /// Inputs required to start a daemon.
@@ -394,6 +394,17 @@ fn handle_request(
             return None;
         }
         "pair_status" => Ok(pair_state.clone()),
+        "wire_provider" => match params.get("id").and_then(Value::as_str) {
+            Some("cursor") => {
+                let writer =
+                    clashofmeat_core::ConfigWriter::new(config::home(&opts.env).join("backup"));
+                wiring::wire_cursor(&opts.env, &writer)
+                    .map(|outcome| json!({"id":"cursor","wiring":wiring::cursor_wiring_state(&opts.env),"changed":matches!(outcome, clashofmeat_core::WriteOutcome::Written { .. })}))
+                    .map_err(internal)
+            }
+            Some(_) => Err(SocketError::new("not_wirable", "provider cannot be wired")),
+            None => Err(SocketError::new("bad_request", "id is required")),
+        },
         "set_provider_enabled" => {
             let id = params.get("id").and_then(Value::as_str);
             let enabled = params.get("enabled").and_then(Value::as_bool);
@@ -501,7 +512,11 @@ fn status(
     let providers: Vec<Value> = clashofmeat_providers::all().iter().map(|provider| {
         let manifest = provider.manifest();
         let row = health.iter().find(|row| row.provider == manifest.id);
-        json!({"id":manifest.id,"name":manifest.name,"detected":detect::detect(&opts.env,manifest),"enabled":!off.contains(manifest.id),"today_tokens":today.get(manifest.id).copied().unwrap_or(0),"health":row.map(|row| json!({"records":row.records,"malformed":row.malformed,"oversized":row.oversized,"errors":row.errors,"last_at":row.last_at})).unwrap_or_else(|| json!({"records":0,"malformed":0,"oversized":0,"errors":0,"last_at":null}))})
+        let mut value = json!({"id":manifest.id,"name":manifest.name,"detected":detect::detect(&opts.env,manifest),"enabled":!off.contains(manifest.id),"today_tokens":today.get(manifest.id).copied().unwrap_or(0),"health":row.map(|row| json!({"records":row.records,"malformed":row.malformed,"oversized":row.oversized,"errors":row.errors,"last_at":row.last_at})).unwrap_or_else(|| json!({"records":0,"malformed":0,"oversized":0,"errors":0,"last_at":null}))});
+        if !manifest.wiring.is_empty() && manifest.id == "cursor" {
+            value["wiring"] = json!(wiring::cursor_wiring_state(&opts.env));
+        }
+        value
     }).collect();
     let counters = store
         .pending(EventKind::Counter, usize::MAX)
