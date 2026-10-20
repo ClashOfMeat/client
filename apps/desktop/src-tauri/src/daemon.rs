@@ -194,11 +194,13 @@ pub fn send(method: &str) -> Result<Value, String> {
 pub fn send_with_params(method: &str, params: Value) -> Result<Value, String> {
     let mut stream = UnixStream::connect(socket_path()).map_err(|e| e.to_string())?;
     stream
-        .set_read_timeout(Some(Duration::from_secs(if method == "pair_start" {
-            30
-        } else {
-            5
-        })))
+        .set_read_timeout(Some(Duration::from_secs(
+            if matches!(method, "pair_start" | "evolve") {
+                30
+            } else {
+                5
+            },
+        )))
         .map_err(|e| e.to_string())?;
     request(&mut stream, 1, method, &params)?;
     let mut line = String::new();

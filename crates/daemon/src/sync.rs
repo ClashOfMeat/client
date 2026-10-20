@@ -217,6 +217,14 @@ impl Client {
         }
     }
 
+    /// Evolves the active hero; the answer carries the new skin and its level-up effect.
+    pub fn evolve(&self, character_id: &str, level: u64) -> Result<Value, ApiError> {
+        self.post(
+            "/api/companion/evolve",
+            &json!({"characterId": character_id, "level": level}),
+        )
+    }
+
     pub fn upload_observations(
         &self,
         store: &mut Store,

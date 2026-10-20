@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { XP_COLOR, xpTextFrame, drawXpText } from '../xp-text.mjs'
+import { XP_COLOR, LEVEL_UP_COLOR, xpTextFrame, levelUpTextFrame, drawXpText } from '../xp-text.mjs'
 
 const area = { centerX: 100, areaHeight: 100 }
 
@@ -55,4 +55,14 @@ test('rejects invalid XP amounts', () => {
   for (const amount of [0, -1, 1.5, '240', Number.MAX_SAFE_INTEGER + 1, NaN]) {
     assert.equal(xpTextFrame(amount, 0, area), null)
   }
+})
+
+test('level-up label is gold, fixed and uses the same 5x7 glyphs', () => {
+  const frame = levelUpTextFrame({ centerX: 80, top: 28, maxWidth: 160 })
+  assert.equal(frame.text, 'LEVEL UP!')
+  assert.equal(frame.color, LEVEL_UP_COLOR)
+  assert.equal(frame.height, 14)
+  assert.equal(frame.width, (9 * 6 - 1) * 2)
+  assert.equal(frame.top, 28)
+  assert.deepEqual(frame.pixels.filter(([x]) => x < 5).length, 11)
 })

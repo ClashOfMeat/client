@@ -17,3 +17,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 .menu button:hover:not(:disabled) { background: rgba(255,255,255,.14); }
 .emotes button:hover { background: rgba(255,255,255,.2); }
 .menu button:disabled { opacity: .45; cursor: default; }
+.evolve { display: block; width: 100%; margin-top: 8px; border: 0; border-radius: 8px; padding: 5px 8px; background: linear-gradient(#ffd866, #d9a22b); color: #2b1a00; font: inherit; font-weight: 700; cursor: pointer; }
+.evolve:hover:not(:disabled) { filter: brightness(1.08); }
+.evolve:disabled { opacity: .7; cursor: default; }
+.evolve[hidden] { display: none; }

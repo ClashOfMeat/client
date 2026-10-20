@@ -1,7 +1,7 @@
 import { heroActivity } from './hero/activity.mjs'
 import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
 import { xpGain, bubbleFrame, levelUpFrame, visitPose } from './hero/effects.mjs'
-import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
+import { xpTextFrame, levelUpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit } from './hero/validate.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
 
@@ -14,6 +14,7 @@ const stats = document.getElementById('stats')
 const menu = document.getElementById('menu')
 const emotes = document.getElementById('emotes')
 const stillButton = document.getElementById('still')
+const evolveButton = document.getElementById('evolve')
 const activity = heroActivity()
 const images = new Map()
 let workArea, animation, character, progression, player, sessions = []
@@ -21,6 +22,7 @@ let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = false
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
+let evolving = false, levelLabel = null
 let lastActivityAt = Date.now()
 
 async function bitmap(png) {
@@ -71,7 +73,7 @@ function tokenCount(data) {
 
 function updateStats() {
   if (!character) return
-  document.getElementById('level').textContent = `Lv ${character.level ?? 1} ${player?.name ?? character.heroId ?? 'Hero'}`
+  document.getElementById('level').textContent = `Lv ${character.level ?? 1} ${character.name ?? heroName(character.heroId)}`
   const xp = character.xp
   const next = character.nextLevelAt
   const floor = Number.isSafeInteger(character.levelFloor) ? character.levelFloor : 0
@@ -81,7 +83,7 @@ function updateStats() {
   const xpText = document.getElementById('xp-text')
   const xpFill = document.getElementById('xp-fill')
   if (Number.isSafeInteger(xp) && Number.isSafeInteger(next) && span > 0) {
-    xpText.textContent = `${fmt(Math.min(into, span))} / ${fmt(span)} XP${character.canLevelUp === true ? ' · ready to evolve' : ''}`
+    xpText.textContent = `${fmt(Math.min(into, span))} / ${fmt(span)} XP`
     xpFill.style.width = `${Math.max(0, Math.min(1, into / span)) * 100}%`
   } else if (Number.isSafeInteger(xp) && (next === null || span <= 0)) {
     xpText.textContent = `${fmt(xp)} XP · max level`
@@ -90,12 +92,34 @@ function updateStats() {
     xpText.textContent = 'XP unavailable'
     xpFill.style.width = '0%'
   }
+  evolveButton.hidden = character.canLevelUp !== true
+  evolveButton.disabled = evolving
+  evolveButton.textContent = evolving ? 'Evolving…' : `★ Evolve to Lv ${(character.level ?? 1) + 1}`
   const tokens = tokenCount(progression)
   const tokensLine = document.getElementById('tokens')
   tokensLine.hidden = tokens === null
   if (tokens !== null) tokensLine.textContent = `today ${formatTokens(tokens)} tokens`
   const active = [...new Set(sessions.filter(s => s.state === 'Busy').map(s => s.provider))]
   document.getElementById('providers').textContent = active.length ? active.join(' · ') : 'No active providers'
+}
+
+// Older servers send no display name; "framework_familiar" reads as "Framework Familiar".
+function heroName(id) {
+  return id ? id.split('_').map(word => word[0].toUpperCase() + word.slice(1)).join(' ') : 'Hero'
+}
+
+// The server checks the level and plays the effect; the daemon then broadcasts the new skin as a heartbeat.
+async function evolve() {
+  if (evolving || character?.canLevelUp !== true) return
+  evolving = true
+  statsOpen = false
+  updateStats()
+  wake()
+  try { await invoke('daemon_request', { method: 'evolve', params: { characterId: character.id, level: character.level } }) }
+  catch (error) { console.error('evolve:', error) }
+  evolving = false
+  updateStats()
+  wake()
 }
 
 function updateEmotes() {
@@ -118,6 +142,7 @@ function setStayStill(next) {
     const now = Date.now()
     activity.drag(activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: true }).x, now)
   }
+  if (!next && stayStill && workArea) activity.strollNow(Date.now())
   stayStill = next
   stillButton.textContent = stayStill ? 'Start walking' : 'Stop walking'
   wake()
@@ -134,7 +159,9 @@ async function setHero(data, heartbeat = false) {
   if (animation !== previousAnimation) updateEmotes()
   progression = data?.progression ?? null
   player = data?.player ?? null
-  aura = validateLevelUp(data?.levelUp ?? data?.level_up)
+  // A later heartbeat carries no effect; let a playing aura finish.
+  const nextAura = validateLevelUp(data?.levelUp ?? data?.level_up)
+  if (nextAura || !(aura && now - auraStarted < aura.durationMs)) aura = nextAura
   if (heartbeat) {
     gained = xpGain(previous, character, now)
     if (aura && previous?.level < character?.level) auraStarted = now
@@ -221,6 +248,10 @@ async function draw() {
   if (gained) {
     drawXpText(ctx, xpTextFrame(gained.amount, now - gained.startedAt, { centerX: rect.spriteX + 64, areaHeight: rect.spriteY + 16, scale: 2, maxWidth: rect.width }))
   }
+  const auraPlaying = Boolean(aura && now - auraStarted < aura.durationMs)
+  levelLabel = character.canLevelUp === true && !evolving && !auraPlaying
+    ? levelUpTextFrame({ centerX: rect.spriteX + 64, top: rect.spriteY - 4, maxWidth: rect.width }) : null
+  drawXpText(ctx, levelLabel)
   stats.hidden = !statsOpen || menuOpen
   menu.hidden = !menuOpen
   const next = deadline(now, pose)
@@ -236,8 +267,10 @@ function wake() {
 canvas.addEventListener('pointerdown', event => {
   if (!rect || !character || event.button !== 0) return
   const x = event.clientX, y = event.clientY
+  if (levelLabel && x >= levelLabel.left - 4 && x <= levelLabel.left + levelLabel.width + 4 &&
+      y >= levelLabel.top - 4 && y <= levelLabel.top + levelLabel.height + 4) { void evolve(); return }
   if (x < rect.spriteX || x > rect.spriteX + 128 || y < rect.spriteY || y > rect.spriteY + 128) return
-  drag = { startX: event.screenX, startY: event.screenY, starting: activity.snapshot(Date.now(), { width: workArea.width - 128 }).x, moved: false }
+  drag = { startX: event.screenX, startY: event.screenY, starting: activity.snapshot(Date.now(), { width: workArea.width - 128, still: true }).x, moved: false }
   canvas.setPointerCapture(event.pointerId)
 })
 canvas.addEventListener('pointermove', event => {
@@ -271,6 +304,7 @@ document.getElementById('pause').addEventListener('click', async () => {
   await nativeWindow.hide()
   visible = false
 })
+evolveButton.addEventListener('click', () => { void evolve() })
 stillButton.addEventListener('click', async () => {
   menuOpen = false
   const next = !stayStill
@@ -288,7 +322,7 @@ document.getElementById('quit').addEventListener('click', async () => {
   visible = false
 })
 function setPaused(next) {
-  if (next !== paused && workArea) activity.snapshot(Date.now(), { width: Math.max(0, workArea.width - 128), paused: true })
+  if (next !== paused && workArea) activity.snapshot(Date.now(), { width: Math.max(0, workArea.width - 128), paused: true, still: true })
   paused = next
 }
 window.addEventListener('resize', wake)

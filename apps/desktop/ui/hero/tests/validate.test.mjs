@@ -67,3 +67,10 @@ test('level-up and visit validation preserve bounds without a level cap', () => 
   assert.equal(validateVisit({ ...visit, expiresAt: new Date(now + 300001).toISOString() }, now), null)
   assert.equal(validateVisit({ ...visit, character: { id: uuid, png } }, now), null)
 })
+
+test('character keeps a display name and rejects a bad one', () => {
+  const character = { id: uuid, png, name: 'Framework Familiar' }
+  assert.equal(validateCharacter(character).name, 'Framework Familiar')
+  assert.equal(validateCharacter({ ...character, name: 'x'.repeat(81) }), null)
+  assert.equal(validateCharacter({ ...character, name: 7 }), null)
+})

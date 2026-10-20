@@ -118,6 +118,7 @@ pub fn daemon_request(
             | "sync_now"
             | "pair_start"
             | "wire_provider"
+            | "evolve"
     ) {
         return Err("unsupported method".into());
     }
@@ -135,7 +136,14 @@ pub fn set_hero_settings(
     screen: String,
     still: Option<bool>,
 ) -> Result<HeroSettings, String> {
-    set(&app, HeroSettings { show, screen, still: still.unwrap_or_else(|| current(&app).still) })
+    set(
+        &app,
+        HeroSettings {
+            show,
+            screen,
+            still: still.unwrap_or_else(|| current(&app).still),
+        },
+    )
 }
 
 #[tauri::command]

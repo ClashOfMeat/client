@@ -88,6 +88,8 @@ pub(crate) enum Message {
     Socket(Request),
     SyncDone(sync::SyncResult),
     PairState(Value),
+    /// The server's evolve answer: the new skin and its level-up effect.
+    Evolved(Value),
     Stop,
 }
 
@@ -95,6 +97,11 @@ enum SyncCommand {
     Now,
     /// The live channel announced a change for this player.
     Live,
+    Evolve {
+        character_id: String,
+        level: u64,
+        reply: Sender<std::result::Result<Value, SocketError>>,
+    },
     PairStart {
         device: String,
         tools: Vec<String>,
@@ -280,6 +287,27 @@ fn main_loop(
                     broadcast(&mut subscribers, "heartbeat", view);
                 }
             }
+            Ok(Message::Evolved(evolved)) => {
+                let mut view = cached.clone().unwrap_or_else(|| json!({}));
+                if let (Some(view), Some(character)) =
+                    (view.as_object_mut(), evolved.get("character"))
+                {
+                    view.insert("character".into(), character.clone());
+                    view.remove("levelUp");
+                    view.remove("level_up");
+                }
+                if let Err(error) = hero::save_cache(&config::home(&opts.env), &view) {
+                    eprintln!("daemon hero cache: {error}");
+                }
+                cached = Some(view.clone());
+                // The effect plays once, so it goes out with the event but is never cached.
+                if let (Some(event), Some(level_up)) =
+                    (view.as_object_mut(), evolved.get("levelUp"))
+                {
+                    event.insert("levelUp".into(), level_up.clone());
+                }
+                broadcast(&mut subscribers, "heartbeat", view);
+            }
             Ok(Message::PairState(state)) => {
                 pair_state = state.clone();
                 match state["status"].as_str() {
@@ -411,6 +439,33 @@ fn handle_request(
                 .send(SyncCommand::PairStart {
                     device,
                     tools,
+                    reply: reply.clone(),
+                })
+                .is_err()
+            {
+                return Some((
+                    reply,
+                    Err(SocketError::new("internal", "sync thread stopped")),
+                ));
+            }
+            return None;
+        }
+        "evolve" => {
+            let character_id = params.get("characterId").and_then(Value::as_str);
+            let level = params.get("level").and_then(Value::as_u64);
+            let (Some(character_id), Some(level)) = (character_id, level) else {
+                return Some((
+                    reply,
+                    Err(SocketError::new(
+                        "bad_request",
+                        "characterId and level are required",
+                    )),
+                ));
+            };
+            if sync_tx
+                .send(SyncCommand::Evolve {
+                    character_id: character_id.to_owned(),
+                    level,
                     reply: reply.clone(),
                 })
                 .is_err()
@@ -595,6 +650,25 @@ fn sync_loop(
         match commands.recv_timeout(Duration::from_secs(1)) {
             Ok(SyncCommand::Stop) | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
             Ok(SyncCommand::Now) => forced = true,
+            Ok(SyncCommand::Evolve {
+                character_id,
+                level,
+                reply,
+            }) => {
+                let token = store.meta("installation.token").ok().flatten();
+                let result = make_client(&env, &version, token).and_then(|client| {
+                    client
+                        .evolve(&character_id, level)
+                        .map_err(|error| SocketError::new("evolve_failed", error.to_string()))
+                });
+                if let Ok(evolved) = &result {
+                    let _ = main.send(Message::Evolved(evolved.clone()));
+                    // The new skin's art differs; refetch it, then refresh progress.
+                    art = sync::HeroArt::default();
+                    forced = true;
+                }
+                let _ = reply.send(result.map(|_| json!({"evolved":true})));
+            }
             Ok(SyncCommand::Live) => {
                 let earliest = last_heartbeat + Duration::from_secs(10);
                 live_due.get_or_insert(earliest.max(Instant::now()));

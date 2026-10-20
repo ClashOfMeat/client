@@ -4,7 +4,7 @@ const clamp = (n, min, max) => Math.min(max, Math.max(min, n))
 export function windowRect(x, { workArea, sprite = 128, bubble = false } = {}) {
   const size = Math.max(1, sprite)
   const width = Math.min(workArea.width, bubble ? 240 : 160)
-  const height = Math.min(workArea.height, bubble ? 310 : 160)
+  const height = Math.min(workArea.height, bubble ? 340 : 160)
   const spriteLeft = workArea.x + clamp(x, 0, Math.max(0, workArea.width - size))
   const wanted = spriteLeft - (width - size) / 2
   const left = clamp(wanted, workArea.x, workArea.x + workArea.width - width)

@@ -744,3 +744,15 @@ fn heartbeat_refetches_art_it_no_longer_holds() {
     );
     assert_eq!(requests[1].body, json!({}));
 }
+
+#[test]
+fn evolve_posts_the_character_and_its_level() {
+    let server = Server::start(vec![Reply::ok(
+        json!({"levelUp": {"version": 1}, "character": {"id": ID}}),
+    )]);
+    let evolved = client(&server).evolve(ID, 4).unwrap();
+    assert_eq!(evolved["character"]["id"], ID);
+    let requests = server.finish();
+    assert_eq!(requests[0].path, "/api/companion/evolve");
+    assert_eq!(requests[0].body, json!({"characterId": ID, "level": 4}));
+}
