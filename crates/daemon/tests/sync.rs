@@ -13,7 +13,9 @@ use clashofmeat_core::store::Store;
 use clashofmeat_core::{Observation, TaskRef};
 use clashofmeat_daemon::config::{app_origin, read_config, store_path, update_config};
 use clashofmeat_daemon::run::{self, RunOptions};
-use clashofmeat_daemon::sync::{mark_paired, sync_once, ApiError, Client};
+use clashofmeat_daemon::sync::{
+    mark_paired, sync_once, sync_once_with_art, ApiError, Client, HeroArt,
+};
 use serde_json::{json, Value};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -80,9 +82,19 @@ impl Server {
         let observed = Arc::clone(&received);
         let thread = thread::spawn(move || {
             let mut handle = make();
-            for _ in 0..count {
+            let mut handled = 0;
+            while handled < count {
                 let (mut stream, _) = listener.accept().unwrap();
                 let request = read_request(&mut stream);
+                // A running daemon also follows the live channel; scripts only cover the API calls.
+                if request.path == "/api/live" {
+                    let _ = write!(
+                        stream,
+                        "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    );
+                    continue;
+                }
+                handled += 1;
                 let reply = handle(&request);
                 observed.lock().unwrap().push(request);
                 let body = reply.body.to_string();
@@ -135,14 +147,20 @@ fn read_request(stream: &mut TcpStream) -> Request {
         .filter_map(|line| line.split_once(':'))
         .map(|(key, value)| (key.to_ascii_lowercase(), value.trim().to_owned()))
         .collect();
-    let length: usize = headers.get("content-length").unwrap().parse().unwrap();
+    let length: usize = headers
+        .get("content-length")
+        .map_or(0, |length| length.parse().unwrap());
     while bytes.len() - header_end < length {
         let mut chunk = [0u8; 4096];
         let read = stream.read(&mut chunk).unwrap();
         assert!(read > 0);
         bytes.extend_from_slice(&chunk[..read]);
     }
-    let body = serde_json::from_slice(&bytes[header_end..header_end + length]).unwrap();
+    let body = if length == 0 {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes[header_end..header_end + length]).unwrap()
+    };
     Request {
         path,
         headers,
@@ -672,4 +690,57 @@ fn upload_401_keeps_queue_and_unpairs() {
     assert!(store.meta("installation.token").unwrap().is_none());
     assert_eq!(store.meta("reauth").unwrap().as_deref(), Some("true"));
     assert_eq!(server.finish().len(), 2);
+}
+
+fn full_character(revision: &str) -> Value {
+    json!({"character": {"id": ID, "level": 2, "png": "iVBOR", "animation": {"frames": ["a"]}, "artRevision": revision}})
+}
+
+#[test]
+fn heartbeat_reuses_unchanged_art_and_stores_it_without_frames() {
+    let revision = "0123456789abcdef0123456789abcdef";
+    let server = Server::start(vec![
+        Reply::ok(full_character(revision)),
+        Reply::ok(
+            json!({"character": {"id": ID, "level": 3, "artRevision": revision, "artUnchanged": true}}),
+        ),
+    ]);
+    let client = client(&server);
+    let mut store = Store::open_in_memory().unwrap();
+    let mut art = HeroArt::default();
+    sync_once_with_art(&client, &mut store, now(), &mut art);
+    let second = sync_once_with_art(&client, &mut store, now(), &mut art);
+    let character = &second.heartbeat.unwrap()["character"];
+    assert_eq!(character["level"], 3);
+    assert_eq!(character["png"], "iVBOR");
+    assert_eq!(character["animation"], json!({"frames": ["a"]}));
+    assert!(character.get("artUnchanged").is_none());
+    let stored: Value = serde_json::from_str(&store.meta("heartbeat").unwrap().unwrap()).unwrap();
+    assert!(
+        stored["character"].get("png").is_none() && stored["character"].get("animation").is_none()
+    );
+    let requests = server.finish();
+    assert_eq!(requests[0].body, json!({}));
+    assert_eq!(requests[1].body, json!({"artRevision": revision}));
+}
+
+#[test]
+fn heartbeat_refetches_art_it_no_longer_holds() {
+    let server = Server::start(vec![
+        Reply::ok(
+            json!({"character": {"id": ID, "artRevision": "ffffffffffffffffffffffffffffffff", "artUnchanged": true}}),
+        ),
+        Reply::ok(full_character("ffffffffffffffffffffffffffffffff")),
+    ]);
+    let client = client(&server);
+    let mut store = Store::open_in_memory().unwrap();
+    let mut art = HeroArt::from_view(&full_character("0123456789abcdef0123456789abcdef"));
+    let result = sync_once_with_art(&client, &mut store, now(), &mut art);
+    assert_eq!(result.heartbeat.unwrap()["character"]["png"], "iVBOR");
+    let requests = server.finish();
+    assert_eq!(
+        requests[0].body,
+        json!({"artRevision": "0123456789abcdef0123456789abcdef"})
+    );
+    assert_eq!(requests[1].body, json!({}));
 }

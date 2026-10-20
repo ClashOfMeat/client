@@ -93,6 +93,8 @@ pub(crate) enum Message {
 
 enum SyncCommand {
     Now,
+    /// The live channel announced a change for this player.
+    Live,
     PairStart {
         device: String,
         tools: Vec<String>,
@@ -149,6 +151,18 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
         let busy_recent = busy_recent.clone();
         thread::spawn(move || sync_loop(env, version, sync_rx, sender, busy_recent))
     };
+    {
+        // Not joined on stop: a blocked read ends within the 60 s read timeout.
+        let env = opts.env.clone();
+        let version = opts.version.clone();
+        let stopping = stopping.clone();
+        let live = sync_tx.clone();
+        thread::spawn(move || {
+            crate::live::follow(env, version, stopping, || {
+                live.send(SyncCommand::Live).is_ok()
+            })
+        });
+    }
     let main_sync = sync_tx.clone();
     let main = thread::spawn(move || {
         main_loop(
@@ -566,6 +580,14 @@ fn sync_loop(
     };
     let mut last_heartbeat = Instant::now();
     let mut last_upload = Instant::now();
+    let mut art = hero::load_cache(&config::home(&env))
+        .ok()
+        .flatten()
+        .map(|view| sync::HeroArt::from_view(&view))
+        .unwrap_or_default();
+    // Our own uploads also announce a revision, so a live change waits until
+    // 10 s after the last heartbeat: one extra light heartbeat at most, never a loop.
+    let mut live_due: Option<Instant> = None;
     let mut pairing: Option<sync::Pairing> = None;
     let mut next_poll = Instant::now();
     loop {
@@ -573,6 +595,10 @@ fn sync_loop(
         match commands.recv_timeout(Duration::from_secs(1)) {
             Ok(SyncCommand::Stop) | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
             Ok(SyncCommand::Now) => forced = true,
+            Ok(SyncCommand::Live) => {
+                let earliest = last_heartbeat + Duration::from_secs(10);
+                live_due.get_or_insert(earliest.max(Instant::now()));
+            }
             Ok(SyncCommand::PairStart {
                 device,
                 tools,
@@ -653,6 +679,10 @@ fn sync_loop(
                 || store
                     .pending(EventKind::Reading, 1)
                     .is_ok_and(|v| !v.is_empty()));
+        if live_due.is_some_and(|at| Instant::now() >= at) {
+            live_due = None;
+            forced = true;
+        }
         if !forced && last_heartbeat.elapsed() < interval && !pending {
             continue;
         }
@@ -679,7 +709,8 @@ fn sync_loop(
             Ok(client) => client,
             Err(_) => continue,
         };
-        let result = sync::sync_once(&client, &mut store, OffsetDateTime::now_utc());
+        let result =
+            sync::sync_once_with_art(&client, &mut store, OffsetDateTime::now_utc(), &mut art);
         last_heartbeat = Instant::now();
         last_upload = Instant::now();
         if result.error.is_none() && !result.deferred {

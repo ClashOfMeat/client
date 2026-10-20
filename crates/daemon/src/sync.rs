@@ -55,6 +55,34 @@ impl Client {
         })
     }
 
+    /// Opens the player's live channel (server-sent events) on its own long-lived
+    /// connection; the server sends a keepalive every 25 s.
+    pub fn live(&self) -> Result<Box<dyn std::io::Read + Send + Sync>, ApiError> {
+        let agent = ureq::AgentBuilder::new()
+            .timeout_connect(Duration::from_secs(15))
+            .timeout_read(Duration::from_secs(60))
+            .redirects(0)
+            .build();
+        let mut request = agent
+            .get(&format!("{}/api/live", self.origin))
+            .set("x-clashofmeat-client", &format!("desktop/{}", self.version))
+            .set("accept", "text/event-stream");
+        if let Some(token) = &self.token {
+            request = request.set("authorization", &format!("Bearer {token}"));
+        }
+        match request.call() {
+            Ok(response) => Ok(Box::new(response.into_reader())),
+            Err(ureq::Error::Status(status, _)) => Err(ApiError::Status {
+                status,
+                message: format!("Clash of Meat live channel returned {status}."),
+                reason: None,
+                retry_after_s: None,
+                setup_url: None,
+            }),
+            Err(error) => Err(ApiError::Transport(error.to_string())),
+        }
+    }
+
     fn post(&self, path: &str, body: &Value) -> Result<Value, ApiError> {
         let mut request = self
             .agent
@@ -390,7 +418,83 @@ pub struct SyncResult {
     pub deferred: bool,
 }
 
+/// The last full hero art. Heartbeats send its revision so the server can leave the frames out.
+#[derive(Default)]
+pub struct HeroArt {
+    revision: Option<String>,
+    png: Value,
+    animation: Value,
+}
+
+impl HeroArt {
+    /// Starts from a saved hero view (`hero/cache.json`).
+    pub fn from_view(view: &Value) -> Self {
+        let mut art = Self::default();
+        let mut heartbeat = view.clone();
+        art.keep(&mut heartbeat);
+        art
+    }
+
+    fn request(&self) -> Value {
+        match &self.revision {
+            Some(revision) => json!({ "artRevision": revision }),
+            None => json!({}),
+        }
+    }
+
+    /// Fills unchanged art back in, or remembers new art. False when the server
+    /// skipped art this client no longer holds.
+    fn keep(&mut self, heartbeat: &mut Value) -> bool {
+        let Some(character) = heartbeat
+            .get_mut("character")
+            .and_then(Value::as_object_mut)
+        else {
+            return true;
+        };
+        let revision = character
+            .get("artRevision")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        if character.remove("artUnchanged") == Some(Value::Bool(true)) {
+            if revision.is_none() || revision != self.revision {
+                return false;
+            }
+            character.insert("png".into(), self.png.clone());
+            character.insert("animation".into(), self.animation.clone());
+            return true;
+        }
+        match (revision, character.get("png"), character.get("animation")) {
+            (Some(revision), Some(png), Some(animation)) => {
+                self.png = png.clone();
+                self.animation = animation.clone();
+                self.revision = Some(revision);
+            }
+            _ => *self = Self::default(),
+        }
+        true
+    }
+}
+
+/// The stored heartbeat without hero art, which the hero cache already holds.
+fn without_art(heartbeat: &Value) -> Value {
+    let mut light = heartbeat.clone();
+    if let Some(character) = light.get_mut("character").and_then(Value::as_object_mut) {
+        character.remove("png");
+        character.remove("animation");
+    }
+    light
+}
+
 pub fn sync_once(client: &Client, store: &mut Store, now: OffsetDateTime) -> SyncResult {
+    sync_once_with_art(client, store, now, &mut HeroArt::default())
+}
+
+pub fn sync_once_with_art(
+    client: &Client,
+    store: &mut Store,
+    now: OffsetDateTime,
+    art: &mut HeroArt,
+) -> SyncResult {
     let mut result = SyncResult {
         heartbeat: None,
         uploaded: 0,
@@ -407,10 +511,18 @@ pub fn sync_once(client: &Client, store: &mut Store, now: OffsetDateTime) -> Syn
         Err(error) => return fail(client, store, now, result, store_error(error)),
         _ => {}
     }
-    let heartbeat = match client.heartbeat(json!({})) {
+    let mut heartbeat = match client.heartbeat(art.request()) {
         Ok(value) => value,
         Err(error) => return fail(client, store, now, result, error),
     };
+    if !art.keep(&mut heartbeat) {
+        *art = HeroArt::default();
+        heartbeat = match client.heartbeat(json!({})) {
+            Ok(value) => value,
+            Err(error) => return fail(client, store, now, result, error),
+        };
+        art.keep(&mut heartbeat);
+    }
     let timestamp = match now.format(&Rfc3339) {
         Ok(timestamp) => timestamp,
         Err(error) => {
@@ -424,7 +536,7 @@ pub fn sync_once(client: &Client, store: &mut Store, now: OffsetDateTime) -> Syn
         }
     };
     if let Err(error) = store
-        .set_meta("heartbeat", &heartbeat.to_string())
+        .set_meta("heartbeat", &without_art(&heartbeat).to_string())
         .and_then(|()| store.set_meta("heartbeat_at", &timestamp))
     {
         return fail(client, store, now, result, store_error(error));

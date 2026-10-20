@@ -2,6 +2,7 @@ pub mod config;
 pub mod detect;
 pub mod engine;
 pub mod hero;
+pub mod live;
 pub mod run;
 pub mod socket;
 pub mod sync;
