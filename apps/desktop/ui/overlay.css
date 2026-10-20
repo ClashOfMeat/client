@@ -1,23 +1,55 @@
-:root { color-scheme: light dark; font: 12px system-ui, sans-serif; }
+/* Same palette, fonts and bevelled buttons as the web app (guildbyte-app src/ui/public/style.css). */
+@font-face { font-family: Righteous; font-weight: 400; src: url("./fonts/righteous.woff2"); }
+@font-face { font-family: "Alegreya Sans"; font-weight: 400; src: url("./fonts/alegreya-400.woff2"); }
+@font-face { font-family: "Alegreya Sans"; font-weight: 700; src: url("./fonts/alegreya-700.woff2"); }
+:root {
+  color-scheme: dark;
+  --background: #241a14; --foreground: #f0e7d0; --gold: #ffe083; --title: #f1d18f;
+  --muted: #c7b99f; --border: #806445; --panel: #38291f;
+  font: 14px/1.35 "Alegreya Sans", sans-serif;
+}
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; user-select: none; }
 #hero { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
-.bubble { position: absolute; top: 4px; left: 4px; right: 4px; min-height: 72px; max-height: calc(100% - 136px); overflow: hidden; border: 1px solid rgba(255,255,255,.32); border-radius: 12px; padding: 10px; background: rgba(25,23,32,.94); color: #fff; box-shadow: 0 5px 15px rgba(0,0,0,.32); pointer-events: auto; }
+
+.bubble { position: absolute; top: 4px; left: 4px; right: 4px; max-height: calc(100% - 136px); overflow: hidden;
+  padding: 10px 12px 12px; border: 2px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--foreground);
+  box-shadow: inset 0 1px #a98d5b44, 0 4px 0 #18120d, 0 8px 18px rgba(0,0,0,.4); font-variant-numeric: tabular-nums; }
 .bubble[hidden] { display: none; }
-#level { font-weight: 700; font-size: 13px; }
-#xp-text, #tokens, #providers { margin-top: 4px; }
-#providers { color: #d6cee3; }
-.xp-track { height: 7px; margin-top: 6px; background: #625770; border-radius: 7px; overflow: hidden; }
-#xp-fill { height: 100%; background: #d4a7fa; width: 0%; }
-.menu { display: grid; gap: 3px; width: 150px; right: auto; }
-.emotes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-.menu button, .emotes button { border: 0; border-radius: 5px; padding: 5px; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
-.menu button .key { float: right; opacity: .6; }
-.emotes button { padding: 3px 8px; border-radius: 10px; background: rgba(255,255,255,.1); }
-.menu button:hover:not(:disabled) { background: rgba(255,255,255,.14); }
-.emotes button:hover { background: rgba(255,255,255,.2); }
-.menu button:disabled { opacity: .45; cursor: default; }
-.evolve { display: block; width: 100%; margin-top: 8px; border: 0; border-radius: 8px; padding: 5px 8px; background: linear-gradient(#ffd866, #d9a22b); color: #2b1a00; font: inherit; font-weight: 700; cursor: pointer; }
-.evolve:hover:not(:disabled) { filter: brightness(1.08); }
-.evolve:disabled { opacity: .7; cursor: default; }
-.evolve[hidden] { display: none; }
+#name { font: 17px/1.2 Righteous, Georgia, serif; color: var(--title); }
+#xp-text { margin-top: 3px; color: var(--foreground); }
+.xp-track { height: 12px; margin-top: 6px; border: 2px solid var(--border); border-radius: 3px; background: var(--background); overflow: hidden;
+  box-shadow: inset 0 2px #120c08; }
+#xp-fill { height: 100%; width: 0%; background: linear-gradient(#ffe083, #d9a22b); box-shadow: inset 0 -2px #8a5a14; }
+.info { margin-top: 5px; color: var(--muted); font-size: 13px; }
+#tokens::before { content: " · "; }
+
+button { font: 700 13px/1 "Alegreya Sans", sans-serif; color: var(--foreground); cursor: pointer; user-select: none;
+  border: 2px solid #806b49; border-radius: 4px; background: #4b3e2e;
+  box-shadow: inset 0 2px #a98d5b66, inset 0 -2px #34281c, 0 2px #18120d; transition: filter 120ms; }
+button:hover:not(:disabled) { filter: brightness(1.13); }
+button:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 2px #a98d5b66, inset 0 -2px #34281c, 0 1px #18120d; }
+button:disabled { opacity: .5; cursor: default; }
+button[hidden] { display: none; }
+
+.evolve { display: block; width: 100%; margin-top: 9px; padding: 7px 8px; color: #2b1a00; border-color: #8a5a14;
+  background: linear-gradient(#ffe083, #d9a22b); box-shadow: inset 0 2px #fff3b8, inset 0 -2px #a8741c, 0 2px #18120d; }
+.emotes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.emotes button { width: 36px; height: 36px; padding: 3px; display: grid; place-items: center; }
+.emotes img { width: 26px; height: 26px; image-rendering: pixelated; pointer-events: none; }
+
+.menu { display: grid; gap: 4px; width: 172px; right: auto; padding: 8px; }
+.menu button { padding: 7px 9px; text-align: left; }
+.menu button .key { float: right; color: var(--muted); font-weight: 400; }
+
+/* Gold plaque above the hero while an evolution waits (art from assets/level-up-plaque.png). */
+.levelup { position: absolute; width: 160px; height: 43px; padding: 0; border: 0; box-shadow: none; background: url("./assets/level-up-plaque.png") center / 100% 100% no-repeat;
+  image-rendering: pixelated; display: grid; place-items: center; }
+/* The glow pulses through opacity only, which the compositor animates without repainting. */
+.levelup::before { content: ""; position: absolute; inset: 2px 6px; z-index: -1; border-radius: 12px; box-shadow: 0 0 12px 4px #ffe083;
+  opacity: .25; animation: levelup-pulse 1.6s ease-in-out infinite; }
+.levelup:hover:not(:disabled) { filter: brightness(1.1); }
+.levelup:active { transform: translateY(1px); }
+.levelup canvas { position: relative; image-rendering: pixelated; pointer-events: none; }
+@keyframes levelup-pulse { 50% { opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { .levelup::before { animation: none; } }

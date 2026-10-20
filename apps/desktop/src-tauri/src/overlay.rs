@@ -1,8 +1,17 @@
+use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
+
 use serde::Serialize;
 use tauri::{
     webview::PageLoadEvent, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
 };
+
+/// Window-local rectangles (logical px) that take clicks: the hero, its label, an open card or menu.
+/// Everything else in the overlay window lets clicks through to the apps underneath.
+#[derive(Default)]
+pub struct HitRegions(Mutex<Vec<[f64; 4]>>);
 
 #[derive(Serialize)]
 struct Area {
@@ -42,7 +51,54 @@ pub fn create(app: &tauri::AppHandle) -> tauri::Result<WebviewWindow> {
         })
         .build()?;
     window.set_focusable(false)?;
+    window.set_ignore_cursor_events(true)?;
+    app.manage(HitRegions::default());
+    follow_cursor(window.clone());
     Ok(window)
+}
+
+/// Polls the cursor 20 times a second and lets clicks reach the overlay only over a hit region.
+/// One cheap position read per tick; the window flag changes only when the answer does.
+fn follow_cursor(window: WebviewWindow) {
+    thread::spawn(move || {
+        let mut ignoring = true;
+        loop {
+            thread::sleep(Duration::from_millis(50));
+            let inside = window.is_visible().unwrap_or(false)
+                && (|| {
+                    let cursor = window.cursor_position().ok()?;
+                    let origin = window.outer_position().ok()?;
+                    let scale = window.scale_factor().ok()?;
+                    let x = (cursor.x - origin.x as f64) / scale;
+                    let y = (cursor.y - origin.y as f64) / scale;
+                    let regions = window.state::<HitRegions>();
+                    let regions = regions.0.lock().ok()?;
+                    Some(regions.iter().any(|[left, top, width, height]| {
+                        x >= *left && x <= left + width && y >= *top && y <= top + height
+                    }))
+                })()
+                .unwrap_or(false);
+            if inside == ignoring {
+                ignoring = !inside;
+                if window.set_ignore_cursor_events(ignoring).is_err() {
+                    break;
+                }
+            }
+        }
+    });
+}
+
+#[tauri::command]
+pub fn hero_hit(window: WebviewWindow, regions: Vec<[f64; 4]>) -> Result<(), String> {
+    if regions.len() > 8 || regions.iter().flatten().any(|v| !v.is_finite()) {
+        return Err("invalid hit regions".into());
+    }
+    *window
+        .state::<HitRegions>()
+        .0
+        .lock()
+        .map_err(|e| e.to_string())? = regions;
+    Ok(())
 }
 
 #[tauri::command]
@@ -113,9 +169,17 @@ pub fn hero_place(
     if ![x, y, width, height].iter().all(|v| v.is_finite()) || width < 1.0 || height < 1.0 {
         return Err("invalid hero rectangle".into());
     }
-    window
-        .set_size(LogicalSize::new(width, height))
-        .map_err(|e| e.to_string())?;
+    // Resizing and moving are two steps; the overlay keeps one size so moves never flash.
+    let scale = window.scale_factor().map_err(|e| e.to_string())?;
+    let current = window
+        .inner_size()
+        .map_err(|e| e.to_string())?
+        .to_logical::<f64>(scale);
+    if (current.width - width).abs() >= 0.5 || (current.height - height).abs() >= 0.5 {
+        window
+            .set_size(LogicalSize::new(width, height))
+            .map_err(|e| e.to_string())?;
+    }
     window
         .set_position(LogicalPosition::new(x, y))
         .map_err(|e| e.to_string())

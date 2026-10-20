@@ -15,6 +15,8 @@ const menu = document.getElementById('menu')
 const emotes = document.getElementById('emotes')
 const stillButton = document.getElementById('still')
 const evolveButton = document.getElementById('evolve')
+const levelupButton = document.getElementById('levelup')
+const EMOTE_LABELS = { wave: 'Wave', laugh: 'Laugh', victory: 'Victory', kiss: 'Kiss', angry: 'Angry' }
 const activity = heroActivity()
 const images = new Map()
 let workArea, animation, character, progression, player, sessions = []
@@ -22,7 +24,7 @@ let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = false
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
-let evolving = false, levelLabel = null
+let evolving = false, hitKey = ''
 let lastActivityAt = Date.now()
 
 async function bitmap(png) {
@@ -73,7 +75,8 @@ function tokenCount(data) {
 
 function updateStats() {
   if (!character) return
-  document.getElementById('level').textContent = `Lv ${character.level ?? 1} ${character.name ?? heroName(character.heroId)}`
+  document.getElementById('name').textContent = character.name ?? heroName(character.heroId)
+  const level = `Level ${character.level ?? 1}`
   const xp = character.xp
   const next = character.nextLevelAt
   const floor = Number.isSafeInteger(character.levelFloor) ? character.levelFloor : 0
@@ -83,10 +86,10 @@ function updateStats() {
   const xpText = document.getElementById('xp-text')
   const xpFill = document.getElementById('xp-fill')
   if (Number.isSafeInteger(xp) && Number.isSafeInteger(next) && span > 0) {
-    xpText.textContent = `${fmt(Math.min(into, span))} / ${fmt(span)} XP`
+    xpText.textContent = `${level} · ${fmt(Math.min(into, span))} / ${fmt(span)} XP`
     xpFill.style.width = `${Math.max(0, Math.min(1, into / span)) * 100}%`
   } else if (Number.isSafeInteger(xp) && (next === null || span <= 0)) {
-    xpText.textContent = `${fmt(xp)} XP · max level`
+    xpText.textContent = `${level} · ${fmt(xp)} XP · max level`
     xpFill.style.width = '100%'
   } else {
     xpText.textContent = 'XP unavailable'
@@ -100,7 +103,7 @@ function updateStats() {
   tokensLine.hidden = tokens === null
   if (tokens !== null) tokensLine.textContent = `today ${formatTokens(tokens)} tokens`
   const active = [...new Set(sessions.filter(s => s.state === 'Busy').map(s => s.provider))]
-  document.getElementById('providers').textContent = active.length ? active.join(' · ') : 'No active providers'
+  document.getElementById('providers').textContent = active.length ? active.join(' · ') : 'No agent working'
 }
 
 // Older servers send no display name; "framework_familiar" reads as "Framework Familiar".
@@ -127,7 +130,14 @@ function updateEmotes() {
   for (const name of ['wave', 'laugh', 'victory', 'kiss', 'angry']) {
     if (!animation?.clips[name]) continue
     const button = document.createElement('button')
-    button.textContent = name[0].toUpperCase() + name.slice(1)
+    const icon = document.createElement('img')
+    icon.src = `./assets/emote-${name}.png`
+    icon.alt = ''
+    // Without the icon file the button falls back to its word.
+    icon.addEventListener('error', () => { button.textContent = EMOTE_LABELS[name]; button.style.width = 'auto' }, { once: true })
+    button.append(icon)
+    button.title = EMOTE_LABELS[name]
+    button.setAttribute('aria-label', EMOTE_LABELS[name])
     button.addEventListener('click', () => {
       statsOpen = false
       activity.emote(name, Date.now(), animation.clips[name].durations.reduce((sum, ms) => sum + ms, 0))
@@ -214,8 +224,8 @@ async function draw() {
   if (!character || !animation || !workArea || hidden || paused) return
   const now = Date.now()
   const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: stayStill || statsOpen || menuOpen })
-  const expanded = statsOpen || menuOpen || Boolean(visitor && now - visitorStarted < 8000)
-  const nextRect = windowRect(pose.x, { workArea, bubble: expanded })
+  // One fixed size: the window only moves, so opening the card never resizes it (no flash).
+  const nextRect = windowRect(pose.x, { workArea, bubble: true })
   const changed = !lastPlaced || Math.abs(nextRect.x - lastPlaced.x) >= 1 || nextRect.y !== lastPlaced.y || nextRect.width !== lastPlaced.width || nextRect.height !== lastPlaced.height
   rect = nextRect
   if (changed) {
@@ -234,28 +244,53 @@ async function draw() {
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
   ctx.clearRect(0, 0, rect.width, rect.height)
   ctx.imageSmoothingEnabled = false
-  const chosen = frameImage(animation, companionFrame(animation, pose.state, pose.elapsed), pose.facing)
-  drawImage(chosen.png ?? character.png, rect.spriteX, rect.spriteY, 128, chosen.flip)
+  const auraPlaying = Boolean(aura && now - auraStarted < aura.durationMs)
+  if (auraPlaying) {
+    // The effect frames contain the hero turning into its next skin, drawn larger than the sprite
+    // (renderScale) with the feet at the bottom, so they replace the sprite while they play.
+    const size = 128 * (aura.renderScale ?? 1)
+    drawImage(aura.frames[levelUpFrame(aura, now - auraStarted)], rect.spriteX + 64 - size / 2, rect.spriteY + 128 - size, size, pose.facing === 'left')
+  } else {
+    const chosen = frameImage(animation, companionFrame(animation, pose.state, pose.elapsed), pose.facing)
+    drawImage(chosen.png ?? character.png, rect.spriteX, rect.spriteY, 128, chosen.flip)
+  }
   if (visitor && now - visitorStarted < 8000) {
     const visitAnimation = visitor.character.animation
     const v = visitPose(visitAnimation, now - visitorStarted, 0, Math.max(0, workArea.width - 128))
     const frame = frameImage(visitAnimation, v.frame, v.facing)
     drawImage(frame.png, rect.spriteX + v.offset, rect.spriteY, 128, frame.flip)
   }
-  if (aura && now - auraStarted < aura.durationMs) {
-    drawImage(aura.frames[levelUpFrame(aura, now - auraStarted)], rect.spriteX, rect.spriteY, 128)
-  }
   if (gained) {
-    drawXpText(ctx, xpTextFrame(gained.amount, now - gained.startedAt, { centerX: rect.spriteX + 64, areaHeight: rect.spriteY + 16, scale: 2, maxWidth: rect.width }))
+    // Rises 32 px above the head, as in the terminal.
+    ctx.save()
+    ctx.translate(0, rect.spriteY - 30)
+    drawXpText(ctx, xpTextFrame(gained.amount, now - gained.startedAt, { centerX: rect.spriteX + 64, areaHeight: 46, scale: 2, maxWidth: rect.width }))
+    ctx.restore()
   }
-  const auraPlaying = Boolean(aura && now - auraStarted < aura.durationMs)
-  levelLabel = character.canLevelUp === true && !evolving && !auraPlaying
-    ? levelUpTextFrame({ centerX: rect.spriteX + 64, top: rect.spriteY - 4, maxWidth: rect.width }) : null
-  drawXpText(ctx, levelLabel)
+  levelupButton.hidden = character.canLevelUp !== true || evolving || auraPlaying
+  if (!levelupButton.hidden) {
+    levelupButton.style.left = `${Math.max(0, Math.min(rect.width - 160, rect.spriteX + 64 - 80))}px`
+    levelupButton.style.top = `${Math.max(0, rect.spriteY - 40)}px`
+  }
   stats.hidden = !statsOpen || menuOpen
   menu.hidden = !menuOpen
+  updateHitRegions()
   const next = deadline(now, pose)
   if (Number.isFinite(next)) timer = setTimeout(draw, next)
+}
+
+// Only these rectangles take clicks; the rest of the window lets them through (overlay.rs).
+function updateHitRegions() {
+  const regions = drag ? [[0, 0, rect.width, rect.height]] : [[rect.spriteX + 8, rect.spriteY + 8, 112, 120]]
+  for (const element of [levelupButton, stats, menu]) {
+    if (element.hidden) continue
+    const box = element.getBoundingClientRect()
+    regions.push([box.left, box.top, box.width, box.height])
+  }
+  const key = JSON.stringify(regions)
+  if (key === hitKey) return
+  hitKey = key
+  void invoke('hero_hit', { regions }).catch(error => console.error('hero hit regions:', error))
 }
 
 function wake() {
@@ -267,11 +302,10 @@ function wake() {
 canvas.addEventListener('pointerdown', event => {
   if (!rect || !character || event.button !== 0) return
   const x = event.clientX, y = event.clientY
-  if (levelLabel && x >= levelLabel.left - 4 && x <= levelLabel.left + levelLabel.width + 4 &&
-      y >= levelLabel.top - 4 && y <= levelLabel.top + levelLabel.height + 4) { void evolve(); return }
   if (x < rect.spriteX || x > rect.spriteX + 128 || y < rect.spriteY || y > rect.spriteY + 128) return
   drag = { startX: event.screenX, startY: event.screenY, starting: activity.snapshot(Date.now(), { width: workArea.width - 128, still: true }).x, moved: false }
   canvas.setPointerCapture(event.pointerId)
+  updateHitRegions()
 })
 canvas.addEventListener('pointermove', event => {
   if (!drag) return
@@ -305,6 +339,19 @@ document.getElementById('pause').addEventListener('click', async () => {
   visible = false
 })
 evolveButton.addEventListener('click', () => { void evolve() })
+levelupButton.addEventListener('click', () => { void evolve() })
+// The plaque's words are drawn once in the same 5x7 pixel font as the XP popup.
+{
+  const text = document.getElementById('levelup-text'), ratio = window.devicePixelRatio || 1
+  const frame = { ...levelUpTextFrame({ centerX: 53, top: 0 }), left: 0, color: '#3b2203' }
+  text.width = frame.width * ratio
+  text.height = frame.height * ratio
+  text.style.width = `${frame.width}px`
+  text.style.height = `${frame.height}px`
+  const pen = text.getContext('2d')
+  pen.scale(ratio, ratio)
+  drawXpText(pen, frame)
+}
 stillButton.addEventListener('click', async () => {
   menuOpen = false
   const next = !stayStill

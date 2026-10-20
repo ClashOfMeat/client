@@ -31,6 +31,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             overlay::hero_geometry,
             overlay::hero_place,
+            overlay::hero_hit,
             settings::desktop_state,
             settings::daemon_request,
             settings::set_hero_settings,
