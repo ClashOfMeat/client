@@ -1,0 +1,50 @@
+apps/desktop/src-tauri/src/main.rs
+  s_086600cc7cd6af::t_48378067e2232f 5,16,25,36-44
+  s_086600cc7cd6af::t_84bd21e83a3254 23-24
+apps/desktop/ui/settings.html
+  s_086600cc7cd6af::t_92f1e08709ae39 11-18,34
+apps/desktop/src-tauri/src/settings.rs
+  s_086600cc7cd6af::t_48378067e2232f 101
+  s_086600cc7cd6af::t_8b991bbb91eb99 50
+  s_086600cc7cd6af::t_660fa0b5de2442 48-49
+apps/desktop/ui/settings/view.mjs
+  s_086600cc7cd6af::t_92f1e08709ae39 34-52,66
+apps/desktop/src-tauri/tauri.conf.json
+  s_086600cc7cd6af::t_48378067e2232f 19,34-38
+apps/desktop/ui/settings.mjs
+  s_086600cc7cd6af::t_92f1e08709ae39 10,20-27,37-40,126-136,142,160
+apps/desktop/ui/settings.css
+  s_086600cc7cd6af::t_92f1e08709ae39 31-35,46
+apps/desktop/src-tauri/src/tray.rs
+  s_086600cc7cd6af::t_48378067e2232f 8,193-198
+apps/desktop/ui/settings/tests/view.test.mjs
+  s_086600cc7cd6af::t_92f1e08709ae39 3-19
+crates/daemon/src/run.rs
+  s_086600cc7cd6af::t_1fbd886dddc7a2 353-367
+crates/daemon/tests/socket.rs
+  s_086600cc7cd6af::t_68fecee567ebe4 8,32-40,45-50,54-59
+  s_086600cc7cd6af::t_84bd21e83a3254 41-44,51-53
+  s_086600cc7cd6af::t_97d22c2ea990b5 60-61
+apps/desktop/src-tauri/src/updater.rs
+  s_086600cc7cd6af::t_439e0728108c3e 53,171,178-180
+  s_086600cc7cd6af::t_84bd21e83a3254 74-76,104-107,112-116,122-127,138-142,151-159,161-168,172-177,186-188,193-196,201-203,205-206,208-214,216-231,233-242,247-251,256-257,261-266,274-280,301-316,320-323
+  s_086600cc7cd6af::t_7ab98dd97d541b 129-135
+  s_086600cc7cd6af::t_e7bfa11f93d4da 288-296
+  s_086600cc7cd6af::t_b5677a5344cab0 1-52,54-73,77-103,108-111,117-121,128,136-137,143-150,160,169-170,181-185,189-192,197-200,204,207,215,232,243-246,252-255,258-260,267-273,281-287,297-300,317-319,324-327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "27cce1ff010eb54c5c0df9ea9ad59deb16599b7a",
+  "prompts": {},
+  "sessions": {
+    "s_086600cc7cd6af": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159e9-1659-7341-96af-d7f6ad409220",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
