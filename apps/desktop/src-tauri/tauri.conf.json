@@ -19,6 +19,7 @@
     "externalBin": [
       "binaries/clashofmeat"
     ],
+    "createUpdaterArtifacts": false,
     "targets": [
       "app"
     ],
@@ -33,5 +34,9 @@
       "minimumSystemVersion": "12.0"
     }
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "pubkey": "REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY"
+    }
+  }
 }

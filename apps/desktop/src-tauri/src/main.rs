@@ -2,6 +2,7 @@ mod daemon;
 mod overlay;
 mod settings;
 mod tray;
+mod updater;
 
 use tauri::{ActivationPolicy, Listener, Manager};
 use tauri_plugin_autostart::MacosLauncher;
@@ -12,13 +13,16 @@ fn main() {
             MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             overlay::hero_geometry,
             overlay::hero_place,
             settings::desktop_state,
             settings::daemon_request,
             settings::set_hero_settings,
-            settings::open_pair_link
+            settings::open_pair_link,
+            updater::update_check,
+            updater::update_restart
         ])
         .setup(|app| {
             app.set_activation_policy(ActivationPolicy::Accessory);
@@ -29,6 +33,15 @@ fn main() {
             ))));
             tray::create(handle)?;
             tray::set_update_ready(handle, false);
+            updater::start(handle);
+            let updater_handle = handle.clone();
+            handle.listen("daemon", move |event| {
+                if let Ok(message) = serde_json::from_str::<serde_json::Value>(event.payload()) {
+                    if message["kind"] == "status" {
+                        updater::on_daemon_status(&updater_handle, &message["data"]);
+                    }
+                }
+            });
             let control = handle.clone();
             handle.listen("overlay-control", move |event| {
                 let action = serde_json::from_str::<serde_json::Value>(event.payload())

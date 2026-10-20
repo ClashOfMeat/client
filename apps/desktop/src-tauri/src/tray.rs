@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde_json::Value;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Emitter, Listener, Manager};
+use tauri::{Listener, Manager};
 
 use crate::{daemon, settings};
 
@@ -190,7 +190,12 @@ pub fn create(app: &tauri::AppHandle) -> tauri::Result<()> {
             }
             "update" => {
                 if app.state::<TrayState>().update_ready.load(Ordering::SeqCst) {
-                    let _ = app.emit("update-restart", ());
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(error) = crate::updater::update_restart(app).await {
+                            eprintln!("update install: {error}");
+                        }
+                    });
                 }
             }
             "quit" => app.exit(0),

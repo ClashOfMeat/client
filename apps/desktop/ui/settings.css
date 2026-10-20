@@ -28,6 +28,11 @@ button:disabled { opacity: .5; cursor: default; }
 .about { display: flex; align-items: baseline; gap: 10px; }
 .about h2 { margin: 0; }
 .about span { color: #777780; font-size: 12px; }
+.about span.security { color: #aa7224; font-weight: 600; }
+.about button { padding: 2px 7px; font-size: 12px; }
+.update-required { padding: 20px 4px; }
+.update-required p:first-of-type { font-size: 17px; font-weight: 600; line-height: 1.35; }
+.update-required .error { margin: 14px 0 8px; }
 .error { margin: -12px 0 0; color: #b53131; font-size: 12px; }
 [hidden] { display: none !important; }
 @media (prefers-color-scheme: dark) {
@@ -38,4 +43,5 @@ button:disabled { opacity: .5; cursor: default; }
   .provider-state.warning { color: #e0ae63; }
   .pair-code { color: #ccc; }
   .error { color: #ff8c8c; }
+  .about span.security { color: #e0ae63; }
 }
