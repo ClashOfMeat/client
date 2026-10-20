@@ -1,0 +1,41 @@
+apps/desktop/src-tauri/src/main.rs
+  s_06ed9d8c83611e::t_0dc992c8324c36 5,16,23-25,36-44
+apps/desktop/src-tauri/src/settings.rs
+  s_06ed9d8c83611e::t_f82f8be9cf3d21 48-50,101
+apps/desktop/src-tauri/src/tray.rs
+  s_06ed9d8c83611e::t_0bf970bdaecd40 8,193-198
+apps/desktop/src-tauri/src/updater.rs
+  s_06ed9d8c83611e::t_af31e510fb1ef9 1-327
+apps/desktop/src-tauri/tauri.conf.json
+  s_06ed9d8c83611e::t_a8ea8c07aa5ff9 22,37-41
+apps/desktop/ui/settings.css
+  s_06ed9d8c83611e::t_8b51a4f045adfc 31-35,46
+apps/desktop/ui/settings.html
+  s_06ed9d8c83611e::t_40adb05d23baae 11-18,34
+apps/desktop/ui/settings.mjs
+  s_06ed9d8c83611e::t_621010cd21eff9 10,20-27,37-40,126-136,142,160
+apps/desktop/ui/settings/tests/view.test.mjs
+  s_06ed9d8c83611e::t_2aaffc7a28c8d0 3-19
+apps/desktop/ui/settings/view.mjs
+  s_06ed9d8c83611e::t_3a03c6be66de5e 34-52,66
+crates/daemon/src/run.rs
+  s_06ed9d8c83611e::t_ac54761c34147c 353-367
+crates/daemon/tests/socket.rs
+  s_06ed9d8c83611e::t_0ef019b9db5cdd 8,32-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a42323e89fd1f80fcefa661281a2e0b413632e34",
+  "prompts": {},
+  "sessions": {
+    "s_06ed9d8c83611e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d702cc3f-99c9-4e88-9694-115fc0f6d057",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
