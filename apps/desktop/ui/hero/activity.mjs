@@ -1,19 +1,24 @@
 // Coordinates and timestamps are supplied by the overlay; this module owns no timer.
-export function heroActivity(now = Date.now()) {
+export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
   let clock = now, previous = now, paused = false
   let state = 'idle', started = now, lastActivity = now, talkStarted = null, manual
-  let x = 0, facing = 'right', direction = 1, width = 0
+  let x = 0, facing = 'right', width = 0, working = false
+  let strollAt = Infinity, target = null, movedAt = now, emoteUntil = null, postponed = false
   let sessions = new Map()
 
   function advance(at, freeze = paused) {
     const delta = Math.max(0, at - previous)
     previous = Math.max(previous, at)
     if (!freeze) clock += delta
-    return freeze ? 0 : delta
   }
 
   function setState(next, at = clock) {
     if (state !== next) { state = next; started = at }
+  }
+
+  function schedule(at = clock) {
+    postponed = false
+    strollAt = working ? at + 12000 + random() * 28000 : Infinity
   }
 
   function settledState() {
@@ -29,9 +34,45 @@ export function heroActivity(now = Date.now()) {
     return ['idle', idleStarted]
   }
 
+  function finishEmote() {
+    if (emoteUntil === null || clock < emoteUntil) return
+    if (strollAt <= emoteUntil) strollAt = emoteUntil
+    lastActivity = emoteUntil
+    const ended = emoteUntil
+    emoteUntil = null
+    if (target !== null) setState('walk', ended)
+    else if (working) setState('idle', ended)
+    else {
+      const [next, since] = settledState()
+      setState(next, since)
+    }
+  }
+
+  function startStroll(at) {
+    strollAt = Infinity
+    if (random() < 0.25) {
+      facing = facing === 'left' ? 'right' : 'left'
+      schedule(at)
+      return
+    }
+    const distance = 60 + random() * 240
+    let direction = random() < 0.5 ? -1 : 1
+    if (direction < 0 && x < distance || direction > 0 && width - x < distance) direction *= -1
+    target = Math.max(0, Math.min(width, x + direction * distance))
+    if (target === x) {
+      target = null
+      schedule(at)
+      return
+    }
+    movedAt = at
+    facing = direction > 0 ? 'left' : 'right'
+    setState('walk', at)
+  }
+
   return {
     update(activity, at) {
       advance(at)
+      finishEmote()
       const current = new Map()
       let completed = false
       for (const session of activity?.sessions ?? []) {
@@ -42,55 +83,115 @@ export function heroActivity(now = Date.now()) {
       sessions = current
       if (manual !== undefined) lastActivity = clock
       manual = undefined
-      if (activity?.busy || [...current.values()].includes('Busy')) {
+      const busy = !!activity?.busy || [...current.values()].includes('Busy')
+      if (busy) {
         lastActivity = clock
         talkStarted = null
-        setState('walk')
-      } else if (completed) {
-        lastActivity = clock
-        talkStarted = clock
-        setState('talk')
-      } else if (state === 'walk') {
-        lastActivity = clock
-        talkStarted = null
-        setState('idle')
+        if (!working && target === null) {
+          working = true
+          schedule()
+        }
+        working = true
+        if (emoteUntil === null) setState(target === null ? 'idle' : 'walk')
+      } else {
+        strollAt = Infinity
+        if (completed) {
+          lastActivity = clock
+          talkStarted = clock
+        } else if (working) {
+          lastActivity = clock
+          talkStarted = null
+        }
+        working = false
+        if (emoteUntil === null && target === null) {
+          const [next, since] = settledState()
+          setState(next, since)
+        }
       }
     },
-    snapshot(at, { width: available = width, speed = 48, paused: freeze = false, canMirror = true } = {}) {
-      const delta = advance(at, freeze)
+    snapshot(at, { width: available = width, speed = 48, paused: freeze = false, canMirror = true, still = false } = {}) {
+      advance(at, freeze)
       paused = freeze
       width = Number.isFinite(available) ? Math.max(0, available) : 0
       x = Math.min(x, width)
       if (!freeze) {
-        if (manual !== undefined) setState(manual)
-        else if (state !== 'walk') {
-          const [next, since] = settledState()
-          setState(next, since)
+        finishEmote()
+        const rate = Number.isFinite(speed) ? Math.max(0, speed) : 0
+        while (true) {
+          if (target !== null) {
+            target = Math.min(target, width)
+            const arrival = canMirror && rate > 0 ? movedAt + Math.abs(target - x) * 1000 / rate : Infinity
+            if (x === target || arrival <= clock) {
+              x = target
+              movedAt = Math.min(clock, arrival)
+              target = null
+              schedule(movedAt)
+              if (emoteUntil === null) {
+                if (working) setState('idle', movedAt)
+                else {
+                  const [next, since] = settledState()
+                  setState(next, since)
+                }
+              }
+              continue
+            }
+            if (canMirror) x = target > x ? Math.min(target, x + (clock - movedAt) * rate / 1000) : Math.max(target, x - (clock - movedAt) * rate / 1000)
+            movedAt = clock
+            break
+          }
+          if (working && clock >= strollAt) {
+            if (still || emoteUntil !== null || manual !== undefined) postponed = true
+            else {
+              startStroll(postponed ? clock : strollAt)
+              continue
+            }
+          }
+          break
         }
-        if (state === 'walk' && canMirror && width > 0) {
-          const distance = delta * (Number.isFinite(speed) ? Math.max(0, speed) : 0) / 1000
-          let phase = direction > 0 ? x : 2 * width - x
-          phase = (phase + distance) % (2 * width)
-          if (phase < width) { x = phase; direction = 1 }
-          else if (phase > width) { x = 2 * width - phase; direction = -1 }
-          else { x = width; direction = -1 }
-          facing = direction > 0 ? 'left' : 'right'
-        }
+        if (emoteUntil === null && manual === undefined && target === null) {
+          if (working) setState('idle')
+          else {
+            const [next, since] = settledState()
+            setState(next, since)
+          }
+        } else if (manual !== undefined && emoteUntil === null) setState(manual)
       }
-      return { state, elapsed: Math.max(0, clock - started), x, facing }
+      let until = Infinity
+      if (emoteUntil !== null) until = Math.max(0, emoteUntil - clock)
+      else if (target === null && manual === undefined) {
+        if (working) until = postponed ? Infinity : Math.max(0, strollAt - clock)
+        else if (state === 'talk') until = Math.max(0, talkStarted + 1500 - clock)
+        else if (state === 'idle') until = Math.max(0, lastActivity + 20000 - clock)
+        else if (state === 'sit') until = Math.max(0, lastActivity + 90000 - clock)
+      }
+      return { state, elapsed: Math.max(0, clock - started), x, facing, until }
     },
     drag(position, at) {
       advance(at)
+      finishEmote()
       x = Number.isFinite(position) ? Math.max(0, Math.min(width, position)) : x
-      if (x === 0) direction = 1
-      if (x === width && width > 0) direction = -1
+      if (target !== null) {
+        target = null
+        schedule()
+        if (emoteUntil === null) setState('idle')
+      }
     },
     preview(pose, at) {
       advance(at)
+      finishEmote()
       manual = pose === 'idle' ? undefined : pose
       lastActivity = clock
       talkStarted = null
       setState(manual ?? 'idle')
+    },
+    emote(pose, at, durationMs) {
+      advance(at)
+      if (target !== null) {
+        target = null
+        schedule()
+      }
+      emoteUntil = clock + durationMs
+      setState(pose)
     },
   }
 }
