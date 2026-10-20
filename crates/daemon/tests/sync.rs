@@ -1,13 +1,16 @@
 use std::collections::{BTreeMap, VecDeque};
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 use clashofmeat_core::env::Env;
 use clashofmeat_core::signal::{Event, EventKind};
 use clashofmeat_core::store::Store;
 use clashofmeat_daemon::config::{app_origin, read_config, store_path, update_config};
+use clashofmeat_daemon::run::{self, RunOptions};
 use clashofmeat_daemon::sync::{mark_paired, sync_once, ApiError, Client};
 use serde_json::{json, Value};
 use time::format_description::well_known::Rfc3339;
@@ -428,8 +431,8 @@ fn sync_handles_auth_block_and_rate_limit() {
                 assert_eq!(store.meta("reauth").unwrap().as_deref(), Some("true"));
             }
             426 => assert_eq!(
-                store.meta("blocked").unwrap().as_deref(),
-                Some("Clash of Meat: update required")
+                serde_json::from_str::<Value>(&store.meta("blocked").unwrap().unwrap()).unwrap(),
+                json!({"version":"0.1.0","message":"Clash of Meat: update required"})
             ),
             429 => {
                 assert_eq!(
@@ -444,6 +447,72 @@ fn sync_handles_auth_block_and_rate_limit() {
         }
         assert_eq!(server.finish().len(), 1);
     }
+}
+
+fn socket_request(
+    stream: &mut UnixStream,
+    reader: &mut BufReader<UnixStream>,
+    id: u64,
+    method: &str,
+) -> Value {
+    writeln!(stream, "{}", json!({"id":id,"method":method})).unwrap();
+    let mut line = String::new();
+    reader.read_line(&mut line).unwrap();
+    let response: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(response["id"], id);
+    response
+}
+
+#[test]
+fn blocked_previous_version_allows_sync_and_status_is_clear() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::for_home(dir.path());
+    let server = Server::start(vec![Reply::ok(json!({"connected":true}))]);
+    update_config(&env, |config| config.app_url = Some(server.origin.clone())).unwrap();
+    let mut store = Store::open(store_path(&env)).unwrap();
+    store.set_meta("installation.token", TOKEN).unwrap();
+    store.set_meta("installation.id", ID).unwrap();
+    store
+        .set_meta(
+            "blocked",
+            &json!({"version":"0.1.0","message":"Update required"}).to_string(),
+        )
+        .unwrap();
+    drop(store);
+
+    let handle = run::start(RunOptions {
+        env,
+        version: "0.2.0".into(),
+    })
+    .unwrap();
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    assert!(socket_request(&mut stream, &mut reader, 1, "status")["result"]["blocked"].is_null());
+    assert_eq!(
+        socket_request(&mut stream, &mut reader, 2, "subscribe")["result"]["subscribed"],
+        true
+    );
+    let mut command = UnixStream::connect(handle.socket_path()).unwrap();
+    command
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut command_reader = BufReader::new(command.try_clone().unwrap());
+    assert_eq!(
+        socket_request(&mut command, &mut command_reader, 3, "sync_now")["result"]["queued"],
+        true
+    );
+    let mut line = String::new();
+    reader.read_line(&mut line).unwrap();
+    let event: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(event["event"], "sync");
+    assert_eq!(event["data"]["ok"], true);
+    assert_eq!(server.finish().len(), 1);
+    let store = Store::open(store_path(&Env::for_home(dir.path()))).unwrap();
+    assert!(store.meta("blocked").unwrap().is_none());
+    handle.stop().unwrap();
 }
 
 #[test]

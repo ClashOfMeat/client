@@ -340,22 +340,30 @@ pub fn sync_once(client: &Client, store: &mut Store, now: OffsetDateTime) -> Syn
             result.deferred = true;
             return result;
         }
-        Err(error) => return fail(store, now, result, store_error(error)),
+        Err(error) => return fail(client, store, now, result, store_error(error)),
         _ => {}
     }
     let heartbeat = match client.heartbeat(json!({})) {
         Ok(value) => value,
-        Err(error) => return fail(store, now, result, error),
+        Err(error) => return fail(client, store, now, result, error),
     };
     let timestamp = match now.format(&Rfc3339) {
         Ok(timestamp) => timestamp,
-        Err(error) => return fail(store, now, result, ApiError::Invalid(error.to_string())),
+        Err(error) => {
+            return fail(
+                client,
+                store,
+                now,
+                result,
+                ApiError::Invalid(error.to_string()),
+            )
+        }
     };
     if let Err(error) = store
         .set_meta("heartbeat", &heartbeat.to_string())
         .and_then(|()| store.set_meta("heartbeat_at", &timestamp))
     {
-        return fail(store, now, result, store_error(error));
+        return fail(client, store, now, result, store_error(error));
     }
     result.heartbeat = Some(heartbeat);
     loop {
@@ -366,12 +374,13 @@ pub fn sync_once(client: &Client, store: &mut Store, now: OffsetDateTime) -> Syn
                     return result;
                 }
             }
-            Err(error) => return fail(store, now, result, error),
+            Err(error) => return fail(client, store, now, result, error),
         }
     }
 }
 
 fn fail(
+    client: &Client,
     store: &mut Store,
     now: OffsetDateTime,
     mut result: SyncResult,
@@ -391,7 +400,10 @@ fn fail(
                 let _ = store.set_meta("reauth", "true");
             }
             426 => {
-                let _ = store.set_meta("blocked", message);
+                let _ = store.set_meta(
+                    "blocked",
+                    &json!({"version":client.version,"message":message}).to_string(),
+                );
             }
             429 => {
                 let until = now
@@ -407,4 +419,35 @@ fn fail(
     }
     result.error = Some(error);
     result
+}
+
+pub(crate) fn blocked_message(raw: &str, version: &str) -> Option<String> {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(Value::Object(fields)) => match (fields.get("version"), fields.get("message")) {
+            (Some(Value::String(blocked_version)), Some(Value::String(message))) => {
+                (blocked_version == version).then(|| message.clone())
+            }
+            _ => Some(raw.to_owned()),
+        },
+        _ => Some(raw.to_owned()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::blocked_message;
+
+    #[test]
+    fn blocked_message_applies_to_its_version_and_legacy_values() {
+        let versioned = r#"{"version":"0.1.0","message":"Update required"}"#;
+        assert_eq!(
+            blocked_message(versioned, "0.1.0").as_deref(),
+            Some("Update required")
+        );
+        assert_eq!(blocked_message(versioned, "0.2.0"), None);
+        assert_eq!(
+            blocked_message("Legacy update required", "0.2.0").as_deref(),
+            Some("Legacy update required")
+        );
+    }
 }

@@ -201,7 +201,11 @@ fn main_loop(
     let mut full_at = Instant::now();
     let mut pair_state = json!({"status":"unpaired"});
     loop {
-        let message = inbox.recv_timeout(Duration::from_millis(50));
+        let full_deadline = full_at + Duration::from_secs(600);
+        let deadline = changed_at
+            .map(|at| (at + Duration::from_millis(300)).min(full_deadline))
+            .unwrap_or(full_deadline);
+        let message = inbox.recv_timeout(deadline.saturating_duration_since(Instant::now()));
         match message {
             Ok(Message::Stop) | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
             Ok(Message::FsChanged(paths)) => {
@@ -428,6 +432,7 @@ fn handle_request(
 
 fn status(opts: &RunOptions, store: &Store) -> std::result::Result<Value, SocketError> {
     let meta = |key| store.meta(key).map_err(internal);
+    let blocked = meta("blocked")?.and_then(|raw| sync::blocked_message(&raw, &opts.version));
     let off: HashSet<String> = meta("providers_off")?
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .unwrap_or_default();
@@ -446,7 +451,7 @@ fn status(opts: &RunOptions, store: &Store) -> std::result::Result<Value, Socket
         .map_err(internal)?
         .len();
     Ok(
-        json!({"version":opts.version,"paired":meta("installation.token")?.is_some(),"app_url":config::read_config(&opts.env).map_err(internal)?.app_url,"blocked":meta("blocked")?,"reauth":meta("reauth")?.as_deref()==Some("true"),"pending":{"counters":counters,"readings":readings},"last_sync_at":meta("last_sync_at")?,"providers":providers}),
+        json!({"version":opts.version,"paired":meta("installation.token")?.is_some(),"app_url":config::read_config(&opts.env).map_err(internal)?.app_url,"blocked":blocked,"reauth":meta("reauth")?.as_deref()==Some("true"),"pending":{"counters":counters,"readings":readings},"last_sync_at":meta("last_sync_at")?,"providers":providers}),
     )
 }
 
@@ -563,8 +568,11 @@ fn sync_loop(
             Ok(Some(token)) => token,
             _ => continue,
         };
-        if store.meta("blocked").ok().flatten().is_some() {
-            continue;
+        if let Ok(Some(raw)) = store.meta("blocked") {
+            if sync::blocked_message(&raw, &version).is_some() {
+                continue;
+            }
+            let _ = store.delete_meta("blocked");
         }
         if store
             .meta("retry_after_until")
