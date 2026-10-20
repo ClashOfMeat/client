@@ -6,3 +6,4 @@ pub mod run;
 pub mod socket;
 pub mod sync;
 pub mod watch;
+pub mod wiring;

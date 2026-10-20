@@ -25,7 +25,7 @@ static MANIFEST: Manifest = Manifest {
         glob: "cursor.jsonl",
         format: SourceFormat::Jsonl,
     }],
-    wiring: &[],
+    wiring: &["~/.cursor/hooks.json"],
 };
 
 fn printable_id(value: Option<&Value>) -> Option<&str> {
