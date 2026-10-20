@@ -1,0 +1,15 @@
+:root { color-scheme: light dark; font: 12px system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; user-select: none; }
+#hero { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
+.bubble { position: absolute; top: 4px; left: 4px; right: 4px; min-height: 72px; border: 1px solid rgba(255,255,255,.32); border-radius: 12px; padding: 10px; background: rgba(25,23,32,.94); color: #fff; box-shadow: 0 5px 15px rgba(0,0,0,.32); pointer-events: auto; }
+.bubble[hidden] { display: none; }
+#level { font-weight: 700; font-size: 13px; }
+#xp-text, #tokens, #providers { margin-top: 4px; }
+#providers { color: #d6cee3; }
+.xp-track { height: 7px; margin-top: 6px; background: #625770; border-radius: 7px; overflow: hidden; }
+#xp-fill { height: 100%; background: #d4a7fa; width: 0%; }
+.menu { display: grid; gap: 3px; width: 150px; right: auto; }
+.menu button { border: 0; border-radius: 5px; padding: 5px; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.menu button:hover:not(:disabled) { background: rgba(255,255,255,.14); }
+.menu button:disabled { opacity: .45; cursor: default; }

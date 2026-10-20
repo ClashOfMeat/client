@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Clash of Meat hero</title>
+  <link rel="stylesheet" href="./overlay.css">
+</head>
+<body>
+  <canvas id="hero" aria-label="Clash of Meat hero"></canvas>
+  <div id="stats" class="bubble" hidden>
+    <div id="level"></div>
+    <div id="xp-text"></div>
+    <div class="xp-track"><div id="xp-fill"></div></div>
+    <div id="tokens" hidden></div>
+    <div id="providers"></div>
+  </div>
+  <div id="menu" class="bubble menu" hidden>
+    <button id="pause">Pause hero</button>
+    <button disabled>Settings</button>
+    <button id="quit">Quit overlay</button>
+  </div>
+  <script type="module" src="./overlay.mjs"></script>
+</body>
+</html>
