@@ -1,0 +1,32 @@
+apps/desktop/ui/overlay.html
+  s_06ed9d8c83611e::t_678df7686e5438 11,13,16
+apps/desktop/ui/overlay.css
+  s_06ed9d8c83611e::t_169dc8346df9c3 1-10,14-17,19-51
+  s_06ed9d8c83611e::t_8a4f61b7f092ec 52-55
+apps/desktop/src-tauri/src/main.rs
+  s_06ed9d8c83611e::t_e744afa9fdbf0c 34
+apps/desktop/src-tauri/src/overlay.rs
+  s_06ed9d8c83611e::t_e8532127a2592b 1-4,11-15,54-56,60-103,172-182
+apps/desktop/ui/assets/README.md
+  s_06ed9d8c83611e::t_c5434343fba488 1-2
+apps/desktop/ui/fonts/README.md
+  s_06ed9d8c83611e::t_e959599fa28109 1-2
+apps/desktop/ui/overlay.mjs
+  s_06ed9d8c83611e::t_c7d6001ea7f7ae 18-19,27,78-79,89,92,106,133-140,227-228,247-256,264-273,277,282-295,308,342-354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6a363f9c3ac835ad25504b9df0c88b02da784de3",
+  "prompts": {},
+  "sessions": {
+    "s_06ed9d8c83611e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d702cc3f-99c9-4e88-9694-115fc0f6d057",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
