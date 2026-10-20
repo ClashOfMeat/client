@@ -243,6 +243,63 @@ fn changed_filter_includes_only_named_files_and_new_files() {
 }
 
 #[test]
+fn changed_scan_reads_only_matching_reported_files() {
+    let (dir, mut store, mut engine) = setup(true);
+    let first = claude_path(dir.path(), "first.jsonl");
+    let second = claude_path(dir.path(), "second.jsonl");
+    fs::write(&first, prompt(now(), "first-initial")).unwrap();
+    fs::write(&second, prompt(now(), "second-initial")).unwrap();
+    engine.scan(&mut store, None, now()).unwrap();
+    let second_offset = store
+        .cursor("claude-code", 0, "project/second.jsonl")
+        .unwrap()
+        .unwrap()
+        .offset;
+
+    append(&first, &prompt(now(), "first-new"));
+    append(&second, &prompt(now(), "second-new"));
+    let report = engine
+        .scan(&mut store, Some(std::slice::from_ref(&first)), now())
+        .unwrap();
+    assert_eq!((report.files_read, report.records), (1, 1));
+    assert_eq!(
+        store
+            .cursor("claude-code", 0, "project/first.jsonl")
+            .unwrap()
+            .unwrap()
+            .offset,
+        fs::metadata(&first).unwrap().len()
+    );
+    assert_eq!(
+        store
+            .cursor("claude-code", 0, "project/second.jsonl")
+            .unwrap()
+            .unwrap()
+            .offset,
+        second_offset
+    );
+
+    let outside = dir.path().join("outside.jsonl");
+    fs::write(&outside, prompt(now(), "outside")).unwrap();
+    let wrong_glob = claude_path(dir.path(), "wrong.json");
+    fs::write(&wrong_glob, prompt(now(), "wrong-glob")).unwrap();
+    let too_deep = claude_path(dir.path(), "a/b/c/d/too-deep.jsonl");
+    fs::write(&too_deep, prompt(now(), "too-deep")).unwrap();
+    let ignored = engine
+        .scan(&mut store, Some(&[outside, wrong_glob, too_deep]), now())
+        .unwrap();
+    assert_eq!((ignored.files_read, ignored.records), (0, 0));
+    assert_eq!(
+        store
+            .cursor("claude-code", 0, "project/second.jsonl")
+            .unwrap()
+            .unwrap()
+            .offset,
+        second_offset
+    );
+}
+
+#[test]
 fn disabled_provider_is_skipped_and_unpaired_only_advances_cursors() {
     let (dir, mut store, mut engine) = setup(true);
     let path = claude_path(dir.path(), "first.jsonl");

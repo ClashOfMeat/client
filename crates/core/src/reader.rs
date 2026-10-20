@@ -196,11 +196,17 @@ pub fn list_files(
     files
 }
 
-fn glob_matches(glob: &str, path: &Path) -> bool {
+/// Match a root-relative path against the globs used by `list_files`.
+pub fn glob_matches(glob: &str, relative: &Path) -> bool {
     let pattern: Vec<_> = glob.split('/').collect();
-    let relative = path.to_string_lossy();
+    let relative = relative.to_string_lossy();
     let segments: Vec<_> = relative.split('/').collect();
     match_segments(&pattern, &segments)
+}
+
+/// Whether a root-relative file is within `list_files`' directory depth limit.
+pub fn depth_ok(relative: &Path, max_depth: usize) -> bool {
+    relative.components().count() <= max_depth.saturating_add(1)
 }
 
 fn match_segments(pattern: &[&str], path: &[&str]) -> bool {
@@ -370,6 +376,9 @@ mod tests {
         let new = root.join("agent/chats/session-new.json");
         let middle = root.join("other/chats/session-old.json");
         let deep = root.join("agent/chats/deep/log.jsonl");
+        assert!(depth_ok(Path::new("root.jsonl"), 0));
+        assert!(depth_ok(Path::new("agent/chats/session-new.json"), 2));
+        assert!(!depth_ok(Path::new("agent/chats/deep/log.jsonl"), 2));
         for path in [&old, &new, &middle, &deep] {
             fs::write(path, b"x").unwrap();
         }

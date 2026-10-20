@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 use anyhow::Result;
 use clashofmeat_core::{
@@ -112,20 +113,13 @@ impl Engine {
                     continue;
                 }
                 // A file reported by the watcher may have an old mtime (for example, an
-                // atomic rename). Match it against the source glob without the since gate.
-                let files = reader::list_files(
-                    &root,
-                    source.glob,
-                    4,
-                    changed.as_ref().map_or(Some(since_ms), |_| None),
-                );
+                // atomic rename). Check only the reported paths, without the since gate.
+                let files = if let Some(paths) = changed.as_ref() {
+                    changed_files(&root, source.glob, paths)
+                } else {
+                    reader::list_files(&root, source.glob, 4, Some(since_ms))
+                };
                 for file in files {
-                    if changed
-                        .as_ref()
-                        .is_some_and(|paths| !paths.contains(&canonical_or_self(&file.path)))
-                    {
-                        continue;
-                    }
                     let file_key = file
                         .path
                         .strip_prefix(&root)?
@@ -402,6 +396,43 @@ fn apply_turn(
 
 fn canonical_or_self(path: &Path) -> PathBuf {
     fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn changed_files(root: &Path, glob: &str, paths: &HashSet<PathBuf>) -> Vec<FileEntry> {
+    let canonical_root = canonical_or_self(root);
+    let mut files = Vec::new();
+    for path in paths {
+        let Ok(relative) = path.strip_prefix(&canonical_root) else {
+            continue;
+        };
+        if !reader::depth_ok(relative, 4) || !reader::glob_matches(glob, relative) {
+            continue;
+        }
+        let Ok(metadata) = fs::metadata(path) else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        let mtime_ms = match modified.duration_since(UNIX_EPOCH) {
+            Ok(duration) => i64::try_from(duration.as_millis()).unwrap_or(i64::MAX),
+            Err(error) => -i64::try_from(error.duration().as_millis()).unwrap_or(i64::MAX),
+        };
+        files.push(FileEntry {
+            path: root.join(relative),
+            len: metadata.len(),
+            mtime_ms,
+        });
+    }
+    files.sort_by(|a, b| {
+        b.mtime_ms
+            .cmp(&a.mtime_ms)
+            .then_with(|| a.path.cmp(&b.path))
+    });
+    files
 }
 
 fn cursor_complete(cursor: &FileCursor, file: &FileEntry, format: SourceFormat) -> bool {
