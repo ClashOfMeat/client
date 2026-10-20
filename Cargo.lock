@@ -167,7 +167,10 @@ dependencies = [
  "clap",
  "clashofmeat-core",
  "clashofmeat-daemon",
+ "clashofmeat-providers",
  "serde_json",
+ "tempfile",
+ "time",
 ]
 
 [[package]]

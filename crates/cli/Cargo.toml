@@ -15,3 +15,8 @@ serde_json.workspace = true
 clap.workspace = true
 clashofmeat-core.workspace = true
 clashofmeat-daemon.workspace = true
+clashofmeat-providers.workspace = true
+time.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
