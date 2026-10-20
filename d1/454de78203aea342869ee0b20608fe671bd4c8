@@ -1,0 +1,25 @@
+crates/providers/tests/parity_claude_cowork.rs
+  s_79de6373b78ab1::t_6cbb4b64943f31 1-31
+crates/providers/src/claude_cowork.rs
+  s_79de6373b78ab1::t_6b07aca039867a 99-101,198-202
+  s_79de6373b78ab1::t_6cbb4b64943f31 1,6-8,17-18,20-24,28-29,35-80,86-95,103-161,166-168,173-175,180-182,191-196,206-210,216-230,236-237
+  s_79de6373b78ab1::t_a721823e0d3bdf 197,203-205
+  s_79de6373b78ab1::t_4e150318156f70 3-5,96-98,102
+  s_79de6373b78ab1::t_8e444752ab3da5 81-85,162-165,169-172,176-179,183-190,211-215,231-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d1454de78203aea342869ee0b20608fe671bd4c8",
+  "prompts": {},
+  "sessions": {
+    "s_79de6373b78ab1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a159c2-325e-7e90-8dee-d9458ae33e55",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
