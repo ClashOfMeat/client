@@ -1,3 +1,4 @@
+pub mod config_writer;
 pub mod env;
 pub mod ids;
 pub mod manifest;
@@ -6,6 +7,7 @@ pub mod reader;
 pub mod signal;
 pub mod store;
 
+pub use config_writer::{ConfigError, ConfigWriter, RestoreOutcome, WriteOutcome};
 pub use env::Env;
 pub use ids::{
     is_uuid, model_family, observer_task_id, session_uuid, stable_id, MAX_OBSERVATION_VALUE,

@@ -231,8 +231,10 @@ mod tests {
     #[test]
     fn cursor_meta_and_health_roundtrip() {
         let mut store = Store::open_in_memory().unwrap();
-        let mut cursor = FileCursor::default();
-        cursor.offset = 42;
+        let mut cursor = FileCursor {
+            offset: 42,
+            ..FileCursor::default()
+        };
         cursor
             .state
             .insert("nested".into(), json!({"seen": [1, 2]}));
