@@ -4,6 +4,8 @@ export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
   let state = 'idle', started = now, lastActivity = now, talkStarted = null, manual
   let x = 0, facing = 'right', width = 0, working = false
   let strollAt = Infinity, target = null, movedAt = now, emoteUntil = null, postponed = false
+  // A walk away from a click runs faster than a stroll; null means the caller's speed.
+  let hurry = null
   let sessions = new Map()
 
   function advance(at, freeze = paused) {
@@ -116,7 +118,7 @@ export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
       x = Math.min(x, width)
       if (!freeze) {
         finishEmote()
-        const rate = Number.isFinite(speed) ? Math.max(0, speed) : 0
+        const rate = hurry ?? (Number.isFinite(speed) ? Math.max(0, speed) : 0)
         while (true) {
           if (target !== null) {
             target = Math.min(target, width)
@@ -125,6 +127,7 @@ export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
               x = target
               movedAt = Math.min(clock, arrival)
               target = null
+              hurry = null
               schedule(movedAt)
               if (emoteUntil === null) {
                 if (working) setState('idle', movedAt)
@@ -175,6 +178,7 @@ export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
       x = next
       if (target !== null) {
         target = null
+        hurry = null
         schedule()
         if (emoteUntil === null) setState('idle')
       }
@@ -196,10 +200,35 @@ export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
       lastActivity = clock
       startStroll(clock, false)
     },
+    // Hurries away from a click `dx` px from the hero's centre (negative: to its left) and ends up
+    // well clear of it. Cornered against an edge, it runs past the click to the other side instead.
+    flee(dx, at, speed = 150) {
+      advance(at)
+      finishEmote()
+      if (emoteUntil !== null || !Number.isFinite(dx)) return
+      const clear = 260 + random() * 80
+      let direction = dx > 0 ? -1 : dx < 0 ? 1 : random() < 0.5 ? -1 : 1
+      let next = Math.max(0, Math.min(width, x + direction * Math.max(120, clear - Math.abs(dx))))
+      if (Math.abs(next - x) < 40) {
+        direction *= -1
+        next = Math.max(0, Math.min(width, x + direction * (Math.abs(dx) + clear)))
+      }
+      if (Math.abs(next - x) < 1) return
+      manual = undefined
+      lastActivity = clock
+      talkStarted = null
+      strollAt = Infinity
+      target = next
+      movedAt = clock
+      hurry = speed
+      facing = direction > 0 ? 'right' : 'left'
+      setState('walk')
+    },
     emote(pose, at, durationMs) {
       advance(at)
       if (target !== null) {
         target = null
+        hurry = null
         schedule()
       }
       emoteUntil = clock + durationMs

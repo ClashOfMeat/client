@@ -434,6 +434,16 @@ await listen('hero-settings', ({ payload }) => {
   if (paused) { if (timer) clearTimeout(timer); timer = undefined; void nativeWindow.hide(); visible = false }
   else { hidden = false; wake() }
 })
+// A click elsewhere on screen near the hero (overlay.rs reports it in window coordinates) sends it
+// hurrying away, so it never sits on what the user is reaching for. "Stop walking" keeps it put.
+await listen('screen-click', ({ payload }) => {
+  if (!rect || !character || paused || hidden || stayStill || drag || fall || statsOpen || menuOpen) return
+  if (aura && Date.now() - auraStarted < aura.durationMs) return
+  const dx = payload.x - (rect.spriteX + 64), dy = payload.y - (rect.spriteY + 64)
+  if (Math.hypot(dx, dy) > 260) return
+  activity.flee(dx, Date.now())
+  wake()
+})
 await listen('hero-control', ({ payload }) => {
   setPaused(Boolean(payload?.paused))
   if (payload?.show) hidden = false

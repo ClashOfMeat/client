@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use serde::Serialize;
 use tauri::{
-    webview::PageLoadEvent, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder,
+    webview::PageLoadEvent, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder,
 };
 
 /// Window-local rectangles (logical px) that take clicks: the hero, its label, an open card or menu.
@@ -57,27 +57,67 @@ pub fn create(app: &tauri::AppHandle) -> tauri::Result<WebviewWindow> {
     Ok(window)
 }
 
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    /// Mouse-down events counted system-wide since login. Reading it needs no permission and
+    /// never sees or delays the click itself.
+    fn CGEventSourceCounterForEventType(state: i32, event_type: u32) -> u32;
+}
+
+/// System-wide left clicks so far (0 where the counter is unavailable).
+fn left_clicks() -> u32 {
+    #[cfg(target_os = "macos")]
+    {
+        const COMBINED_SESSION_STATE: i32 = 0;
+        const LEFT_MOUSE_DOWN: u32 = 1;
+        // SAFETY: a pure query of the window server with constant arguments.
+        unsafe { CGEventSourceCounterForEventType(COMBINED_SESSION_STATE, LEFT_MOUSE_DOWN) }
+    }
+    #[cfg(not(target_os = "macos"))]
+    0
+}
+
+#[derive(Clone, Serialize)]
+struct ScreenClick {
+    x: f64,
+    y: f64,
+}
+
 /// Polls the cursor 20 times a second and lets clicks reach the overlay only over a hit region.
-/// One cheap position read per tick; the window flag changes only when the answer does.
+/// One cheap position read per tick; the window flag changes only when the answer does. A click
+/// elsewhere on screen is reported to the overlay (window-local, logical px) so the hero can move away.
 fn follow_cursor(window: WebviewWindow) {
     thread::spawn(move || {
         let mut ignoring = true;
+        let mut clicks = left_clicks();
         loop {
             thread::sleep(Duration::from_millis(50));
-            let inside = window.is_visible().unwrap_or(false)
-                && (|| {
-                    let cursor = window.cursor_position().ok()?;
-                    let origin = window.outer_position().ok()?;
-                    let scale = window.scale_factor().ok()?;
-                    let x = (cursor.x - origin.x as f64) / scale;
-                    let y = (cursor.y - origin.y as f64) / scale;
-                    let regions = window.state::<HitRegions>();
-                    let regions = regions.0.lock().ok()?;
-                    Some(regions.iter().any(|[left, top, width, height]| {
-                        x >= *left && x <= left + width && y >= *top && y <= top + height
-                    }))
-                })()
-                .unwrap_or(false);
+            let visible = window.is_visible().unwrap_or(false);
+            let local = (|| {
+                let cursor = window.cursor_position().ok()?;
+                let origin = window.outer_position().ok()?;
+                let scale = window.scale_factor().ok()?;
+                Some((
+                    (cursor.x - origin.x as f64) / scale,
+                    (cursor.y - origin.y as f64) / scale,
+                ))
+            })();
+            let inside = visible
+                && local.is_some_and(|(x, y)| {
+                    window.state::<HitRegions>().0.lock().is_ok_and(|regions| {
+                        regions.iter().any(|[left, top, width, height]| {
+                            x >= *left && x <= left + width && y >= *top && y <= top + height
+                        })
+                    })
+                });
+            let counted = left_clicks();
+            if counted != clicks {
+                clicks = counted;
+                if let (true, false, Some((x, y))) = (visible, inside, local) {
+                    let _ = window.emit_to("hero", "screen-click", ScreenClick { x, y });
+                }
+            }
             if inside == ignoring {
                 ignoring = !inside;
                 if window.set_ignore_cursor_events(ignoring).is_err() {
