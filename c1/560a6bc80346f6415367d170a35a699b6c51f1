@@ -1,0 +1,25 @@
+apps/desktop/src-tauri/src/overlay.rs
+  s_06ed9d8c83611e::t_a9ad85dedf86aa 7-8,60-86,88-89,93,96-120
+apps/desktop/ui/hero/activity.mjs
+  s_06ed9d8c83611e::t_f9445544e0c7b2 7-8,121,130,181,203-226,231
+apps/desktop/ui/hero/tests/activity.test.mjs
+  s_06ed9d8c83611e::t_ea52c8dae14bef 195-232
+apps/desktop/ui/overlay.mjs
+  s_06ed9d8c83611e::t_20c3731a1a9f58 437-446
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c1560a6bc80346f6415367d170a35a699b6c51f1",
+  "prompts": {},
+  "sessions": {
+    "s_06ed9d8c83611e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d702cc3f-99c9-4e88-9694-115fc0f6d057",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
