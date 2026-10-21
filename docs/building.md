@@ -90,6 +90,29 @@ It runs, in order, and stops at the first failure:
 
 `scripts/update-manifest.sh --self-test` checks the release manifest generation on its own.
 
+### Resource budget
+
+```sh
+scripts/budget.sh [--window 60] [--interval 5] [--daemon-pid PID] [--app-pid PID] [--only daemon|app]
+```
+
+It samples the daemon (`clashofmeat daemon`) and the app (`clashofmeat-desktop`) with `ps` for the window and
+exits 1 when one is over budget (2 on a usage error or a missing process). Without `--daemon-pid`/`--app-pid` it
+finds each by name and stops if several match. Average CPU is the CPU time used during the window divided by its
+length. RSS is the largest sample.
+
+| Process | Limit | Measured 2026-10-21 (Apple Silicon) |
+|---|---|---|
+| daemon | 25 MB RSS, 1% average CPU | release, idle: 4–7 MB, 0.07–0.09%. Debug, with agents writing logs: 26.5 MB, 1.1% |
+| app | 150 MB RSS, 3% average CPU | release, hero shown: 84 MB, 0.42%. Debug: 44 MB, 1.6% |
+
+The design target is a daemon idling at about 10 MB and 0% CPU, and an overlay that redraws only while the hero
+moves. The limits apply to release builds while no agent session is writing logs: the daemon parses provider logs
+300 ms after each change, so it costs more while you work. The limits leave room for a burst of parsing or a
+moving hero and still catch a leak or a loop that never stops. The WebView's WebKit helper processes run under
+launchd, so `ps` cannot tie them to the app and they are not counted. Override a limit with `--daemon-rss-mb`,
+`--daemon-cpu`, `--app-rss-mb` or `--app-cpu`.
+
 ## 4. Build one installer
 
 ```sh
