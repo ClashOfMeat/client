@@ -21,7 +21,7 @@ test('bubble grows upward and preserves sprite position, including edges', () =>
     assert.equal(expanded.x + expanded.spriteX, compact.x + compact.spriteX)
     assert.equal(expanded.y + expanded.spriteY, compact.y + compact.spriteY)
     assert.equal(expanded.width, 240)
-    assert.equal(expanded.height, 340)
+    assert.equal(expanded.height, 380)
     assert(expanded.x >= 100 && expanded.x + expanded.width <= 1100)
   }
 })

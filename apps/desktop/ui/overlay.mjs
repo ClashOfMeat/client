@@ -1,6 +1,6 @@
 import { heroActivity } from './hero/activity.mjs'
 import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
-import { xpGain, bubbleFrame, levelUpFrame, visitPose } from './hero/effects.mjs'
+import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace } from './hero/effects.mjs'
 import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES } from './hero/validate.mjs'
@@ -391,7 +391,8 @@ async function draw() {
   visitLabel.hidden = !visitor
   if (visitor) {
     const visitAnimation = visitor.character.animation
-    const v = visitPose(visitAnimation, now - visitorStarted, 0, Math.max(0, workArea.width - 128), visitor.emote)
+    const place = visitPlace(rect.spriteX, rect.width)
+    const v = visitPose(visitAnimation, now - visitorStarted, place.stand, place.edge, visitor.emote)
     const frame = frameImage(visitAnimation, v.frame, v.facing)
     drawImage(frame.png, rect.spriteX + v.offset, rect.spriteY, 128, frame.flip)
     const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)

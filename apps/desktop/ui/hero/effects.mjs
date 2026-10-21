@@ -21,14 +21,23 @@ export function levelUpFrame(effect, elapsed) {
   return frame
 }
 
-// target and limit are pixel offsets measured from the visitor's entry side. Between walking in
-// and out, the visitor plays its emote, or a kiss when its animation lacks that clip.
-export function visitPose(animation, elapsed, target, limit, emote = 'kiss') {
+// Offsets are pixels from the host hero: the visitor walks in from `edge` to `stand` beside it,
+// plays its emote (or a kiss when its animation lacks that clip) turned towards the host, and walks
+// back out. It always faces the way it walks; base frames face right.
+export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
   const arriving = elapsed < 1500, leaving = elapsed >= 6500
   const state = arriving || leaving ? 'walk' : animation?.clips?.[emote] ? emote : 'kiss'
-  const far = Math.max(target, Math.min(limit, target + 192))
   const progress = arriving ? Math.max(0, elapsed) / 1500 : leaving ? Math.min(1, (elapsed - 6500) / 1500) : 0
+  const inward = edge > stand ? 'left' : 'right', outward = inward === 'left' ? 'right' : 'left'
   return { frame: companionFrame(animation, state, arriving || leaving ? elapsed : elapsed - 1500), state,
-    facing: leaving ? 'left' : 'right',
-    offset: arriving ? far + (target - far) * progress : leaving ? target + (far - target) * progress : target }
+    facing: arriving ? inward : leaving ? outward : stand > 0 ? 'left' : 'right',
+    offset: arriving ? edge + (stand - edge) * progress : leaving ? stand + (edge - stand) * progress : stand }
+}
+
+// Where a visitor stands in the fixed window: beside the host on the side with room, close enough
+// to overlap a little (sprites have transparent margins), entering from that side's window edge.
+export function visitPlace(spriteX, windowWidth, sprite = 128, gap = 84) {
+  const right = windowWidth - sprite - spriteX
+  if (right >= gap - 12 || right >= spriteX) return { stand: Math.max(0, Math.min(gap, right)), edge: right + sprite }
+  return { stand: -Math.min(gap, spriteX), edge: -(spriteX + sprite) }
 }

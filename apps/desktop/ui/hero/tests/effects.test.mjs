@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { xpGain, bubbleFrame, levelUpFrame, visitPose } from '../effects.mjs'
+import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace } from '../effects.mjs'
 
 const animation = { clips: { idle: { frames: [0], durations: [100] }, walk: { frames: [0, 1, 2], durations: [100, 200, 100] }, kiss: { frames: [0, 1, 2], durations: [100, 200, 100] } } }
 const aura = { durations: [80, ...Array(16).fill(90), 120] }
@@ -26,24 +26,35 @@ test('aura and visitor keep old one-shot timing with pixel travel', () => {
   assert.equal(levelUpFrame(aura, 0), 0)
   assert.equal(levelUpFrame(aura, 80), 1)
   assert.equal(levelUpFrame(aura, 100000), 17)
-  assert.deepEqual(visitPose(animation, 0, 144, 400), { frame: 0, state: 'walk', facing: 'right', offset: 336 })
-  assert.equal(visitPose(animation, 750, 144, 400).offset, 240)
-  assert.equal(visitPose(animation, 1500, 144, 400).frame, 0)
-  assert.equal(visitPose(animation, 1600, 144, 400).frame, 1)
-  assert.equal(visitPose(animation, 1900, 144, 400).frame, 2)
-  assert.equal(visitPose(animation, 6000, 144, 400).frame, 2)
-  assert.equal(visitPose(animation, 6500, 144, 400).offset, 144)
-  assert.equal(visitPose(animation, 8000, 144, 400).offset, 336)
-  assert.equal(visitPose(animation, 8000, 144, 400).facing, 'left')
-  assert.equal(visitPose(animation, 0, 144, 200).offset, 200)
+  // Enters from the right edge (offset 240), stands 84 px right of the host, faces it, leaves right.
+  assert.deepEqual(visitPose(animation, 0, 84, 240), { frame: 0, state: 'walk', facing: 'left', offset: 240 })
+  assert.equal(visitPose(animation, 750, 84, 240).offset, 162)
+  assert.equal(visitPose(animation, 1500, 84, 240).frame, 0)
+  assert.equal(visitPose(animation, 1600, 84, 240).frame, 1)
+  assert.equal(visitPose(animation, 1900, 84, 240).frame, 2)
+  assert.equal(visitPose(animation, 3000, 84, 240).facing, 'left')
+  assert.equal(visitPose(animation, 6000, 84, 240).frame, 2)
+  assert.equal(visitPose(animation, 6500, 84, 240).offset, 84)
+  assert.equal(visitPose(animation, 7000, 84, 240).facing, 'right')
+  assert.equal(visitPose(animation, 8000, 84, 240).offset, 240)
+  // From the left it mirrors: walks right in, faces right towards the host, walks left out.
+  assert.equal(visitPose(animation, 0, -84, -200).facing, 'right')
+  assert.equal(visitPose(animation, 3000, -84, -200).facing, 'right')
+  assert.equal(visitPose(animation, 7000, -84, -200).facing, 'left')
 })
 
 test('a visitor plays its emote between walking in and out, or a kiss without the clip', () => {
   const waving = { clips: { ...animation.clips, wave: { frames: [5, 6], durations: [100, 100] } } }
-  assert.equal(visitPose(waving, 1000, 144, 400, 'wave').state, 'walk')
-  assert.deepEqual([1500, 1600, 1700].map(ms => visitPose(waving, ms, 144, 400, 'wave').frame), [5, 6, 5])
-  assert.equal(visitPose(waving, 3000, 144, 400, 'wave').state, 'wave')
-  assert.equal(visitPose(waving, 7000, 144, 400, 'wave').state, 'walk')
-  assert.equal(visitPose(animation, 3000, 144, 400, 'laugh').state, 'kiss')
-  assert.equal(visitPose(animation, 3000, 144, 400).state, 'kiss')
+  assert.equal(visitPose(waving, 1000, 84, 240, 'wave').state, 'walk')
+  assert.deepEqual([1500, 1600, 1700].map(ms => visitPose(waving, ms, 84, 240, 'wave').frame), [5, 6, 5])
+  assert.equal(visitPose(waving, 3000, 84, 240, 'wave').state, 'wave')
+  assert.equal(visitPose(waving, 7000, 84, 240, 'wave').state, 'walk')
+  assert.equal(visitPose(animation, 3000, 84, 240, 'laugh').state, 'kiss')
+  assert.equal(visitPose(animation, 3000, 84, 240).state, 'kiss')
+})
+
+test('a visitor stands beside the host on the side of the window with room', () => {
+  assert.deepEqual(visitPlace(56, 240), { stand: 56, edge: 184 })
+  assert.deepEqual(visitPlace(20, 240), { stand: 84, edge: 220 })
+  assert.deepEqual(visitPlace(112, 240), { stand: -84, edge: -240 })
 })

@@ -12,16 +12,17 @@
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; user-select: none; }
 #hero { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
 
-.bubble { position: absolute; top: 4px; left: 4px; right: 4px; max-height: calc(100% - 136px); overflow: hidden;
-  padding: 8px 11px 10px; border: 2px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--foreground);
+/* Sits just above the hero's head (the sprite is the window's bottom 128 px), whatever its height. */
+.bubble { position: absolute; bottom: 132px; left: 4px; right: 4px; max-height: calc(100% - 136px); overflow: hidden;
+  padding: 10px 12px 12px; border: 2px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--foreground);
   box-shadow: inset 0 1px #a98d5b44, 0 4px 0 #18120d, 0 8px 18px rgba(0,0,0,.4); font-variant-numeric: tabular-nums; }
 .bubble[hidden] { display: none; }
-#name { font: 17px/1.15 Righteous, Georgia, serif; color: var(--title); }
-#xp-text { margin-top: 2px; color: var(--foreground); }
-.xp-track { height: 12px; margin-top: 5px; border: 2px solid var(--border); border-radius: 3px; background: var(--background); overflow: hidden;
+#name { font: 17px/1.2 Righteous, Georgia, serif; color: var(--title); }
+#xp-text { margin-top: 3px; color: var(--foreground); }
+.xp-track { height: 12px; margin-top: 6px; border: 2px solid var(--border); border-radius: 3px; background: var(--background); overflow: hidden;
   box-shadow: inset 0 2px #120c08; }
 #xp-fill { height: 100%; width: 0%; background: linear-gradient(#ffe083, #d9a22b); box-shadow: inset 0 -2px #8a5a14; }
-.info { margin-top: 4px; color: var(--muted); font-size: 13px; }
+.info { margin-top: 5px; color: var(--muted); font-size: 13px; }
 #tokens::before { content: " · "; }
 
 button { font: 700 13px/1 "Alegreya Sans", sans-serif; color: var(--foreground); cursor: pointer; user-select: none;
@@ -32,10 +33,10 @@ button:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 2
 button:disabled { opacity: .5; cursor: default; }
 button[hidden] { display: none; }
 
-.emotes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
-.emotes button { width: 30px; height: 30px; padding: 3px; display: grid; place-items: center; }
-.wide { display: block; width: 100%; margin-top: 5px; padding: 5px 9px; }
-.emotes img { width: 22px; height: 22px; image-rendering: pixelated; pointer-events: none; }
+.emotes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.emotes button { width: 36px; height: 36px; padding: 3px; display: grid; place-items: center; }
+.wide { display: block; width: 100%; margin-top: 7px; padding: 8px 9px; }
+.emotes img { width: 26px; height: 26px; image-rendering: pixelated; pointer-events: none; }
 
 /* The friend panel takes the card's place in the same bubble; a long list scrolls. */
 #stats:not([hidden]) { display: flex; flex-direction: column; }
