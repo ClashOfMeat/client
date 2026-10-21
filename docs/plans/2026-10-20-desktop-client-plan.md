@@ -167,7 +167,7 @@ against a temp `HOME`.
 
 - [ ] **Make the GitHub repo public** (planned within days). Audit secrets and history, add a LICENSE and a README
   for outsiders. Until then, release downloads only work for people with repo access.
-- [ ] **Generate the updater key** (Paul) and set the real pubkey in `tauri.conf.json` (`docs/building.md` §5).
+- [x] **Generate the updater key** (Paul, 2026-10-21, key E59D0E487029E84F) and set the real pubkey in `tauri.conf.json` (`docs/building.md` §5).
   Updates stay off until then.
 - [ ] **Web app** (guildbyte-app, branch `feat/desktop-hero-sync`, not pushed):
   - [ ] Accept a `desktop` client in the `X-Clashofmeat-Client` header parser. Today `desktop/x.y.z` falls back to
