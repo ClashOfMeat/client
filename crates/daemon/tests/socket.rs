@@ -309,3 +309,53 @@ fn subscription_reports_transcript_activity() {
     }
     handle.stop().unwrap();
 }
+
+/// Codex appends to a session file it keeps open, which raises no watcher event on macOS
+/// until the file is closed. The daemon still sees the new turn by polling the file's size.
+#[test]
+fn subscription_reports_activity_in_a_file_held_open() {
+    let dir = tempdir().unwrap();
+    let home = dir.path();
+    let root = home.join(".codex/sessions/2026/10/21");
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join("rollout-2026-10-21T21-50-17-77777777-7777-4777-8777-777777777777.jsonl");
+    let at = || OffsetDateTime::now_utc().format(&Rfc3339).unwrap();
+    fs::write(
+        &path,
+        format!(
+            "{}\n",
+            json!({"type":"session_meta","timestamp":at(),"payload":{"id":"77777777-7777-4777-8777-777777777777","source":"cli"}})
+        ),
+    )
+    .unwrap();
+    let handle = start(home);
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(8)))
+        .unwrap();
+    assert_eq!(
+        request(&mut stream, &json!({"id":1,"method":"subscribe"}))["result"]["subscribed"],
+        true
+    );
+    let mut open = OpenOptions::new().append(true).open(&path).unwrap();
+    writeln!(
+        open,
+        "{}",
+        json!({"type":"event_msg","timestamp":at(),"payload":{"type":"task_started","turn_id":"turn-1"}})
+    )
+    .unwrap();
+    open.flush().unwrap();
+    let mut reader = BufReader::new(stream);
+    let mut incoming = String::new();
+    loop {
+        incoming.clear();
+        reader.read_line(&mut incoming).unwrap();
+        let event: Value = serde_json::from_str(&incoming).unwrap();
+        if event["event"] == "activity" && event["data"]["busy"] == true {
+            assert_eq!(event["data"]["sessions"][0]["provider"], "codex");
+            break;
+        }
+    }
+    drop(open);
+    handle.stop().unwrap();
+}

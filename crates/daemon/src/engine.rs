@@ -26,6 +26,9 @@ pub struct ScanReport {
     pub records: u64,
     pub events_saved: usize,
     pub activity_changed: bool,
+    /// Files written in the last half hour. A writer that keeps its file open (Codex) raises no
+    /// watcher event on macOS until it closes the file, so the daemon polls these for growth.
+    pub recent: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -91,6 +94,9 @@ impl Engine {
             .unix_timestamp_nanos()
             / 1_000_000;
         let since_ms = i64::try_from(since_ms).unwrap_or(i64::MIN);
+        let recent_ms =
+            i64::try_from((now - Duration::minutes(30)).unix_timestamp_nanos() / 1_000_000)
+                .unwrap_or(i64::MIN);
         let off: HashSet<String> = store
             .meta("providers_off")?
             .and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok())
@@ -130,6 +136,9 @@ impl Engine {
                     let mut cursor = store
                         .cursor(manifest.id, source_index, &file_key)?
                         .unwrap_or_default();
+                    if file.mtime_ms >= recent_ms {
+                        report.recent.push(file.path.clone());
+                    }
                     if cursor_complete(&cursor, &file, source.format) {
                         continue;
                     }

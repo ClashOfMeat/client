@@ -130,7 +130,7 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
         clashofmeat_providers::all(),
         &opts.version,
     );
-    engine.scan(&mut store, None, OffsetDateTime::now_utc())?;
+    let first = engine.scan(&mut store, None, OffsetDateTime::now_utc())?;
     let cached = hero::load_cache(&home).unwrap_or(None);
     let (sender, inbox) = unbounded();
     let (watch_refresh, refresh_rx) = unbounded();
@@ -190,6 +190,7 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
             watch_refresh,
             main_sync,
             busy_recent,
+            first.recent,
         )
     });
     // The main loop owns a clone of sync_tx; keep another sender for shutdown.
@@ -225,6 +226,7 @@ fn main_loop(
     watch_refresh: Sender<()>,
     sync_tx: Sender<SyncCommand>,
     busy_recent: Arc<AtomicBool>,
+    recent: Vec<PathBuf>,
 ) {
     let mut subscribers: Vec<Sender<Value>> = Vec::new();
     let mut activity = serde_json::to_value(engine.activity(OffsetDateTime::now_utc()))
@@ -233,6 +235,9 @@ fn main_loop(
     let mut changed = HashSet::new();
     let mut changed_at = None::<Instant>;
     let mut full_at = Instant::now();
+    let mut open_files = OpenFiles::default();
+    open_files.track(&recent);
+    let mut polled_at = Instant::now();
     let mut pair_state = json!({"status":"unpaired"});
     loop {
         let full_deadline = full_at + Duration::from_secs(600);
@@ -260,6 +265,14 @@ fn main_loop(
                     recent_busy.is_some_and(|at| at.elapsed() < Duration::from_secs(300)),
                     Ordering::Relaxed,
                 );
+                if polled_at.elapsed() >= Duration::from_secs(2) {
+                    polled_at = Instant::now();
+                    let grown = open_files.grown();
+                    if !grown.is_empty() {
+                        changed.extend(grown);
+                        changed_at.get_or_insert_with(Instant::now);
+                    }
+                }
             }
             Ok(Message::Socket(request)) => {
                 let reply = handle_request(
@@ -331,44 +344,87 @@ fn main_loop(
             let paths: Vec<_> = changed.drain().collect();
             changed_at = None;
             if !paths.is_empty() {
-                scan_and_broadcast(
+                let recent = scan_and_broadcast(
                     &mut engine,
                     &mut store,
                     Some(&paths),
                     &mut activity,
                     &mut subscribers,
                 );
+                open_files.track(&recent);
             }
         }
         if full_at.elapsed() >= Duration::from_secs(600) {
-            scan_and_broadcast(
+            let recent = scan_and_broadcast(
                 &mut engine,
                 &mut store,
                 None,
                 &mut activity,
                 &mut subscribers,
             );
+            open_files.track(&recent);
             let _ = watch_refresh.send(());
             full_at = Instant::now();
         }
     }
 }
 
+/// Scans, broadcasts any activity change and returns the files written in the last half hour.
 fn scan_and_broadcast(
     engine: &mut Engine,
     store: &mut Store,
     paths: Option<&[PathBuf]>,
     activity: &mut Value,
     subscribers: &mut Vec<Sender<Value>>,
-) {
-    if let Err(error) = engine.scan(store, paths, OffsetDateTime::now_utc()) {
-        eprintln!("daemon scan: {error}");
-    }
+) -> Vec<PathBuf> {
+    let recent = match engine.scan(store, paths, OffsetDateTime::now_utc()) {
+        Ok(report) => report.recent,
+        Err(error) => {
+            eprintln!("daemon scan: {error}");
+            Vec::new()
+        }
+    };
     let next =
         serde_json::to_value(engine.activity(OffsetDateTime::now_utc())).unwrap_or(Value::Null);
     if next != *activity {
         *activity = next.clone();
         broadcast(subscribers, "activity", next);
+    }
+    recent
+}
+
+/// Provider files written in the last half hour, with the size last seen. Codex keeps its
+/// session file open, and macOS reports no change to an open file until it is closed, so the
+/// main loop checks these few sizes every 2 s on top of the watcher.
+#[derive(Default)]
+struct OpenFiles(HashMap<PathBuf, (u64, Instant)>);
+
+impl OpenFiles {
+    fn track(&mut self, paths: &[PathBuf]) {
+        for path in paths {
+            if let Ok(metadata) = fs::metadata(path) {
+                self.0
+                    .insert(path.clone(), (metadata.len(), Instant::now()));
+            }
+        }
+    }
+
+    /// The files that grew since the last look. One quiet for half an hour drops out.
+    fn grown(&mut self) -> Vec<PathBuf> {
+        self.0
+            .retain(|_, (_, at)| at.elapsed() < Duration::from_secs(1800));
+        let mut grown = Vec::new();
+        for (path, (len, at)) in &mut self.0 {
+            let Ok(metadata) = fs::metadata(path) else {
+                continue;
+            };
+            if metadata.len() != *len {
+                *len = metadata.len();
+                *at = Instant::now();
+                grown.push(path.clone());
+            }
+        }
+        grown
     }
 }
 
