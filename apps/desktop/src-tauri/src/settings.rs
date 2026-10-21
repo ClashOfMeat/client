@@ -133,6 +133,9 @@ pub fn daemon_request(
             | "wire_provider"
             | "evolve"
             | "level_up"
+            | "friends"
+            | "send_visit"
+            | "visit_done"
     ) {
         return Err("unsupported method".into());
     }

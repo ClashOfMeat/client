@@ -37,3 +37,13 @@ test('aura and visitor keep old one-shot timing with pixel travel', () => {
   assert.equal(visitPose(animation, 8000, 144, 400).facing, 'left')
   assert.equal(visitPose(animation, 0, 144, 200).offset, 200)
 })
+
+test('a visitor plays its emote between walking in and out, or a kiss without the clip', () => {
+  const waving = { clips: { ...animation.clips, wave: { frames: [5, 6], durations: [100, 100] } } }
+  assert.equal(visitPose(waving, 1000, 144, 400, 'wave').state, 'walk')
+  assert.deepEqual([1500, 1600, 1700].map(ms => visitPose(waving, ms, 144, 400, 'wave').frame), [5, 6, 5])
+  assert.equal(visitPose(waving, 3000, 144, 400, 'wave').state, 'wave')
+  assert.equal(visitPose(waving, 7000, 144, 400, 'wave').state, 'walk')
+  assert.equal(visitPose(animation, 3000, 144, 400, 'laugh').state, 'kiss')
+  assert.equal(visitPose(animation, 3000, 144, 400).state, 'kiss')
+})

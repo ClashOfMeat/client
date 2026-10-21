@@ -66,6 +66,9 @@ test('level-up and visit validation preserve bounds without a level cap', () => 
   assert.equal(validateVisit(visit, now).name, 'AB')
   assert.equal(validateVisit({ ...visit, expiresAt: new Date(now + 300001).toISOString() }, now), null)
   assert.equal(validateVisit({ ...visit, character: { id: uuid, png } }, now), null)
+  assert.equal(validateVisit(visit, now).emote, 'kiss')
+  assert.equal(validateVisit({ ...visit, emote: 'wave' }, now).emote, 'wave')
+  assert.equal(validateVisit({ ...visit, emote: 'dance' }, now).emote, 'kiss')
 })
 
 test('character keeps a display name and rejects a bad one', () => {

@@ -21,13 +21,14 @@ export function levelUpFrame(effect, elapsed) {
   return frame
 }
 
-// target and limit are pixel offsets measured from the visitor's entry side.
-export function visitPose(animation, elapsed, target, limit) {
+// target and limit are pixel offsets measured from the visitor's entry side. Between walking in
+// and out, the visitor plays its emote, or a kiss when its animation lacks that clip.
+export function visitPose(animation, elapsed, target, limit, emote = 'kiss') {
   const arriving = elapsed < 1500, leaving = elapsed >= 6500
-  const state = arriving || leaving ? 'walk' : 'kiss'
+  const state = arriving || leaving ? 'walk' : animation?.clips?.[emote] ? emote : 'kiss'
   const far = Math.max(target, Math.min(limit, target + 192))
   const progress = arriving ? Math.max(0, elapsed) / 1500 : leaving ? Math.min(1, (elapsed - 6500) / 1500) : 0
-  return { frame: companionFrame(animation, state, state === 'kiss' ? elapsed - 1500 : elapsed), state,
+  return { frame: companionFrame(animation, state, arriving || leaving ? elapsed : elapsed - 1500), state,
     facing: leaving ? 'left' : 'right',
     offset: arriving ? far + (target - far) * progress : leaving ? target + (far - target) * progress : target }
 }
