@@ -1,0 +1,33 @@
+apps/desktop/src-tauri/src/daemon.rs
+  s_d656464662876d::t_a692f9bb220572 247-250
+apps/desktop/src-tauri/src/settings.rs
+  s_d656464662876d::t_cd89dd7c65485d 136-138
+apps/desktop/ui/hero/effects.mjs
+  s_d656464662876d::t_0fc11226e4b836 24-26,28,31
+apps/desktop/ui/hero/tests/effects.test.mjs
+  s_d656464662876d::t_7436adae3d6e68 40-49
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_d656464662876d::t_a6ff9974310718 69-71
+apps/desktop/ui/hero/tests/visit.test.mjs
+  s_d656464662876d::t_aeca12636714b7 1-21
+apps/desktop/ui/hero/validate.mjs
+  s_d656464662876d::t_bfff5840f36974 1,84-86
+apps/desktop/ui/hero/visit.mjs
+  s_d656464662876d::t_f521bbfcdeb338 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "48b79563b62e70feaa363c04b352edb110023a37",
+  "prompts": {},
+  "sessions": {
+    "s_d656464662876d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e48a02db-4ae4-4ff5-a51b-3a251f7f4304",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
