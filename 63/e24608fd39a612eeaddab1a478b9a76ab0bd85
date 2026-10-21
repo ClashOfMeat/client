@@ -1,0 +1,26 @@
+crates/daemon/src/sync.rs
+  s_d656464662876d::t_a75fd966a198cd 387,391,399,403,410,416,421,600
+  s_d656464662876d::t_8add2328c32cb9 17-18,80,90-91,93-107,187-228,363-386,388-390,392-398,400-402,404-409,411-415,417-420,422-426,551-570,591-599,601-608,625,631
+crates/core/src/ids.rs
+  s_d656464662876d::t_61fd20f340da0d 37-59,94-101
+crates/daemon/src/run.rs
+  s_d656464662876d::t_31407e719574a9 14,115-118,516-547,600-652,769-774,812-821,890,894,933-949
+crates/daemon/tests/sync.rs
+  s_d656464662876d::t_b0890afda3f1f2 10,18-19,34,142-144,164,769-951
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "63e24608fd39a612eeaddab1a478b9a76ab0bd85",
+  "prompts": {},
+  "sessions": {
+    "s_d656464662876d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e48a02db-4ae4-4ff5-a51b-3a251f7f4304",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
