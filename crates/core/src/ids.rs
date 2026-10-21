@@ -34,6 +34,29 @@ pub fn session_uuid(provider: &str, value: &str) -> String {
     }
 }
 
+/// A fresh random version 4 UUID, for request and session identifiers. Seeded from the
+/// standard library's per-process random keys, the clock and a counter (no extra crate).
+pub fn random_uuid() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+    hasher.write_u64(NEXT.fetch_add(1, Ordering::Relaxed));
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |at| at.as_nanos());
+    let seed = format!("{}:{nanos}:{}", hasher.finish(), std::process::id());
+    let hash = hex::encode(Sha256::digest(seed.as_bytes()));
+    format!(
+        "{}-{}-4{}-a{}-{}",
+        &hash[..8],
+        &hash[8..12],
+        &hash[13..16],
+        &hash[17..20],
+        &hash[20..32]
+    )
+}
+
 /// Matches the JavaScript client's case-insensitive UUID shape check.
 pub fn is_uuid(value: &str) -> bool {
     let bytes = value.as_bytes();
@@ -67,6 +90,14 @@ pub fn model_family(id: Option<&str>) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn random_uuid_is_a_fresh_uuid() {
+        let (a, b) = (random_uuid(), random_uuid());
+        assert!(is_uuid(&a) && is_uuid(&b));
+        assert_eq!(&a[14..15], "4");
+        assert_ne!(a, b);
+    }
 
     #[test]
     fn stable_id_matches_js() {

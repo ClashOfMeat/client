@@ -7,6 +7,7 @@ use std::thread;
 use std::time::Duration;
 
 use clashofmeat_core::env::Env;
+use clashofmeat_core::ids::is_uuid;
 use clashofmeat_core::observer;
 use clashofmeat_core::signal::{Event, EventKind};
 use clashofmeat_core::store::Store;
@@ -14,7 +15,8 @@ use clashofmeat_core::{Observation, TaskRef};
 use clashofmeat_daemon::config::{app_origin, read_config, store_path, update_config};
 use clashofmeat_daemon::run::{self, RunOptions};
 use clashofmeat_daemon::sync::{
-    mark_paired, sync_once, sync_once_with_art, ApiError, Client, HeroArt,
+    companion_session, mark_paired, sync_once, sync_once_with, sync_once_with_art, ApiError,
+    Client, HeroArt,
 };
 use serde_json::{json, Value};
 use time::format_description::well_known::Rfc3339;
@@ -29,6 +31,7 @@ fn now() -> OffsetDateTime {
 }
 
 struct Request {
+    method: String,
     path: String,
     headers: BTreeMap<String, String>,
     body: Value,
@@ -136,13 +139,9 @@ fn read_request(stream: &mut TcpStream) -> Request {
     };
     let header = std::str::from_utf8(&bytes[..header_end]).unwrap();
     let mut lines = header.split("\r\n");
-    let path = lines
-        .next()
-        .unwrap()
-        .split_whitespace()
-        .nth(1)
-        .unwrap()
-        .to_owned();
+    let mut start = lines.next().unwrap().split_whitespace();
+    let method = start.next().unwrap().to_owned();
+    let path = start.next().unwrap().to_owned();
     let headers: BTreeMap<String, String> = lines
         .filter_map(|line| line.split_once(':'))
         .map(|(key, value)| (key.to_ascii_lowercase(), value.trim().to_owned()))
@@ -162,6 +161,7 @@ fn read_request(stream: &mut TcpStream) -> Request {
         serde_json::from_slice(&bytes[header_end..header_end + length]).unwrap()
     };
     Request {
+        method,
         path,
         headers,
         body,
@@ -765,4 +765,187 @@ fn level_up_asks_for_the_effect_between_two_levels() {
     let requests = server.finish();
     assert_eq!(requests[0].path, "/api/companion/level-up");
     assert_eq!(requests[0].body, json!({"fromLevel": 12, "toLevel": 13}));
+}
+
+#[test]
+fn friends_are_fetched_with_the_installation_token_and_cleaned() {
+    let server = Server::start(vec![Reply::ok(json!({"friends": [
+        {"handle": "gab", "name": "Gab", "online": true, "level": 12, "email": "x@y"},
+        {"handle": "tom", "online": false},
+        {"name": "no handle"},
+    ]}))]);
+    let friends = client(&server).friends().unwrap();
+    assert_eq!(
+        friends,
+        json!({"friends": [
+            {"handle": "gab", "name": "Gab", "online": true, "level": 12},
+            {"handle": "tom", "name": "tom", "online": false, "level": null},
+        ]})
+    );
+    let requests = server.finish();
+    assert_eq!(requests[0].method, "GET");
+    assert_eq!(requests[0].path, "/api/companion/friends");
+    assert_eq!(
+        requests[0].headers["authorization"],
+        format!("Bearer {TOKEN}")
+    );
+    assert_eq!(requests[0].headers["x-clashofmeat-client"], "desktop/0.1.0");
+}
+
+#[test]
+fn send_visit_posts_the_target_emote_and_request_id_and_keeps_the_server_message() {
+    let server = Server::start(vec![
+        Reply::ok(json!({"id": ID, "target": "gab", "expiresAt": NOW, "emote": "wave"})),
+        Reply::error(409, json!({"error": "Gab's app isn't running."})),
+    ]);
+    let client = client(&server);
+    let request_id = clashofmeat_core::ids::random_uuid();
+    assert_eq!(
+        client.send_visit("gab", "wave", &request_id).unwrap()["emote"],
+        "wave"
+    );
+    let Err(ApiError::Status { status, detail, .. }) = client.send_visit("gab", "kiss", ID) else {
+        panic!("expected a status error");
+    };
+    assert_eq!(
+        (status, detail.as_deref()),
+        (409, Some("Gab's app isn't running."))
+    );
+    let requests = server.finish();
+    assert_eq!(requests[0].path, "/api/companion/kiss");
+    assert_eq!(
+        requests[0].body,
+        json!({"target": "gab", "requestId": request_id, "emote": "wave"})
+    );
+}
+
+#[test]
+fn companion_session_is_created_once() {
+    let mut store = Store::open_in_memory().unwrap();
+    let session = companion_session(&mut store).unwrap();
+    assert!(is_uuid(&session));
+    assert_eq!(companion_session(&mut store).unwrap(), session);
+}
+
+#[test]
+fn heartbeat_carries_the_presence_fields_on_both_attempts() {
+    let server = Server::start(vec![
+        Reply::ok(
+            json!({"character": {"id": ID, "artRevision": "ffffffffffffffffffffffffffffffff", "artUnchanged": true}}),
+        ),
+        Reply::ok(json!({"connected": true})),
+    ]);
+    let mut store = Store::open_in_memory().unwrap();
+    let mut presence = serde_json::Map::new();
+    presence.insert("sessionId".into(), json!(ID));
+    presence.insert("acknowledgedVisits".into(), json!([ID]));
+    let mut art = HeroArt::from_view(&full_character("0123456789abcdef0123456789abcdef"));
+    sync_once_with(&client(&server), &mut store, now(), &mut art, &presence);
+    let requests = server.finish();
+    assert_eq!(
+        requests[0].body,
+        json!({"artRevision": "0123456789abcdef0123456789abcdef", "sessionId": ID, "acknowledgedVisits": [ID]})
+    );
+    assert_eq!(
+        requests[1].body,
+        json!({"sessionId": ID, "acknowledgedVisits": [ID]})
+    );
+}
+
+fn socket_call(
+    stream: &mut UnixStream,
+    reader: &mut BufReader<UnixStream>,
+    id: u64,
+    method: &str,
+    params: Value,
+) -> Value {
+    writeln!(
+        stream,
+        "{}",
+        json!({"id":id,"method":method,"params":params})
+    )
+    .unwrap();
+    let mut line = String::new();
+    reader.read_line(&mut line).unwrap();
+    let response: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(response["id"], id);
+    response
+}
+
+#[test]
+fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::for_home(dir.path());
+    let server = Server::with_handler(4, || {
+        |request: &Request| match request.path.as_str() {
+            "/api/companion/friends" => {
+                Reply::ok(json!({"friends": [{"handle": "gab", "name": "Gab", "online": true}]}))
+            }
+            "/api/companion/kiss" if request.body["target"] == "gab" => Reply::ok(
+                json!({"id": ID, "target": "gab", "expiresAt": NOW, "emote": request.body["emote"]}),
+            ),
+            "/api/companion/kiss" => Reply::error(403, json!({"error": "Only friends can visit."})),
+            _ => Reply::ok(json!({"connected": true})),
+        }
+    });
+    update_config(&env, |config| config.app_url = Some(server.origin.clone())).unwrap();
+    let mut store = Store::open(store_path(&env)).unwrap();
+    store.set_meta("installation.token", TOKEN).unwrap();
+    drop(store);
+    let handle = run::start(RunOptions {
+        env,
+        version: "0.1.0".into(),
+    })
+    .unwrap();
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    let mut call = |id, method, params| socket_call(&mut stream, &mut reader, id, method, params);
+
+    assert_eq!(
+        call(1, "friends", json!({}))["result"]["friends"][0]["handle"],
+        "gab"
+    );
+    assert_eq!(
+        call(2, "send_visit", json!({"target": "gab", "emote": "laugh"}))["result"]["emote"],
+        "laugh"
+    );
+    let refused = call(3, "send_visit", json!({"target": "tom", "emote": "kiss"}));
+    assert_eq!(refused["error"]["code"], "not_friend");
+    assert_eq!(refused["error"]["message"], "Only friends can visit.");
+    // Checked locally: never reaches the server.
+    assert_eq!(
+        call(4, "send_visit", json!({"target": "gab", "emote": "dance"}))["error"]["code"],
+        "bad_request"
+    );
+    assert_eq!(
+        call(5, "visit_done", json!({"id": "nope"}))["error"]["code"],
+        "bad_request"
+    );
+    assert_eq!(
+        call(6, "visit_done", json!({"id": ID}))["result"]["queued"],
+        true
+    );
+    assert_eq!(call(7, "sync_now", json!({}))["result"]["queued"], true);
+
+    let requests = server.finish();
+    let heartbeat = requests
+        .iter()
+        .find(|request| request.path == "/api/installations/heartbeat")
+        .unwrap();
+    assert_eq!(heartbeat.body["acknowledgedVisits"], json!([ID]));
+    let session = heartbeat.body["sessionId"].as_str().unwrap();
+    let store = Store::open(store_path(&Env::for_home(dir.path()))).unwrap();
+    assert_eq!(
+        store.meta("companion.session").unwrap().as_deref(),
+        Some(session)
+    );
+    let kiss = requests
+        .iter()
+        .find(|request| request.path == "/api/companion/kiss")
+        .unwrap();
+    assert!(is_uuid(kiss.body["requestId"].as_str().unwrap()));
+    handle.stop().unwrap();
 }

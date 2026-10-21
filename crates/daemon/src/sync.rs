@@ -14,6 +14,8 @@ pub enum ApiError {
     Status {
         status: u16,
         message: String,
+        /// The server's own words (`{error}`), when it sent any.
+        detail: Option<String>,
         reason: Option<String>,
         retry_after_s: Option<u64>,
         setup_url: Option<String>,
@@ -75,6 +77,7 @@ impl Client {
             Err(ureq::Error::Status(status, _)) => Err(ApiError::Status {
                 status,
                 message: format!("Clash of Meat live channel returned {status}."),
+                detail: None,
                 reason: None,
                 retry_after_s: None,
                 setup_url: None,
@@ -84,76 +87,24 @@ impl Client {
     }
 
     fn post(&self, path: &str, body: &Value) -> Result<Value, ApiError> {
-        let mut request = self
-            .agent
-            .post(&format!("{}{path}", self.origin))
-            .set("x-clashofmeat-client", &format!("desktop/{}", self.version))
+        let request = self
+            .authorized(self.agent.post(&format!("{}{path}", self.origin)))
             .set("content-type", "application/json");
-        if let Some(token) = &self.token {
-            request = request.set("authorization", &format!("Bearer {token}"));
-        }
-        match request.send_json(body) {
-            Ok(response) => response
-                .into_json()
-                .map_err(|e| ApiError::Invalid(format!("invalid response JSON: {e}"))),
-            Err(ureq::Error::Status(status, response)) => {
-                let retry_header = response
-                    .header("Retry-After")
-                    .and_then(|s| s.parse::<u64>().ok());
-                let body: Option<Value> = response.into_json().ok();
-                let detail = body
-                    .as_ref()
-                    .and_then(|v| v.get("error"))
-                    .and_then(Value::as_str)
-                    .filter(|s| s.len() <= 200);
-                let message = detail.map_or_else(
-                    || {
-                        format!(
-                            "Clash of Meat returned {status}. Pending activity is saved locally."
-                        )
-                    },
-                    |s| format!("Clash of Meat: {s}"),
-                );
-                let reason = body
-                    .as_ref()
-                    .and_then(|v| v.get("code").or_else(|| v.get("reason")))
-                    .and_then(Value::as_str)
-                    .filter(|s| {
-                        s.len() <= 40
-                            && !s.is_empty()
-                            && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
-                    })
-                    .map(str::to_owned);
-                let retry_after_s = if status == 429 {
-                    let body_retry = body
-                        .as_ref()
-                        .and_then(|v| v.get("retryAfter"))
-                        .and_then(Value::as_u64);
-                    Some(
-                        retry_header
-                            .or(body_retry)
-                            .filter(|s| *s > 0)
-                            .unwrap_or(60)
-                            .min(3600),
-                    )
-                } else {
-                    None
-                };
-                let setup_url = body
-                    .as_ref()
-                    .and_then(|v| v.get("setupUrl"))
-                    .and_then(Value::as_str)
-                    .filter(|s| s.len() <= 500)
-                    .map(str::to_owned);
-                Err(ApiError::Status {
-                    status,
-                    message,
-                    reason,
-                    retry_after_s,
-                    setup_url,
-                })
-            }
-            Err(ureq::Error::Transport(error)) => Err(ApiError::Transport(error.to_string())),
+        answer(request.send_json(body))
+    }
+
+    fn get(&self, path: &str) -> Result<Value, ApiError> {
+        answer(
+            self.authorized(self.agent.get(&format!("{}{path}", self.origin)))
+                .call(),
+        )
+    }
+
+    fn authorized(&self, request: ureq::Request) -> ureq::Request {
+        let request = request.set("x-clashofmeat-client", &format!("desktop/{}", self.version));
+        match &self.token {
+            Some(token) => request.set("authorization", &format!("Bearer {token}")),
+            None => request,
         }
     }
 
@@ -230,6 +181,48 @@ impl Client {
         self.post(
             "/api/companion/level-up",
             &json!({"fromLevel": from, "toLevel": to}),
+        )
+    }
+
+    /// The player's friends, those whose app is running first.
+    pub fn friends(&self) -> Result<Value, ApiError> {
+        let response = self.get("/api/companion/friends")?;
+        let friends = response
+            .get("friends")
+            .and_then(Value::as_array)
+            .ok_or_else(|| ApiError::Invalid("invalid response field: friends".into()))?;
+        let text = |friend: &Value, key: &str| {
+            friend
+                .get(key)
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty() && s.len() <= 80)
+                .map(str::to_owned)
+        };
+        let friends: Vec<Value> = friends
+            .iter()
+            .filter_map(|friend| {
+                let handle = text(friend, "handle")?;
+                let name = text(friend, "name").unwrap_or_else(|| handle.clone());
+                Some(json!({
+                    "handle": handle, "name": name,
+                    "online": friend.get("online").and_then(Value::as_bool).unwrap_or(false),
+                    "level": friend.get("level").and_then(Value::as_u64),
+                }))
+            })
+            .collect();
+        Ok(json!({ "friends": friends }))
+    }
+
+    /// Sends the player's hero to a friend's screen to play one emote.
+    pub fn send_visit(
+        &self,
+        target: &str,
+        emote: &str,
+        request_id: &str,
+    ) -> Result<Value, ApiError> {
+        self.post(
+            "/api/companion/kiss",
+            &json!({"target": target, "requestId": request_id, "emote": emote}),
         )
     }
 
@@ -367,6 +360,70 @@ impl Client {
     }
 }
 
+/// Reads a JSON answer, or the server's error: `{error}` from the web app's `handle()`.
+fn answer(result: Result<ureq::Response, ureq::Error>) -> Result<Value, ApiError> {
+    match result {
+        Ok(response) => response
+            .into_json()
+            .map_err(|e| ApiError::Invalid(format!("invalid response JSON: {e}"))),
+        Err(ureq::Error::Status(status, response)) => {
+            let retry_header = response
+                .header("Retry-After")
+                .and_then(|s| s.parse::<u64>().ok());
+            let body: Option<Value> = response.into_json().ok();
+            let detail = body
+                .as_ref()
+                .and_then(|v| v.get("error"))
+                .and_then(Value::as_str)
+                .filter(|s| s.len() <= 200);
+            let message = detail.map_or_else(
+                || format!("Clash of Meat returned {status}. Pending activity is saved locally."),
+                |s| format!("Clash of Meat: {s}"),
+            );
+            let reason = body
+                .as_ref()
+                .and_then(|v| v.get("code").or_else(|| v.get("reason")))
+                .and_then(Value::as_str)
+                .filter(|s| {
+                    s.len() <= 40
+                        && !s.is_empty()
+                        && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+                })
+                .map(str::to_owned);
+            let retry_after_s = if status == 429 {
+                let body_retry = body
+                    .as_ref()
+                    .and_then(|v| v.get("retryAfter"))
+                    .and_then(Value::as_u64);
+                Some(
+                    retry_header
+                        .or(body_retry)
+                        .filter(|s| *s > 0)
+                        .unwrap_or(60)
+                        .min(3600),
+                )
+            } else {
+                None
+            };
+            let setup_url = body
+                .as_ref()
+                .and_then(|v| v.get("setupUrl"))
+                .and_then(Value::as_str)
+                .filter(|s| s.len() <= 500)
+                .map(str::to_owned);
+            Err(ApiError::Status {
+                status,
+                message,
+                detail: detail.map(str::to_owned),
+                reason,
+                retry_after_s,
+                setup_url,
+            })
+        }
+        Err(ureq::Error::Transport(error)) => Err(ApiError::Transport(error.to_string())),
+    }
+}
+
 fn snapshot(event: &StoredEvent) -> (String, u64, String) {
     (event.id.clone(), event.value, event.at.clone())
 }
@@ -491,6 +548,26 @@ impl HeroArt {
     }
 }
 
+/// The emotes a hero can play on a friend's screen.
+pub const VISIT_EMOTES: [&str; 5] = ["kiss", "wave", "laugh", "victory", "angry"];
+
+/// This install's companion session, created once. Heartbeats carry it so the server only
+/// sends visits to an app that is running.
+pub fn companion_session(store: &mut Store) -> Result<String, ApiError> {
+    if let Some(session) = store
+        .meta("companion.session")
+        .map_err(store_error)?
+        .filter(|session| is_uuid(session))
+    {
+        return Ok(session);
+    }
+    let session = clashofmeat_core::ids::random_uuid();
+    store
+        .set_meta("companion.session", &session)
+        .map_err(store_error)?;
+    Ok(session)
+}
+
 /// The stored heartbeat without hero art, which the hero cache already holds.
 fn without_art(heartbeat: &Value) -> Value {
     let mut light = heartbeat.clone();
@@ -511,6 +588,24 @@ pub fn sync_once_with_art(
     now: OffsetDateTime,
     art: &mut HeroArt,
 ) -> SyncResult {
+    sync_once_with(client, store, now, art, &Map::new())
+}
+
+/// Like `sync_once_with_art`; `presence` adds fields to the heartbeat, such as the companion
+/// session and the visits played since the last one.
+pub fn sync_once_with(
+    client: &Client,
+    store: &mut Store,
+    now: OffsetDateTime,
+    art: &mut HeroArt,
+    presence: &Map<String, Value>,
+) -> SyncResult {
+    let with_presence = |mut body: Value| {
+        if let Some(fields) = body.as_object_mut() {
+            fields.extend(presence.clone());
+        }
+        body
+    };
     let mut result = SyncResult {
         heartbeat: None,
         uploaded: 0,
@@ -527,13 +622,13 @@ pub fn sync_once_with_art(
         Err(error) => return fail(client, store, now, result, store_error(error)),
         _ => {}
     }
-    let mut heartbeat = match client.heartbeat(art.request()) {
+    let mut heartbeat = match client.heartbeat(with_presence(art.request())) {
         Ok(value) => value,
         Err(error) => return fail(client, store, now, result, error),
     };
     if !art.keep(&mut heartbeat) {
         *art = HeroArt::default();
-        heartbeat = match client.heartbeat(json!({})) {
+        heartbeat = match client.heartbeat(with_presence(json!({}))) {
             Ok(value) => value,
             Err(error) => return fail(client, store, now, result, error),
         };

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use clashofmeat_core::{Env, EventKind, Store};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime, UtcOffset};
 
 use crate::{
@@ -111,6 +111,10 @@ enum SyncCommand {
         device: String,
         tools: Vec<String>,
         reply: Sender<std::result::Result<Value, SocketError>>,
+    },
+    /// The overlay finished playing this visit; the next heartbeat acknowledges it.
+    VisitDone {
+        id: String,
     },
     Stop,
 }
@@ -509,6 +513,38 @@ fn handle_request(
             }
             return None;
         }
+        "friends" => return friend_request(opts, store, reply, |client| client.friends()),
+        "send_visit" => {
+            let target = params
+                .get("target")
+                .and_then(Value::as_str)
+                .filter(|target| !target.is_empty() && target.len() <= 80)
+                .map(str::to_owned);
+            let emote = params
+                .get("emote")
+                .and_then(Value::as_str)
+                .filter(|emote| sync::VISIT_EMOTES.contains(emote))
+                .map(str::to_owned);
+            let (Some(target), Some(emote)) = (target, emote) else {
+                return Some((
+                    reply,
+                    Err(SocketError::new(
+                        "bad_request",
+                        "target and a known emote are required",
+                    )),
+                ));
+            };
+            return friend_request(opts, store, reply, move |client| {
+                client.send_visit(&target, &emote, &clashofmeat_core::ids::random_uuid())
+            });
+        }
+        "visit_done" => match params.get("id").and_then(Value::as_str) {
+            Some(id) if clashofmeat_core::ids::is_uuid(id) => sync_tx
+                .send(SyncCommand::VisitDone { id: id.to_owned() })
+                .map(|()| json!({"queued":true}))
+                .map_err(internal),
+            _ => Err(SocketError::new("bad_request", "id must be a visit ID")),
+        },
         "pair_status" => Ok(pair_state.clone()),
         "wire_provider" => match params.get("id").and_then(Value::as_str) {
             Some("cursor") => {
@@ -559,6 +595,59 @@ fn handle_request(
         _ => Err(SocketError::new("unknown_method", "unknown method")),
     };
     Some((reply, result))
+}
+
+/// Calls the web app for the overlay's friend panel on its own thread, so a slow answer never
+/// holds up the main loop or a heartbeat.
+fn friend_request(
+    opts: &RunOptions,
+    store: &Store,
+    reply: Sender<std::result::Result<Value, SocketError>>,
+    call: impl FnOnce(&sync::Client) -> std::result::Result<Value, sync::ApiError> + Send + 'static,
+) -> Option<SocketReply> {
+    let token = match store.meta("installation.token") {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            return Some((
+                reply,
+                Err(SocketError::new(
+                    "not_paired",
+                    "Connect this computer to Clash of Meat first.",
+                )),
+            ))
+        }
+        Err(error) => return Some((reply, Err(internal(error)))),
+    };
+    let client = match make_client(&opts.env, &opts.version, Some(token)) {
+        Ok(client) => client,
+        Err(error) => return Some((reply, Err(error))),
+    };
+    thread::spawn(move || {
+        let _ = reply.send(call(&client).map_err(friend_error));
+    });
+    None
+}
+
+/// Keeps the server's own words ("Gab's app isn't running") so the overlay can show them.
+fn friend_error(error: sync::ApiError) -> SocketError {
+    match error {
+        sync::ApiError::Status { status, detail, .. } => SocketError::new(
+            match status {
+                400 => "bad_request",
+                401 => "unauthorized",
+                403 => "not_friend",
+                404 => "unknown_player",
+                409 => "unavailable",
+                429 => "cooldown",
+                _ => "server_error",
+            },
+            detail.unwrap_or_else(|| format!("Clash of Meat returned {status}.")),
+        ),
+        sync::ApiError::Transport(_) => {
+            SocketError::new("offline", "Couldn't reach Clash of Meat.")
+        }
+        sync::ApiError::Invalid(message) => SocketError::new("invalid_response", message),
+    }
 }
 
 /// Returns today's persisted token counters by provider ID.
@@ -677,6 +766,12 @@ fn sync_loop(
     let mut live_due: Option<Instant> = None;
     let mut pairing: Option<sync::Pairing> = None;
     let mut next_poll = Instant::now();
+    let session = sync::companion_session(&mut store)
+        .map_err(|error| eprintln!("daemon companion session: {error}"))
+        .ok();
+    // Visits the overlay played, acknowledged by the next heartbeat (the server re-sends a
+    // visit until then).
+    let mut played: Vec<String> = Vec::new();
     loop {
         let mut forced = false;
         match commands.recv_timeout(Duration::from_secs(1)) {
@@ -711,6 +806,16 @@ fn sync_loop(
                 let _ = reply.send(result);
             }
             Ok(SyncCommand::Live) => {
+                let earliest = last_heartbeat + Duration::from_secs(10);
+                live_due.get_or_insert(earliest.max(Instant::now()));
+            }
+            Ok(SyncCommand::VisitDone { id }) => {
+                if !played.contains(&id) {
+                    if played.len() >= 20 {
+                        played.remove(0);
+                    }
+                    played.push(id);
+                }
                 let earliest = last_heartbeat + Duration::from_secs(10);
                 live_due.get_or_insert(earliest.max(Instant::now()));
             }
@@ -782,10 +887,11 @@ fn sync_loop(
                 }
             }
         }
+        // Even when idle, a heartbeat a minute keeps this app "online" for friends' visits.
         let interval = if busy_recent.load(Ordering::Relaxed) {
             Duration::from_secs(30)
         } else {
-            Duration::from_secs(300)
+            Duration::from_secs(60)
         };
         let pending = last_upload.elapsed() >= Duration::from_secs(30)
             && (store
@@ -824,8 +930,23 @@ fn sync_loop(
             Ok(client) => client,
             Err(_) => continue,
         };
-        let result =
-            sync::sync_once_with_art(&client, &mut store, OffsetDateTime::now_utc(), &mut art);
+        let mut presence = Map::new();
+        if let Some(session) = &session {
+            presence.insert("sessionId".into(), json!(session));
+        }
+        if !played.is_empty() {
+            presence.insert("acknowledgedVisits".into(), json!(played));
+        }
+        let result = sync::sync_once_with(
+            &client,
+            &mut store,
+            OffsetDateTime::now_utc(),
+            &mut art,
+            &presence,
+        );
+        if result.heartbeat.is_some() {
+            played.clear();
+        }
         last_heartbeat = Instant::now();
         last_upload = Instant::now();
         if result.error.is_none() && !result.deferred {
