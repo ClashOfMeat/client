@@ -384,6 +384,12 @@ stillButton.addEventListener('click', async () => {
   try { await invoke('set_hero_settings', { show: true, screen, still: next }) }
   catch (error) { console.error('hero settings:', error); setStayStill(!next) }
 })
+document.getElementById('open-app').addEventListener('click', async () => {
+  statsOpen = false
+  wake()
+  try { await invoke('open_app', { path: '/heroes' }) }
+  catch (error) { console.error('open Clash of Meat:', error) }
+})
 document.getElementById('settings').addEventListener('click', async () => {
   menuOpen = false
   wake()

@@ -160,6 +160,20 @@ pub fn set_hero_settings(
     )
 }
 
+/// Opens a page of the paired web app. Only the path comes from the page; the address is the
+/// one the daemon was installed with.
+#[tauri::command]
+pub fn open_app(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    if !path.starts_with('/') || path.starts_with("//") {
+        return Err("invalid path".into());
+    }
+    let base = crate::daemon::state(&app)
+        .status
+        .and_then(|status| status["app_url"].as_str().map(str::to_owned))
+        .ok_or("Clash of Meat isn't connected yet")?;
+    open_pair_link(format!("{}{path}", base.trim_end_matches('/')))
+}
+
 #[tauri::command]
 pub fn open_pair_link(link: String) -> Result<(), String> {
     if !link.starts_with("https://") && !link.starts_with("http://localhost") {

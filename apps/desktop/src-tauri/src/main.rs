@@ -37,6 +37,7 @@ fn main() {
             settings::daemon_request,
             settings::set_hero_settings,
             settings::open_pair_link,
+            settings::open_app,
             updater::update_check,
             updater::update_restart
         ])
