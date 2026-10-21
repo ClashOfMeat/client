@@ -1,0 +1,27 @@
+apps/desktop/src-tauri/src/main.rs
+  s_06ed9d8c83611e::t_f113fd08180909 40
+apps/desktop/src-tauri/src/settings.rs
+  s_06ed9d8c83611e::t_6a24082fd46622 163-176
+apps/desktop/ui/overlay.css
+  s_06ed9d8c83611e::t_f91446f893dd03 37
+apps/desktop/ui/overlay.html
+  s_06ed9d8c83611e::t_07dd6e1fd1ccdc 17
+apps/desktop/ui/overlay.mjs
+  s_06ed9d8c83611e::t_e711a4421107fb 387-392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cd8862c324c1a89596392d4fa8a7d74a8915e07f",
+  "prompts": {},
+  "sessions": {
+    "s_06ed9d8c83611e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d702cc3f-99c9-4e88-9694-115fc0f6d057",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
