@@ -1,0 +1,41 @@
+apps/desktop/src-tauri/src/daemon.rs
+  s_06ed9d8c83611e::t_bf51eab365e5b5 198
+apps/desktop/src-tauri/src/settings.rs
+  s_06ed9d8c83611e::t_d54a1ad2dd8161 129
+apps/desktop/ui/assets/README.md
+  s_06ed9d8c83611e::t_5b8638717e3371 2
+apps/desktop/ui/hero/activity.mjs
+  s_06ed9d8c83611e::t_92432f47d2979b 172-175
+apps/desktop/ui/hero/tests/activity.test.mjs
+  s_06ed9d8c83611e::t_af6994f65337d8 182-194
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_06ed9d8c83611e::t_edef45ecdb33f7 77-83
+apps/desktop/ui/hero/tests/xp-text.test.mjs
+  s_06ed9d8c83611e::t_eef94bb3dae149 3
+apps/desktop/ui/hero/validate.mjs
+  s_06ed9d8c83611e::t_e9ee69ffc6c1db 45,55
+apps/desktop/ui/overlay.mjs
+  s_06ed9d8c83611e::t_396b5b04bef0dc 4,26,112-113,115,118,123-139,190-191,294,305
+crates/daemon/src/run.rs
+  s_06ed9d8c83611e::t_1261e8fd10e6c9 105-109,485-511,704-712
+crates/daemon/src/sync.rs
+  s_06ed9d8c83611e::t_2b72329f83e930 228-235
+crates/daemon/tests/sync.rs
+  s_06ed9d8c83611e::t_1741f272e3f0e8 759-768
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66818b5a118a7ce0f2d118f506efa129080b31ee",
+  "prompts": {},
+  "sessions": {
+    "s_06ed9d8c83611e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d702cc3f-99c9-4e88-9694-115fc0f6d057",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
