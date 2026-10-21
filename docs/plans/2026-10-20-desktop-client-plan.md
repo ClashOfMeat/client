@@ -198,10 +198,8 @@ against a temp `HOME`.
 - [ ] **Windows ARM64 build.** x64 runs under emulation until then.
 - [ ] **End-to-end run:** install → pair → update to a locally signed build (old T28), and the resource budget script
   (old T21).
-- [ ] **Retire guildbyte-plugin.** Once the setup page points to the new client, archive the repo (read-only, do not
-  delete) so installed plugins and collectors keep resolving. First review its 48 uncommitted local changes on branch
-  `feat/leaderboard-progression-v1` (rename to clashofmeat, `collector/`, `install/` incl. `install.ps1`) before
-  anything is discarded.
+- [ ] **Retire guildbyte-plugin** (ClashOfMeat/plugin). It has no users (2026-10-21), so archive it as soon as the
+  setup page points to the new client; no switch notice and no legacy install section are needed.
 - [x] **Snapshot the plugin's uncommitted work** (2026-10-21): pushed as `ClashOfMeat/plugin` branch
   `archive/node-collector-snapshot`, not for main. The two empty `untitled*.md` notes were left out.
 - [ ] **Linux.** The Node collector supported Linux (systemd, x64 and arm64); this client does not. Decide whether that

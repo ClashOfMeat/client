@@ -10,8 +10,7 @@ Up to four workstreams run at once. Items marked **Paul** need him (production a
    end-to-end Mac run (install 0.1.0 → pair → count → update to 0.1.1) with a throwaway signing key.
 3. **Public repo audit** (agent `repo-audit`, this repo): history and files checked for secrets and private data,
    README for outsiders. The licence choice is **Paul**'s.
-4. **Plugin switch notice** (agent `plugin-notice`, ClashOfMeat/plugin): a one-line notice in the old Claude mod
-   pointing to the new app. Mockup first, then a PR.
+4. ~~Plugin switch notice~~: dropped. The Claude plugin's hero has no users, so nobody needs a notice.
 
 ## Wave 2 — when a slot frees up
 5. **Setup page** (web app): built, committed with wave 1's web work, checked live.
@@ -27,4 +26,5 @@ Up to four workstreams run at once. Items marked **Paul** need him (production a
 ## Wave 4 — first release
 12. `scripts/release.sh 0.1.0 --app <production URL>` (Mac and Windows), signed with Paul's key.
 13. Production env: `CLASHOFMEAT_DESKTOP_STABLE_VERSION=0.1.0` and `CLASHOFMEAT_DESKTOP_STABLE_MANIFEST=<update.json URL>`.
-14. Paul installs on his Mac and his Windows PC; release the plugin notice; archive ClashOfMeat/plugin later.
+14. Paul installs on his Mac and his Windows PC; archive ClashOfMeat/plugin once the setup page points to the app
+    (it has no users, so nothing has to keep resolving).
