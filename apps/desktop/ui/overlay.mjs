@@ -382,6 +382,11 @@ stillButton.addEventListener('click', async () => {
   try { await invoke('set_hero_settings', { show: true, screen, still: next }) }
   catch (error) { console.error('hero settings:', error); setStayStill(!next) }
 })
+document.getElementById('settings').addEventListener('click', async () => {
+  menuOpen = false
+  wake()
+  await emit('overlay-control', { action: 'settings' })
+})
 document.getElementById('quit').addEventListener('click', async () => {
   hidden = true
   menuOpen = false

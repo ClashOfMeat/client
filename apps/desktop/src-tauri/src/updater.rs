@@ -48,7 +48,6 @@ fn public_key() -> Option<String> {
 
 fn publish(app: &AppHandle) {
     let status = app.state::<State>().status.lock().unwrap().clone();
-    crate::tray::set_update_ready(app, status.phase == "ready");
     if status.blocked {
         let _ = app.emit("hero-control", serde_json::json!({"paused":true}));
         if let Some(window) = app.get_webview_window("hero") {

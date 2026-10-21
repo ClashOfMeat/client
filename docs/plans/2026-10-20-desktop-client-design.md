@@ -24,7 +24,7 @@ Windows UI; walking on top of windows; WASM-sandboxed providers.
 ┌─ Clash of Meat.app (Tauri 2) ─────────────────────────────────────────┐
 │  overlay window   256 px, transparent, click-through except the hero, │
 │                   always on top, all Spaces; the window moves          │
-│  menu bar         status, pause hero, sync now, settings, quit         │
+│  hero menu        hide hero, stop walking, settings, quit (no menu bar)│
 │  settings window  pairing, providers on/off, about/update              │
 │  Contents/MacOS/clashofmeat   one Rust binary: CLI + daemon            │
 └───────────────────────────────┬───────────────────────────────────────┘
@@ -147,7 +147,7 @@ counting.
 - Tauri updater, minisign key. The public key is compiled in; the private key is a CI secret readable only by a
   separate `sign` job that checks out no code.
 - Check 3 s after launch, then every 6 h with up to 30 min of jitter (10 min after a failure). Download and verify in
-  the background, then **Update ready · Restart** in the menu bar. Nothing installs without a click. Below `minimum`
+  the background, then **Update ready · Restart** in Settings. Nothing installs without a click. Below `minimum`
   the app blocks with **Update and restart**; the daemon keeps collecting. A `security` flag highlights the row.
 - Endpoint: `GET /api/clients/desktop/update?target={{target}}&arch={{arch}}&current={{current_version}}` with the
   installation bearer token. It reuses the stable/candidate split by `sha256(installationId)` and answers in Tauri's

@@ -1,7 +1,6 @@
 mod daemon;
 mod overlay;
 mod settings;
-mod tray;
 mod updater;
 
 use tauri::{ActivationPolicy, Listener, Manager};
@@ -50,8 +49,6 @@ fn main() {
             handle.manage(settings::HeroConfig(std::sync::Mutex::new(settings::load(
                 handle,
             ))));
-            tray::create(handle)?;
-            tray::set_update_ready(handle, false);
             updater::start(handle);
             let mut config = settings::current(handle);
             if !config.show {
@@ -76,6 +73,11 @@ fn main() {
                         let mut config = settings::current(&control);
                         config.show = false;
                         let _ = settings::set(&control, config);
+                    }
+                    Some("settings") => {
+                        if let Err(error) = settings::show(&control) {
+                            eprintln!("settings window: {error}");
+                        }
                     }
                     Some("quit") => control.exit(0),
                     _ => {}
