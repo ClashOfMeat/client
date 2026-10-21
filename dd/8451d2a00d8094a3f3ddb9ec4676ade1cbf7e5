@@ -1,0 +1,33 @@
+docs/building.md
+  s_e9d8fa917d08ef::t_83ad49a3c14196 159,165-167
+scripts/README.md
+  s_e9d8fa917d08ef::t_c79e26c82cf542 10-11
+scripts/release.sh
+  s_f4e81a9bcf0b2a::t_e98e329d5df340 3,8,22,30,42,98-110,120,126
+scripts/update-manifest.sh
+  s_e9d8fa917d08ef::t_e0a6ee79eb9167 4,28-29,32,35-37,39-46,54-63,68,78,86,98,109-110,153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd8451d2a00d8094a3f3ddb9ec4676ade1cbf7e5",
+  "prompts": {},
+  "sessions": {
+    "s_e9d8fa917d08ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9be47e34-74a9-4217-acd6-b0096383d9e0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    },
+    "s_f4e81a9bcf0b2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86e7bbfa-49b9-4494-9528-018c1bbca5e5",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
