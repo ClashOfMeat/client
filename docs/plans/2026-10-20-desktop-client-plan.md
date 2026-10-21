@@ -202,5 +202,11 @@ against a temp `HOME`.
   delete) so installed plugins and collectors keep resolving. First review its 48 uncommitted local changes on branch
   `feat/leaderboard-progression-v1` (rename to clashofmeat, `collector/`, `install/` incl. `install.ps1`) before
   anything is discarded.
+- [x] **Snapshot the plugin's uncommitted work** (2026-10-21): pushed as `ClashOfMeat/plugin` branch
+  `archive/node-collector-snapshot`, not for main. The two empty `untitled*.md` notes were left out.
+- [ ] **Linux.** The Node collector supported Linux (systemd, x64 and arm64); this client does not. Decide whether that
+  is intended before archiving the plugin.
+- [ ] **Claude Code task grouping.** The client tags Claude Code tasks with `source_key "collector"`; the Node collector
+  used the Claude account UUID. Check the web app groups them as one account.
 - [ ] **Push the web branch and open its PR.**
 - [ ] **Clean up** the local demo processes and `~/.com-visual` when Paul is done.

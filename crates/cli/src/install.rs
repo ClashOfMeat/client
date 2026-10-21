@@ -139,10 +139,6 @@ pub(crate) fn launch_agent_path(env: &Env) -> PathBuf {
         .join(format!("{LABEL}.plist"))
 }
 
-pub(crate) fn legacy_agent_path(env: &Env) -> PathBuf {
-    launch_agent_path(env).with_file_name("com.clashofmeat.collector.plist")
-}
-
 pub(crate) fn launchctl(env: &Env, args: &[&str]) -> Result<()> {
     let program = env
         .vars

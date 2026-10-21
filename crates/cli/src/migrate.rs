@@ -80,12 +80,26 @@ pub fn run(env: &Env, origin: &str) -> Result<()> {
             }
         }
     }
-    let old_agent = install::legacy_agent_path(env);
-    if old_agent.exists() {
-        let target = format!("gui/{}/com.clashofmeat.collector", install::uid()?);
-        let _ = install::launchctl(env, &["bootout", &target]);
-        fs::remove_file(&old_agent)?;
-        println!("Removed old collector LaunchAgent {}.", old_agent.display());
+    // The Node collector's LaunchAgent, under its name before and after the rename.
+    for label in ["com.clashofmeat.collector", "com.guildbyte.collector"] {
+        let old_agent = install::launch_agent_path(env).with_file_name(format!("{label}.plist"));
+        if old_agent.exists() {
+            let target = format!("gui/{}/{label}", install::uid()?);
+            let _ = install::launchctl(env, &["bootout", &target]);
+            fs::remove_file(&old_agent)?;
+            println!("Removed old collector LaunchAgent {}.", old_agent.display());
+        }
+    }
+    // On Windows the Node collector ran as a scheduled task.
+    #[cfg(windows)]
+    for task in ["ClashOfMeatCollector", "GuildbyteCollector"] {
+        let removed = std::process::Command::new("schtasks")
+            .args(["/Delete", "/F", "/TN", task])
+            .output()
+            .is_ok_and(|output| output.status.success());
+        if removed {
+            println!("Removed old collector scheduled task {task}.");
+        }
     }
     let home = config::home(env);
     if home.join("app").exists() || home.join("bin").exists() {
