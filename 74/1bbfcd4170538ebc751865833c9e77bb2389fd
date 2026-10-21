@@ -1,0 +1,31 @@
+apps/desktop/ui/overlay.css
+  s_06ed9d8c83611e::t_3531c0e849b19d 15-16
+  s_06ed9d8c83611e::t_d814d574cf6da6 17
+  s_06ed9d8c83611e::t_beff1c7a19bdbb 20-22,25,36-39
+apps/desktop/ui/hero/effects.mjs
+  s_06ed9d8c83611e::t_1116af70d4bd4b 24-27,31,33-42
+apps/desktop/ui/hero/tests/effects.test.mjs
+  s_06ed9d8c83611e::t_0444729a72e96e 3,29-43,48-59
+apps/desktop/ui/overlay.mjs
+  s_06ed9d8c83611e::t_5337a54f61013d 3,394-395
+apps/desktop/ui/overlay/layout.mjs
+  s_06ed9d8c83611e::t_98728d427241f9 8
+apps/desktop/ui/overlay/tests/layout.test.mjs
+  s_06ed9d8c83611e::t_fdf19c7ca8959b 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "741bbfcd4170538ebc751865833c9e77bb2389fd",
+  "prompts": {},
+  "sessions": {
+    "s_06ed9d8c83611e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d702cc3f-99c9-4e88-9694-115fc0f6d057",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
