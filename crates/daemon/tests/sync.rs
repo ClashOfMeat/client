@@ -876,7 +876,7 @@ fn socket_call(
 fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
     let dir = tempfile::tempdir().unwrap();
     let env = Env::for_home(dir.path());
-    let server = Server::with_handler(4, || {
+    let server = Server::with_handler(5, || {
         |request: &Request| match request.path.as_str() {
             "/api/companion/friends" => {
                 Reply::ok(json!({"friends": [{"handle": "gab", "name": "Gab", "online": true}]}))
@@ -884,7 +884,10 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
             "/api/companion/kiss" if request.body["target"] == "gab" => Reply::ok(
                 json!({"id": ID, "target": "gab", "expiresAt": NOW, "emote": request.body["emote"]}),
             ),
-            "/api/companion/kiss" => Reply::error(403, json!({"error": "Only friends can visit."})),
+            "/api/companion/kiss" if request.body["target"] == "lea" => {
+                Reply::error(409, json!({"error": "Lea is already receiving a kiss."}))
+            }
+            "/api/companion/kiss" => Reply::error(403, json!({"error": "Only friends can kiss."})),
             _ => Reply::ok(json!({"connected": true})),
         }
     });
@@ -914,7 +917,16 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
     );
     let refused = call(3, "send_visit", json!({"target": "tom", "emote": "kiss"}));
     assert_eq!(refused["error"]["code"], "not_friend");
-    assert_eq!(refused["error"]["message"], "Only friends can visit.");
+    assert_eq!(
+        refused["error"]["message"],
+        "Only friends can receive your hero"
+    );
+    let busy = call(8, "send_visit", json!({"target": "lea", "emote": "wave"}));
+    assert_eq!(busy["error"]["code"], "unavailable");
+    assert_eq!(
+        busy["error"]["message"],
+        "Lea is already receiving a visit."
+    );
     // Checked locally: never reaches the server.
     assert_eq!(
         call(4, "send_visit", json!({"target": "gab", "emote": "dance"}))["error"]["code"],

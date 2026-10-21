@@ -535,7 +535,9 @@ fn handle_request(
                 ));
             };
             return friend_request(opts, store, reply, move |client| {
-                client.send_visit(&target, &emote, &clashofmeat_core::ids::random_uuid())
+                client
+                    .send_visit(&target, &emote, &clashofmeat_core::ids::random_uuid())
+                    .map_err(visit_wording)
             });
         }
         "visit_done" => match params.get("id").and_then(Value::as_str) {
@@ -626,6 +628,26 @@ fn friend_request(
         let _ = reply.send(call(&client).map_err(friend_error));
     });
     None
+}
+
+/// Short panel texts for a refused visit. The server's 409 and 429 texts say "kiss" whatever
+/// the emote, so a 409 keeps its words with "visit" instead.
+fn visit_wording(mut error: sync::ApiError) -> sync::ApiError {
+    if let sync::ApiError::Status { status, detail, .. } = &mut error {
+        let text = match *status {
+            403 => Some("Only friends can receive your hero".to_owned()),
+            404 => Some("Player not found".to_owned()),
+            409 => detail
+                .as_deref()
+                .map(|text| text.replace("kiss", "visit").replace("Kiss", "Visit")),
+            429 => Some("Wait a few seconds before sending again".to_owned()),
+            _ => None,
+        };
+        if text.is_some() {
+            *detail = text;
+        }
+    }
+    error
 }
 
 /// Keeps the server's own words ("Gab's app isn't running") so the overlay can show them.
