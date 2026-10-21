@@ -163,8 +163,10 @@ scripts/release.sh <version> --app https://<web app URL> [--min-version x.y.z] [
 - `--min-version` is optional. Use it only when older installed apps must update before they keep running.
 - `--security` marks the update as a security update in `update.json`.
 - `--mac-only` packages only `aarch64-apple-darwin` and `x86_64-apple-darwin`. `manifest.json` and `update.json`
-  then list only the two Mac entries, and the GitHub release has no Windows installer. Windows apps on an older
-  version see no `windows-x86_64` entry and stay where they are. Without the flag, all three targets are built.
+  then list only the two Mac entries, and the GitHub release has no Windows installer. A Windows app that reads this
+  `update.json` finds a newer version with no `windows-x86_64` entry, so its update check fails (Tauri's
+  "target not found") and retries; do not offer a Mac-only release to Windows apps. Without the flag, all three
+  targets are built.
 - `--dry-run` does everything except creating the GitHub release. Problems that would stop a real release (dirty
   tree, placeholder public key, missing signing key, gh not logged in) are reported and skipped instead.
 - `--out` changes the output directory (default `dist/<version>/`).
