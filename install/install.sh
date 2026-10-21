@@ -60,7 +60,7 @@ fetch() { curl -fsSL --proto '=https,http' --proto-redir '=https' --retry 2 -o "
 sha256() { shasum -a 256 "$1" | cut -d ' ' -f 1; }
 read_manifest() { /usr/bin/plutil -extract "$1" raw -o - "$2" 2>/dev/null; }
 
-RELEASES=${CLASHOFMEAT_RELEASES_URL:-https://github.com/PromptWar/clashofmeat-client/releases}
+RELEASES=${CLASHOFMEAT_RELEASES_URL:-https://github.com/ClashOfMeat/client/releases}
 RELEASES=${RELEASES%/}
 APPS_DIR=${CLASHOFMEAT_APPS_DIR:-$HOME/Applications}
 BIN_DIR=${CLASHOFMEAT_BIN_DIR:-$HOME/.local/bin}

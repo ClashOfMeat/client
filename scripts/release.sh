@@ -6,7 +6,7 @@ set -euo pipefail
 die() { echo "release: $*" >&2; exit 1; }
 note() { echo "release: $*"; }
 usage="usage: $0 <version> --app <url> [--min-version x.y.z] [--security] [--dry-run] [--out DIR]"
-repo=PromptWar/clashofmeat-client
+repo=ClashOfMeat/client
 targets=(aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc)
 placeholder=REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY
 

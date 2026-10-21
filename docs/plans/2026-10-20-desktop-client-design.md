@@ -166,7 +166,7 @@ Land on a branch off `guildbyte-app` `onboarding` (it carries the rename, client
 | Area | Change |
 |---|---|
 | Handshake | `desktop` in `CLIENT_NAMES`; accept `x-clashofmeat-client` and `x-guildbyte-client` during the rename |
-| Releases | `CLIENT_RELEASES.desktop = { minimum, stable, candidate }`; assets only from `github.com/PromptWar/clashofmeat-client/releases/download/desktop-v<ver>/…` |
+| Releases | `CLIENT_RELEASES.desktop = { minimum, stable, candidate }`; assets only from `github.com/ClashOfMeat/client/releases/download/desktop-v<ver>/…` |
 | Update route | `GET /api/clients/desktop/update` (§4) |
 | Installer route | `GET /install.sh` with the stable version and app URL filled in |
 | Setup page | the `curl … \| sh` command; plugin instructions move to "legacy" |

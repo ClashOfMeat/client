@@ -11,7 +11,7 @@ One Mac builds all three installers:
 
 The Windows installer is cross-compiled on the Mac with `cargo-xwin`.
 
-The GitHub repo `PromptWar/clashofmeat-client` is private for now. Release downloads (the Mac `curl` install and
+The GitHub repo `ClashOfMeat/client` is private for now. Release downloads (the Mac `curl` install and
 the Windows `.exe`) only work for people with access to the repo until it is made public.
 
 ## 1. Prerequisites (once)
@@ -56,7 +56,7 @@ the Windows `.exe`) only work for people with access to the repo until it is mad
 
 6. **Node.js** (any current LTS) for the UI and installer tests.
 
-7. **GitHub CLI**, logged in with access to `PromptWar/clashofmeat-client`:
+7. **GitHub CLI**, logged in with access to `ClashOfMeat/client`:
 
    ```sh
    brew install gh
@@ -178,7 +178,7 @@ Release from a clean, pushed commit. The script:
    - `manifest.json`: file, sha256 and size per target. `install.sh` reads it.
    - `update.json`: Tauri v2 updater static JSON with `darwin-aarch64`, `darwin-x86_64` and `windows-x86_64`
      entries (URL and signature), plus `security` and the optional `min_version`.
-5. Creates the GitHub release `desktop-v<version>` on `PromptWar/clashofmeat-client` at `HEAD` with the two Mac
+5. Creates the GitHub release `desktop-v<version>` on `ClashOfMeat/client` at `HEAD` with the two Mac
    archives, their `.sha256` and `.sig`, the Windows `-setup.exe` with its `.sha256` and `.sig`, and `install.sh`.
    Then it uploads `manifest.json` and `update.json` last, so nobody reads a manifest whose files are not there yet.
 
@@ -203,7 +203,7 @@ After the release exists, stage it in the web app: set `CLASHOFMEAT_DESKTOP_CAND
 | Tauri bundles | `apps/desktop/src-tauri/target/<target>/release/bundle/{macos,nsis}/` |
 | CLI builds | `target/<target>/release/clashofmeat[.exe]` |
 | Sidecars | `apps/desktop/src-tauri/binaries/clashofmeat-<target>[.exe]` (ignored by git) |
-| Published release | `https://github.com/PromptWar/clashofmeat-client/releases/tag/desktop-v<version>` |
+| Published release | `https://github.com/ClashOfMeat/client/releases/tag/desktop-v<version>` |
 
 ## 8. How users install
 
@@ -211,7 +211,7 @@ After the release exists, stage it in the web app: set `CLASHOFMEAT_DESKTOP_CAND
 version filled in. A release copy also works:
 
 ```sh
-curl -fsSL https://github.com/PromptWar/clashofmeat-client/releases/download/desktop-v<version>/install.sh \
+curl -fsSL https://github.com/ClashOfMeat/client/releases/download/desktop-v<version>/install.sh \
   | sh -s -- --app https://<web app URL> --version <version>
 ```
 

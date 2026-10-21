@@ -183,8 +183,10 @@ against a temp `HOME`.
 - [ ] **Build the first Windows installer** once the web app, with the desktop branch, is deployed to production:
   `scripts/package.sh <v> x86_64-pc-windows-msvc` with `CLASHOFMEAT_DEFAULT_APP_URL` set to the production URL (Paul
   will give it). Paul then installs it on his Windows PC. It has not been built yet, on purpose.
-- [ ] **Create the GitHub repo and push.** `PromptWar/clashofmeat-client` (private) does not exist yet; Paul creates
-  it, then `main` is pushed. Install `gh` (`brew install gh && gh auth login`) before the first release.
+- [x] **Create the GitHub repo and push** (2026-10-21): `ClashOfMeat/client`, private. The org was renamed from
+  PromptWar; old `PromptWar/...` URLs redirect.
+- [ ] **Web app repo names.** The web app still names `PromptWar/guildbyte-plugin` (setup page, collector manifest
+  check). GitHub redirects it to `ClashOfMeat/plugin`; switch to the new names when the setup page moves to this client.
 - [ ] **Mac-only release.** `release.sh` needs all three installers. Add a `--mac-only` flag if a Mac release has to go
   out before the Windows build is ready.
 - [ ] **Cursor hook on Windows.** The hook command quotes the `clashofmeat.exe` path for `cmd.exe`; check how Cursor

@@ -2,7 +2,7 @@
 
 The web app serves `install.sh` after replacing its single `__CLASHOFMEAT_APP_URL__` and `__CLASHOFMEAT_VERSION__` placeholders with its own URL and the stable `x.y.z` release. A release copy can also be run with `sh install/install.sh --app https://example.com --version 1.2.3`; `CLASHOFMEAT_APP_URL` supplies the app URL when `--app` is absent. Remaining arguments go to `clashofmeat install`.
 
-For version `x.y.z`, the installer reads `${CLASHOFMEAT_RELEASES_URL:-https://github.com/PromptWar/clashofmeat-client/releases}/download/desktop-vx.y.z/manifest.json`. The release contains:
+For version `x.y.z`, the installer reads `${CLASHOFMEAT_RELEASES_URL:-https://github.com/ClashOfMeat/client/releases}/download/desktop-vx.y.z/manifest.json`. The release contains:
 
 ```json
 {
