@@ -145,7 +145,8 @@ counting.
 **Update** (mesh's model plus the web app's staged rollout):
 
 - Tauri updater, minisign key. The public key is compiled in; the private key is a CI secret readable only by a
-  separate `sign` job that checks out no code.
+  separate `sign` job that checks out no code. *(2026-10-21: superseded. There is no CI; the private key stays on
+  Paul's Mac and `scripts/package.sh` signs after Tauri's build. See `docs/building.md`.)*
 - Check 3 s after launch, then every 6 h with up to 30 min of jitter (10 min after a failure). Download and verify in
   the background, then **Update ready · Restart** in Settings. Nothing installs without a click. Below `minimum`
   the app blocks with **Update and restart**; the daemon keeps collecting. A `security` flag highlights the row.
@@ -189,7 +190,8 @@ Land on a branch off `guildbyte-app` `onboarding` (it carries the rename, client
 - **Resource budget:** a script measures daemon RSS/CPU idle and overlay RSS/CPU walking/sleeping, and fails over
   budget.
 - **CI:** PR job runs `cargo test`, `clippy` and parity checks. Release workflow is manual dispatch with a separate
-  signing job.
+  signing job. *(2026-10-21: superseded. The GitHub workflows were removed; `scripts/check.sh` runs the checks and
+  `scripts/release.sh` builds, signs and publishes from Paul's Mac. See `docs/building.md`.)*
 
 ## 7. Milestones
 
@@ -197,5 +199,6 @@ Land on a branch off `guildbyte-app` `onboarding` (it carries the rename, client
    users.
 2. **Other four providers** and migration from the old collector.
 3. **Tauri app:** overlay, menu bar, settings, hero state machine.
-4. **Install and update:** installer, LaunchAgent, updater, release workflow, web routes on `onboarding`.
+4. **Install and update:** installer, LaunchAgent, updater, release workflow (now local scripts, see
+   `docs/building.md`), web routes on `onboarding`.
 5. **Cutover:** setup page switches to the new install command; plugin phase-out.

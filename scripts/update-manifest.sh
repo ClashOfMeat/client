@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Validate the two signed updater archives and write both release pointers.
+# Validate the signed release artifacts (two macOS archives, one Windows installer) and write both release pointers:
+# manifest.json (read by install.sh) and update.json (Tauri v2 updater static JSON).
 set -euo pipefail
 
 die() { echo "update-manifest: $*" >&2; exit 1; }
@@ -11,8 +12,11 @@ if [[ ${1:-} == --self-test && $# -eq 1 ]]; then
   python3 -c '
 import base64, hashlib, pathlib, sys
 out = pathlib.Path(sys.argv[1])
-for arch in ("aarch64", "x86_64"):
-    name = f"Clash.of.Meat_0.0.1_{arch}.app.tar.gz"
+for arch, name in (
+    ("aarch64", "Clash.of.Meat_0.0.1_aarch64.app.tar.gz"),
+    ("x86_64", "Clash.of.Meat_0.0.1_x86_64.app.tar.gz"),
+    ("x64", "Clash.of.Meat_0.0.1_x64-setup.exe"),
+):
     data = ("fake " + arch).encode()
     (out / name).write_bytes(data)
     (out / (name + ".sha256")).write_text(hashlib.sha256(data).hexdigest() + "  " + name + "\n")
@@ -26,14 +30,19 @@ out = pathlib.Path(sys.argv[1])
 manifest = json.loads((out / "manifest.json").read_text())
 update = json.loads((out / "update.json").read_text())
 assert manifest["version"] == update["version"] == "0.0.1"
-assert set(manifest["assets"]) == {"aarch64-apple-darwin", "x86_64-apple-darwin"}
-assert set(update["platforms"]) == {"darwin-aarch64", "darwin-x86_64"}
+assert set(manifest["assets"]) == {"aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-pc-windows-msvc"}
+assert set(update["platforms"]) == {"darwin-aarch64", "darwin-x86_64", "windows-x86_64"}
 assert update["min_version"] == "0.0.1" and update["security"] is True
-for arch in ("aarch64", "x86_64"):
-    asset = manifest["assets"][arch + "-apple-darwin"]
+assert manifest["assets"]["x86_64-pc-windows-msvc"]["file"] == "Clash.of.Meat_0.0.1_x64-setup.exe"
+for target, key in (
+    ("aarch64-apple-darwin", "darwin-aarch64"),
+    ("x86_64-apple-darwin", "darwin-x86_64"),
+    ("x86_64-pc-windows-msvc", "windows-x86_64"),
+):
+    asset = manifest["assets"][target]
     assert asset["size"] == (out / asset["file"]).stat().st_size
     assert len(asset["sha256"]) == 64
-    platform = update["platforms"]["darwin-" + arch]
+    platform = update["platforms"][key]
     assert platform["url"].endswith("/" + asset["file"])
     assert platform["signature"] == (out / (asset["file"] + ".sig")).read_text().strip()
     assert b"trusted comment:" in base64.b64decode(platform["signature"])
@@ -76,9 +85,12 @@ if min_version and tuple(map(int, min_version.split("."))) > tuple(map(int, vers
     raise SystemExit("update-manifest: min version exceeds release version")
 assets = {}
 platforms = {}
-for arch in ("aarch64", "x86_64"):
-    target = arch + "-apple-darwin"
-    name = f"Clash.of.Meat_{version}_{arch}.app.tar.gz"
+artifacts = (
+    ("aarch64-apple-darwin", "darwin-aarch64", f"Clash.of.Meat_{version}_aarch64.app.tar.gz"),
+    ("x86_64-apple-darwin", "darwin-x86_64", f"Clash.of.Meat_{version}_x86_64.app.tar.gz"),
+    ("x86_64-pc-windows-msvc", "windows-x86_64", f"Clash.of.Meat_{version}_x64-setup.exe"),
+)
+for target, platform, name in artifacts:
     file = out / name
     checksum_file = out / (name + ".sha256")
     signature_file = out / (name + ".sig")
@@ -102,7 +114,7 @@ for arch in ("aarch64", "x86_64"):
     if fields.get("file") != name or fields.get("version") != version:
         raise SystemExit(f"update-manifest: {signature_file} is not bound to {name} and version {version}")
     assets[target] = {"file": name, "sha256": digest, "size": file.stat().st_size}
-    platforms["darwin-" + arch] = {"url": base_url + name, "signature": signature}
+    platforms[platform] = {"url": base_url + name, "signature": signature}
 
 manifest = {"version": version, "assets": assets}
 update = {

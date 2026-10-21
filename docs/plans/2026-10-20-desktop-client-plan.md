@@ -153,6 +153,8 @@ against a temp `HOME`.
   daemon kickstart after relaunch.
 - **T24. Release workflow:** manual dispatch, macOS arm64 + x86_64, separate `sign` job, GitHub release
   `desktop-v<ver>`.
+  *(2026-10-21: replaced by local scripts. No CI; `scripts/release.sh` checks, packages macOS arm64 + x86_64 and
+  Windows x64, signs and publishes from Paul's Mac. See `docs/building.md`.)*
 - **T25–T27 (guildbyte-app worktree off `onboarding`):** `desktop` client + both headers; `CLIENT_RELEASES.desktop`
   and `GET /api/clients/desktop/update`; `GET /install.sh`, setup page, docs.
 
@@ -160,3 +162,43 @@ against a temp `HOME`.
 
 - **T28.** Local end-to-end run against the web app (port 3100+, local docker DB), update to a locally signed build,
   resource budget, then the setup page switch and plugin phase-out notice.
+
+## Remaining work (2026-10-21)
+
+- [ ] **Make the GitHub repo public** (planned within days). Audit secrets and history, add a LICENSE and a README
+  for outsiders. Until then, release downloads only work for people with repo access.
+- [ ] **Generate the updater key** (Paul) and set the real pubkey in `tauri.conf.json` (`docs/building.md` §5).
+  Updates stay off until then.
+- [ ] **Web app** (guildbyte-app, branch `feat/desktop-hero-sync`, not pushed):
+  - [ ] Accept a `desktop` client in the `X-Clashofmeat-Client` header parser. Today `desktop/x.y.z` falls back to
+    "legacy plugin 0.0.0".
+  - [ ] Add `CLIENT_RELEASES.desktop`.
+  - [ ] Add the updater endpoint `GET /api/clients/desktop/update`.
+  - [ ] Serve `/install.sh` with the app URL and stable version substituted.
+  - [ ] Switch the setup page to the Mac install command and a Windows `.exe` download. It still points to
+    guildbyte-plugin, whose download URL returns 404.
+  - [ ] Pairing: device and tools fields, and 410 for declined or expired pairings. Needs migration 066 or later;
+    Paul applies migrations.
+- [ ] **Apply migration `db/066_shared_guild_wagers.sql` locally** (Paul).
+- [ ] **Build the first Windows installer** once the web app, with the desktop branch, is deployed to production:
+  `scripts/package.sh <v> x86_64-pc-windows-msvc` with `CLASHOFMEAT_DEFAULT_APP_URL` set to the production URL (Paul
+  will give it). Paul then installs it on his Windows PC. It has not been built yet, on purpose.
+- [ ] **Create the GitHub repo and push.** `PromptWar/clashofmeat-client` (private) does not exist yet; Paul creates
+  it, then `main` is pushed. Install `gh` (`brew install gh && gh auth login`) before the first release.
+- [ ] **Mac-only release.** `release.sh` needs all three installers. Add a `--mac-only` flag if a Mac release has to go
+  out before the Windows build is ready.
+- [ ] **Cursor hook on Windows.** The hook command quotes the `clashofmeat.exe` path for `cmd.exe`; check how Cursor
+  runs hooks on Windows during the first test.
+- [ ] **First Windows test** on Paul's Windows PC: install the setup `.exe`, pair, hero overlay, token counting for
+  Claude Code and Codex, autostart after reboot, uninstall.
+- [ ] **Code signing.** A Windows code signing certificate removes the SmartScreen warning. Apple Developer ID
+  signing and notarization are needed for a downloaded `.app`; the `curl` install works without them.
+- [ ] **Windows ARM64 build.** x64 runs under emulation until then.
+- [ ] **End-to-end run:** install → pair → update to a locally signed build (old T28), and the resource budget script
+  (old T21).
+- [ ] **Retire guildbyte-plugin.** Once the setup page points to the new client, archive the repo (read-only, do not
+  delete) so installed plugins and collectors keep resolving. First review its 48 uncommitted local changes on branch
+  `feat/leaderboard-progression-v1` (rename to clashofmeat, `collector/`, `install/` incl. `install.ps1`) before
+  anything is discarded.
+- [ ] **Push the web branch and open its PR.**
+- [ ] **Clean up** the local demo processes and `~/.com-visual` when Paul is done.
