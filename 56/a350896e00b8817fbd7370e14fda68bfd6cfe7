@@ -1,0 +1,27 @@
+apps/desktop/ui/overlay.css
+  s_d656464662876d::t_cccdc4583d2917 16,19-21,24,35-61
+apps/desktop/ui/overlay.html
+  s_d656464662876d::t_030ae41c8e259c 11,13-27
+apps/desktop/ui/overlay.mjs
+  s_d656464662876d::t_27523ed9df9ee6 6-7,9,19-24,33-34,152-164,169,179-259,291-300,387-392,394,397-400,469-475,512-519
+apps/desktop/ui/overlay/friends.mjs
+  s_d656464662876d::t_7b4286f777143d 1-18
+apps/desktop/ui/overlay/tests/friends.test.mjs
+  s_d656464662876d::t_1dadbb46e6e76c 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56a350896e00b8817fbd7370e14fda68bfd6cfe7",
+  "prompts": {},
+  "sessions": {
+    "s_d656464662876d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e48a02db-4ae4-4ff5-a51b-3a251f7f4304",
+        "model": "unknown"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
