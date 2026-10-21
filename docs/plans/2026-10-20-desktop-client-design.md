@@ -2,9 +2,8 @@
 
 Validated 2026-10-20. Replaces the Claude Code plugin (`guildbyte-plugin/mods/clashofmeat`) and the Node collector
 (`guildbyte-plugin/collector`) with one Mac app: a Rust daemon that collects coding-agent token usage from every
-supported provider, and a Tauri app that shows the hero walking on the screen. Architecture borrowed from
-`tandem-ai/session-mesh` (daemon + thin UI over a Unix socket, launchd, Tauri updater) and `tandem-ai/mesh-extensions`
-(one provider module per agent, described by a manifest).
+supported provider, and a Tauri app that shows the hero walking on the screen. Architecture: a daemon and a thin UI
+over a Unix socket, launchd, the Tauri updater, and one provider module per agent, described by a manifest.
 
 ## Goals
 
