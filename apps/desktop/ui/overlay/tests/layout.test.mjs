@@ -40,3 +40,12 @@ test('token counts use compact units', () => {
   assert.equal(formatTokens(null), '')
   assert.equal(formatTokens(-1), '')
 })
+
+test('lift raises the hero, up to its head touching the top of the work area', () => {
+  const ground = windowRect(300, { workArea, bubble: true })
+  const lifted = windowRect(300, { workArea, bubble: true, lift: 250 })
+  assert.equal(ground.y - lifted.y, 250)
+  assert.equal(lifted.x, ground.x)
+  const top = windowRect(300, { workArea, bubble: true, lift: 10_000 })
+  assert.equal(top.y + top.spriteY, 50)
+})

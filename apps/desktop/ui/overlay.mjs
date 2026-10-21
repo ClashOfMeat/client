@@ -2,6 +2,7 @@ import { heroActivity } from './hero/activity.mjs'
 import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
 import { xpGain, bubbleFrame, levelUpFrame, visitPose } from './hero/effects.mjs'
 import { xpTextFrame, levelUpTextFrame, drawXpText } from './hero/xp-text.mjs'
+import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit } from './hero/validate.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
 
@@ -25,6 +26,8 @@ let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
 let evolving = false, hitKey = ''
+// Height of the feet above the ground while carried or falling, and the fall in progress.
+let lift = 0, fall = null
 let lastActivityAt = Date.now()
 
 async function bitmap(png) {
@@ -208,6 +211,7 @@ function drawImage(png, x, y, size, flip = false, opacity = 1) {
 }
 
 function deadline(now, pose) {
+  if (fall) return 16
   const delays = []
   const clip = frameDelay(animation, pose.state, pose.elapsed)
   if (Number.isFinite(clip)) delays.push(clip)
@@ -223,9 +227,18 @@ async function draw() {
   timer = undefined
   if (!character || !animation || !workArea || hidden || paused) return
   const now = Date.now()
+  if (fall) {
+    const step = fallPose(fall.from, now - fall.startedAt)
+    lift = step.lift
+    if (step.landed) {
+      fall = null
+      lift = 0
+      play('sit', now, 3000)
+    }
+  }
   const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: stayStill || statsOpen || menuOpen })
   // One fixed size: the window only moves, so opening the card never resizes it (no flash).
-  const nextRect = windowRect(pose.x, { workArea, bubble: true })
+  const nextRect = windowRect(pose.x, { workArea, bubble: true, lift })
   const changed = !lastPlaced || Math.abs(nextRect.x - lastPlaced.x) >= 1 || nextRect.y !== lastPlaced.y || nextRect.width !== lastPlaced.width || nextRect.height !== lastPlaced.height
   rect = nextRect
   if (changed) {
@@ -293,6 +306,11 @@ function updateHitRegions() {
   void invoke('hero_hit', { regions }).catch(error => console.error('hero hit regions:', error))
 }
 
+// Plays one of the hero's clips, if this hero has it.
+function play(name, at, durationMs) {
+  if (animation?.clips[name]) activity.emote(name, at, durationMs)
+}
+
 function wake() {
   if (timer) clearTimeout(timer)
   timer = undefined
@@ -303,25 +321,37 @@ canvas.addEventListener('pointerdown', event => {
   if (!rect || !character || event.button !== 0) return
   const x = event.clientX, y = event.clientY
   if (x < rect.spriteX || x > rect.spriteX + 128 || y < rect.spriteY || y > rect.spriteY + 128) return
-  drag = { startX: event.screenX, startY: event.screenY, starting: activity.snapshot(Date.now(), { width: workArea.width - 128, still: true }).x, moved: false }
+  // Grabbing a falling hero catches it where it is.
+  fall = null
+  drag = { startX: event.screenX, startY: event.screenY, startLift: lift, starting: activity.snapshot(Date.now(), { width: workArea.width - 128, still: true }).x, moved: false }
   canvas.setPointerCapture(event.pointerId)
   updateHitRegions()
 })
 canvas.addEventListener('pointermove', event => {
   if (!drag) return
-  if (Math.hypot(event.screenX - drag.startX, event.screenY - drag.startY) > 4) drag.moved = true
+  if (!drag.moved && Math.hypot(event.screenX - drag.startX, event.screenY - drag.startY) > 4) {
+    drag.moved = true
+    statsOpen = false
+    menuOpen = false
+    // Held in the air, the hero struggles until it is let go.
+    play('angry', Date.now(), 600_000)
+  }
   if (drag.moved) {
     activity.drag(drag.starting + event.screenX - drag.startX, Date.now())
+    lift = Math.max(0, Math.min(workArea.height - 128, drag.startLift + drag.startY - event.screenY))
     wake()
   }
 })
-canvas.addEventListener('pointerup', () => {
+function release() {
   if (!drag) return
   if (!drag.moved) { statsOpen = !statsOpen; menuOpen = false; updateStats() }
+  else if (lift >= 2) fall = { from: lift, startedAt: Date.now() }
+  else play('angry', Date.now(), 0)
   drag = null
   wake()
-})
-canvas.addEventListener('pointercancel', () => { drag = null })
+}
+canvas.addEventListener('pointerup', release)
+canvas.addEventListener('pointercancel', release)
 canvas.addEventListener('contextmenu', event => {
   event.preventDefault()
   if (!rect || event.clientX < rect.spriteX || event.clientX > rect.spriteX + 128 || event.clientY < rect.spriteY || event.clientY > rect.spriteY + 128) return
