@@ -150,6 +150,39 @@ test uses it to build under a test identifier (`{"identifier":"com.clashofmeat.e
 Output goes to `dist/<version>/` (ignored by git) unless you pass `--out`. Tauri's own bundles stay under
 `apps/desktop/src-tauri/target/<target>/release/bundle/`.
 
+### Local end-to-end test
+
+```sh
+scripts/e2e-mac.sh [--app http://localhost:3110] [--port 3150] [--keep]
+```
+
+It runs a whole release on this Mac without touching an installed Clash of Meat, its daemon or its LaunchAgent:
+
+1. Generates a throwaway updater key in a temp dir (never `~/.tauri/clashofmeat.key`).
+2. Builds 0.1.0 and 0.1.1 for both Mac targets with `package.sh --tauri-config`, under the identifier
+   `com.clashofmeat.e2e` with `dangerousInsecureTransportProtocol` (the local server is plain http), and with
+   `CLASHOFMEAT_UPDATE_PUBKEY` set to the throwaway public key, so `tauri.conf.json` is not edited. Both are signed
+   and get `--mac-only` manifests.
+3. Serves them at `http://localhost:<port>/releases/download/desktop-v<version>/`, the GitHub release layout.
+4. Installs 0.1.0 with `install/install.sh --no-launch-agent --no-connect`. `HOME`, `CLASHOFMEAT_HOME`,
+   `CLASHOFMEAT_APPS_DIR`, `CLASHOFMEAT_BIN_DIR` and `CLASHOFMEAT_LAUNCH_AGENTS_DIR` point into the temp dir, so
+   Cursor wiring, the LaunchAgent path, `~/Applications` and `~/.local/bin` are all the temp dir's.
+5. Starts the daemon itself and runs `clashofmeat connect --no-open` until the web app issues a pairing link.
+   Confirming the link needs a signed-in browser, so the script stops there.
+6. Starts the app with `CLASHOFMEAT_UPDATE_URL` pointing at a copy of 0.1.1's `update.json` with `"minimum":
+   "0.1.1"`, which makes the app open Settings by itself. Once the app has downloaded and verified 0.1.1, it presses
+   "Update and restart" through the accessibility API, then checks the bundle is now 0.1.1 and that the app relaunched.
+7. Offers a 0.1.2 whose signature belongs to the other archive and checks the app refuses it.
+
+Requirements: the web app answers at `--app`, the port is free, and the terminal has Accessibility access (System
+Settings › Privacy & Security › Accessibility) for step 6. Everything is removed at the end, including WebKit's
+`~/Library/{Caches,WebKit}/com.clashofmeat.e2e`, which ignores `HOME`. `--keep` keeps the temp dir.
+
+What it does not cover: confirming the pairing in the browser, the daemon's default update endpoint
+(`<app>/api/clients/desktop/update`, used once paired), LaunchAgent install and the daemon restart after an update,
+the Intel archive at runtime, and Windows. After the update, the app relaunches through LaunchServices without the
+test environment; the script stops that copy once it has seen it start.
+
 ## 5. Updater key (once)
 
 The app only accepts updates signed with the updater key. Until the real public key is in `tauri.conf.json`, the
