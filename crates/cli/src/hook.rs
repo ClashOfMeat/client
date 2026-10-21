@@ -1,6 +1,5 @@
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 use anyhow::Result;
 use clashofmeat_core::Env;
@@ -150,10 +149,16 @@ fn append(record: &Value) -> Result<()> {
     let env = Env::from_process();
     let dir = config::home(&env).join("spool");
     fs::create_dir_all(&dir)?;
-    fs::set_permissions(config::home(&env), fs::Permissions::from_mode(0o700))?;
-    fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
     let mut options = OpenOptions::new();
-    options.create(true).append(true).mode(0o600);
+    options.create(true).append(true);
+    // Windows keeps a user's profile private already; Unix needs the modes spelled out.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        fs::set_permissions(config::home(&env), fs::Permissions::from_mode(0o700))?;
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))?;
+        options.mode(0o600);
+    }
     let mut file = options.open(dir.join("cursor.jsonl"))?;
     serde_json::to_writer(&mut file, record)?;
     file.write_all(b"\n")?;

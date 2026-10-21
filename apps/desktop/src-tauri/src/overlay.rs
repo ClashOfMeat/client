@@ -65,6 +65,12 @@ extern "C" {
     fn CGEventSourceCounterForEventType(state: i32, event_type: u32) -> u32;
 }
 
+#[cfg(windows)]
+#[link(name = "user32")]
+extern "system" {
+    fn GetAsyncKeyState(key: i32) -> i16;
+}
+
 /// System-wide left clicks so far (0 where the counter is unavailable).
 fn left_clicks() -> u32 {
     #[cfg(target_os = "macos")]
@@ -74,7 +80,24 @@ fn left_clicks() -> u32 {
         // SAFETY: a pure query of the window server with constant arguments.
         unsafe { CGEventSourceCounterForEventType(COMBINED_SESSION_STATE, LEFT_MOUSE_DOWN) }
     }
-    #[cfg(not(target_os = "macos"))]
+    // Windows keeps no count, so the 50 ms poll counts presses itself: a button now down that
+    // was up, or one pressed and released since the last read (the low bit).
+    #[cfg(windows)]
+    {
+        use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+        static CLICKS: AtomicU32 = AtomicU32::new(0);
+        static DOWN: AtomicBool = AtomicBool::new(false);
+        const VK_LBUTTON: i32 = 1;
+        // SAFETY: a pure query of the input state with a constant key code.
+        let state = unsafe { GetAsyncKeyState(VK_LBUTTON) } as u16;
+        let down = state & 0x8000 != 0;
+        let was_down = DOWN.swap(down, Ordering::Relaxed);
+        if down && !was_down || !down && state & 1 != 0 {
+            CLICKS.fetch_add(1, Ordering::Relaxed);
+        }
+        CLICKS.load(Ordering::Relaxed)
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
     0
 }
 

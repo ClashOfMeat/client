@@ -5,6 +5,12 @@ use std::process::Command;
 
 use clashofmeat_core::{Env, Manifest};
 
+/// What a command's file may end with: npm installs `claude.cmd` and `codex.cmd` on Windows.
+#[cfg(windows)]
+const COMMAND_SUFFIXES: &[&str] = &["", ".exe", ".cmd", ".bat"];
+#[cfg(not(windows))]
+const COMMAND_SUFFIXES: &[&str] = &[""];
+
 /// Reports whether any manifest detection hint is present.
 pub fn detect(env: &Env, manifest: &Manifest) -> bool {
     let path = env.vars.get("PATH").map_or("", String::as_str);
@@ -12,7 +18,13 @@ pub fn detect(env: &Env, manifest: &Manifest) -> bool {
         .detect
         .commands
         .iter()
-        .any(|command| std::env::split_paths(path).any(|dir| dir.join(command).is_file()));
+        .any(|command| {
+            std::env::split_paths(path).any(|dir| {
+                COMMAND_SUFFIXES
+                    .iter()
+                    .any(|suffix| dir.join(format!("{command}{suffix}")).is_file())
+            })
+        });
     let app_found = manifest.detect.apps.iter().any(|app| {
         let name = if app.ends_with(".app") {
             app.to_string()
@@ -21,6 +33,12 @@ pub fn detect(env: &Env, manifest: &Manifest) -> bool {
         };
         Path::new("/Applications").join(&name).exists()
             || env.home.join("Applications").join(name).exists()
+            || env.vars.get("LOCALAPPDATA").is_some_and(|local| {
+                Path::new(local)
+                    .join("Programs")
+                    .join(app.trim_end_matches(".app"))
+                    .is_dir()
+            })
     });
     command_found
         || app_found
@@ -51,7 +69,7 @@ pub fn device_name() -> String {
         .filter(|output| output.status.success())
         .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
         .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "Mac".into())
+        .unwrap_or_else(|| if cfg!(windows) { "PC" } else { "Mac" }.into())
 }
 
 /// Returns identifiers of detected built-in providers.

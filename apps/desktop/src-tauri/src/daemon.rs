@@ -1,5 +1,6 @@
 use std::env;
 use std::io::{BufRead, BufReader, Write};
+#[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -9,6 +10,8 @@ use std::time::Duration;
 use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
+#[cfg(windows)]
+use uds_windows::UnixStream;
 
 #[derive(Default)]
 pub struct DaemonState(pub Mutex<DesktopState>);
@@ -77,16 +80,55 @@ fn parse_line(line: &str) -> Result<ParsedLine, String> {
     })
 }
 
-fn socket_path() -> PathBuf {
-    let home = env::var_os("CLASHOFMEAT_HOME")
+fn home() -> PathBuf {
+    env::var_os("CLASHOFMEAT_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
             env::var_os("HOME")
+                .or_else(|| env::var_os("USERPROFILE"))
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join(".clashofmeat")
-        });
-    home.join("daemon.sock")
+        })
+}
+
+fn socket_path() -> PathBuf {
+    home().join("daemon.sock")
+}
+
+/// Windows has no LaunchAgent: the app starts the daemon (installed next to it) when none answers.
+/// It runs without a console window and outlives the app, like the macOS agent.
+#[cfg(windows)]
+fn spawn_daemon() {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    let Some(exe) = env::current_exe()
+        .ok()
+        .and_then(|exe| Some(exe.parent()?.join("clashofmeat.exe")))
+    else {
+        return;
+    };
+    let logs = home().join("logs");
+    let _ = std::fs::create_dir_all(&logs);
+    let log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(logs.join("daemon.log"));
+    let mut command = std::process::Command::new(exe);
+    command
+        .arg("daemon")
+        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+        .stdin(std::process::Stdio::null());
+    if let Ok(log) = log {
+        if let Ok(copy) = log.try_clone() {
+            command.stdout(copy);
+        }
+        command.stderr(log);
+    }
+    if let Err(error) = command.spawn() {
+        eprintln!("daemon start: {error}");
+    }
 }
 
 fn request(stream: &mut UnixStream, id: u64, method: &str, params: &Value) -> Result<(), String> {
@@ -176,9 +218,16 @@ fn connect(app: &AppHandle) -> Result<(), String> {
 pub fn start(app: AppHandle) {
     thread::spawn(move || {
         let mut delay = Duration::from_millis(500);
+        #[cfg(windows)]
+        let mut spawned_at: Option<std::time::Instant> = None;
         loop {
             if let Err(error) = connect(&app) {
                 eprintln!("daemon connection: {error}");
+                #[cfg(windows)]
+                if spawned_at.is_none_or(|at| at.elapsed() > Duration::from_secs(30)) {
+                    spawn_daemon();
+                    spawned_at = Some(std::time::Instant::now());
+                }
             }
             emit(&app, "status", json!({"connected":false}));
             thread::sleep(delay);

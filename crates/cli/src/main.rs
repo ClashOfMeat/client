@@ -35,8 +35,9 @@ enum Action {
         force: bool,
     },
     Install {
+        /// The web app; defaults to the one this build was made for.
         #[arg(long)]
-        app: String,
+        app: Option<String>,
         #[arg(long)]
         no_connect: bool,
         #[arg(long)]
@@ -106,6 +107,9 @@ fn execute(cli: Cli, env: &Env) -> Result<()> {
             no_connect,
             no_launch_agent,
         } => {
+            let app = app
+                .or_else(|| option_env!("CLASHOFMEAT_DEFAULT_APP_URL").map(str::to_owned))
+                .ok_or_else(|| anyhow!("pass --app <url>: this build has no default app"))?;
             install::install(env, &app, no_launch_agent)?;
             if !no_connect {
                 connect(env, cli.json, None, false, false)?;

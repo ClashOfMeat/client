@@ -1,6 +1,7 @@
 pub mod config_writer;
 pub mod env;
 pub mod ids;
+pub mod ipc;
 pub mod manifest;
 pub mod observer;
 pub mod provider;

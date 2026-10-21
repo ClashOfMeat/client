@@ -15,6 +15,8 @@ const stats = document.getElementById('stats')
 const menu = document.getElementById('menu')
 const emotes = document.getElementById('emotes')
 const stillButton = document.getElementById('still')
+// The hide shortcut is Control+Option+H on a Mac and Ctrl+Alt+H on Windows (main.rs).
+if (/Windows/.test(navigator.userAgent)) document.querySelector('#pause .key').textContent = 'Ctrl+Alt+H'
 const EMOTE_LABELS = { wave: 'Wave', laugh: 'Laugh', victory: 'Victory', kiss: 'Kiss', angry: 'Angry' }
 const activity = heroActivity()
 const images = new Map()

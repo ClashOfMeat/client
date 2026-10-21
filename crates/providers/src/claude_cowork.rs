@@ -16,10 +16,11 @@ static MANIFEST: Manifest = Manifest {
     detect: Detect {
         commands: &[],
         apps: &["Claude"],
-        paths: &["~/Library/Application Support/Claude/local-agent-mode-sessions"],
+        paths: &["$APPDATA/Claude/local-agent-mode-sessions|~/Library/Application Support/Claude/local-agent-mode-sessions"],
     },
     sources: &[Source {
-        root: "~/Library/Application Support/Claude/local-agent-mode-sessions",
+        // Claude desktop keeps its data in %APPDATA% on Windows.
+        root: "$APPDATA/Claude/local-agent-mode-sessions|~/Library/Application Support/Claude/local-agent-mode-sessions",
         glob: "**/audit.jsonl",
         format: SourceFormat::Jsonl,
     }],

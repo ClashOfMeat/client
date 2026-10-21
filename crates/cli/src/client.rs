@@ -1,6 +1,6 @@
 use std::fmt;
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
+use clashofmeat_core::ipc::UnixStream;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};

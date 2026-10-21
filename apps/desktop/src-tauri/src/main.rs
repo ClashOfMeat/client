@@ -3,12 +3,14 @@ mod overlay;
 mod settings;
 mod updater;
 
-use tauri::{ActivationPolicy, Listener, Manager};
+use tauri::{Listener, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 fn main() {
     tauri::Builder::default()
+        // Launching the app while it runs (Start menu, a second double-click) brings the hero back.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_hero(app)))
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
@@ -39,7 +41,19 @@ fn main() {
             updater::update_restart
         ])
         .setup(|app| {
-            app.set_activation_policy(ActivationPolicy::Accessory);
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            // The app starts the daemon on Windows, so it has to start at sign-in.
+            #[cfg(windows)]
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let launcher = app.autolaunch();
+                if !launcher.is_enabled().unwrap_or(false) {
+                    if let Err(error) = launcher.enable() {
+                        eprintln!("start at sign-in: {error}");
+                    }
+                }
+            }
             let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyH);
             if let Err(error) = app.global_shortcut().register(shortcut) {
                 eprintln!("could not register Control+Option+H shortcut: {error}");
@@ -88,13 +102,18 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("failed to run Clash of Meat desktop app")
-        .run(|app, event| {
-            if let tauri::RunEvent::Reopen { .. } = event {
-                let mut config = settings::current(app);
-                if !config.show {
-                    config.show = true;
-                    let _ = settings::set(app, config);
-                }
+        .run(|_app, _event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _event {
+                show_hero(_app);
             }
         });
+}
+
+fn show_hero(app: &tauri::AppHandle) {
+    let mut config = settings::current(app);
+    if !config.show {
+        config.show = true;
+        let _ = settings::set(app, config);
+    }
 }

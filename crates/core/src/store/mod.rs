@@ -2,7 +2,7 @@
 
 pub mod migrations;
 
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::path::Path;
 
 use rusqlite::{params, Connection, OptionalExtension};
@@ -339,7 +339,7 @@ impl Store {
         #[cfg(unix)]
         {
             use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-            let file = OpenOptions::new()
+            let file = fs::OpenOptions::new()
                 .write(true)
                 .create(true)
                 .truncate(false)

@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::{ActivationPolicy, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct HeroSettings {
@@ -62,11 +62,13 @@ pub fn set(app: &tauri::AppHandle, next: HeroSettings) -> Result<HeroSettings, S
     fs::rename(&tmp, path).map_err(|e| e.to_string())?;
     *app.state::<HeroConfig>().0.lock().unwrap() = next.clone();
     // A hidden hero leaves a Dock icon behind; clicking it reopens the app, which shows the hero
-    // again and drops the icon (main.rs, RunEvent::Reopen).
+    // again and drops the icon (main.rs, RunEvent::Reopen). On Windows, launching the app again
+    // from the Start menu does the same (main.rs, single instance).
+    #[cfg(target_os = "macos")]
     let _ = app.set_activation_policy(if next.show {
-        ActivationPolicy::Accessory
+        tauri::ActivationPolicy::Accessory
     } else {
-        ActivationPolicy::Regular
+        tauri::ActivationPolicy::Regular
     });
     let _ = app.emit("hero-settings", &next);
     Ok(next)
@@ -99,15 +101,19 @@ pub fn show(app: &tauri::AppHandle) -> tauri::Result<()> {
 
 #[tauri::command]
 pub fn desktop_state(app: tauri::AppHandle) -> Value {
-    let device = Command::new("scutil")
+    #[cfg(target_os = "macos")]
+    let name = Command::new("scutil")
         .args(["--get", "ComputerName"])
         .output()
         .ok()
         .filter(|output| output.status.success())
-        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .and_then(|output| String::from_utf8(output.stdout).ok());
+    #[cfg(not(target_os = "macos"))]
+    let name = std::env::var("COMPUTERNAME").ok();
+    let device = name
         .map(|name| name.trim().to_owned())
         .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "This Mac".into());
+        .unwrap_or_else(|| if cfg!(windows) { "This PC" } else { "This Mac" }.into());
     json!({"daemon":crate::daemon::state(&app),"hero":current(&app),"displays":displays(&app),"device":device,"updater":crate::updater::status(&app)})
 }
 
@@ -159,6 +165,12 @@ pub fn open_pair_link(link: String) -> Result<(), String> {
     if !link.starts_with("https://") && !link.starts_with("http://localhost") {
         return Err("invalid pairing link".into());
     }
+    #[cfg(windows)]
+    let status = Command::new("rundll32")
+        .args(["url.dll,FileProtocolHandler", &link])
+        .status()
+        .map_err(|e| e.to_string())?;
+    #[cfg(not(windows))]
     let status = Command::new("open")
         .arg(&link)
         .status()

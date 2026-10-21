@@ -13,7 +13,10 @@ impl Env {
     /// Captures the current process home and environment variables.
     pub fn from_process() -> Self {
         Self {
-            home: std::env::var_os("HOME").map_or_else(PathBuf::new, PathBuf::from),
+            // Windows has no HOME; its profile directory plays the same role.
+            home: std::env::var_os("HOME")
+                .or_else(|| std::env::var_os("USERPROFILE"))
+                .map_or_else(PathBuf::new, PathBuf::from),
             vars: std::env::vars().collect(),
         }
     }

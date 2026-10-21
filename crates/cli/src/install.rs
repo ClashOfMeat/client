@@ -1,4 +1,5 @@
-//! Per-user LaunchAgent and desktop app installation.
+//! Per-user installation. On macOS a LaunchAgent keeps the daemon running; on Windows the
+//! desktop app starts it (the installer registers the app to start at sign-in).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,7 +21,7 @@ pub fn install(env: &Env, app: &str, no_launch_agent: bool) -> Result<()> {
     config::update_config(env, |config| config.app_url = Some(origin.clone()))?;
     migrate::run(env, &origin)?;
 
-    if !no_launch_agent {
+    if !no_launch_agent && cfg!(target_os = "macos") {
         let path = launch_agent_path(env);
         let exe = std::env::current_exe()?.canonicalize()?;
         let log_dir = config::home(env).join("logs");
@@ -68,7 +69,9 @@ pub fn install(env: &Env, app: &str, no_launch_agent: bool) -> Result<()> {
         WriteOutcome::Unchanged => {}
     }
 
-    if env.vars.get("CLASHOFMEAT_NO_OPEN").map(String::as_str) != Some("1") {
+    if cfg!(target_os = "macos")
+        && env.vars.get("CLASHOFMEAT_NO_OPEN").map(String::as_str) != Some("1")
+    {
         if let Some(app_path) = running_app_path()? {
             let _ = Command::new("/usr/bin/open")
                 .arg("-a")
@@ -80,6 +83,29 @@ pub fn install(env: &Env, app: &str, no_launch_agent: bool) -> Result<()> {
 }
 
 pub fn uninstall(env: &Env, keep_data: bool) -> Result<()> {
+    if cfg!(target_os = "macos") {
+        remove_mac_install(env)?;
+    } else {
+        wiring::unwire_cursor(env, &ConfigWriter::new(config::home(env).join("backup")))?;
+    }
+    if !keep_data {
+        for name in ["desktop", "hero", "spool"] {
+            let path = config::home(env).join(name);
+            if path.is_dir() {
+                fs::remove_dir_all(path)?;
+            } else if path.exists() {
+                fs::remove_file(path)?;
+            }
+        }
+        let socket = config::home(env).join("daemon.sock");
+        if socket.exists() {
+            fs::remove_file(socket)?;
+        }
+    }
+    Ok(())
+}
+
+fn remove_mac_install(env: &Env) -> Result<()> {
     let path = launch_agent_path(env);
     let target = format!("gui/{}/{}", uid()?, LABEL);
     if path.exists() {
@@ -101,20 +127,6 @@ pub fn uninstall(env: &Env, keep_data: bool) -> Result<()> {
         println!("Removed {}.", installed_app.display());
     } else if installed_app.exists() {
         println!("Remove {} manually when ready.", installed_app.display());
-    }
-    if !keep_data {
-        for name in ["desktop", "hero", "spool"] {
-            let path = config::home(env).join(name);
-            if path.is_dir() {
-                fs::remove_dir_all(path)?;
-            } else if path.exists() {
-                fs::remove_file(path)?;
-            }
-        }
-        let socket = config::home(env).join("daemon.sock");
-        if socket.exists() {
-            fs::remove_file(socket)?;
-        }
     }
     Ok(())
 }

@@ -36,9 +36,16 @@ pub fn cursor_hook_command(env: &Env) -> String {
     format!("{} cursor-hook", shell_quote(&executable))
 }
 
+#[cfg(not(windows))]
 fn shell_quote(path: &Path) -> String {
     let string = path.to_string_lossy();
     format!("'{}'", string.replace('\'', "'\\''"))
+}
+
+/// Windows paths cannot contain `"`, so double quotes are enough for cmd.exe.
+#[cfg(windows)]
+fn shell_quote(path: &Path) -> String {
+    format!("\"{}\"", path.to_string_lossy())
 }
 
 fn hooks_path(env: &Env) -> PathBuf {
