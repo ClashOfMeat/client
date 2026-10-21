@@ -3,8 +3,10 @@ import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
 import { xpGain, bubbleFrame, levelUpFrame, visitPose } from './hero/effects.mjs'
 import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
-import { validateAnimation, validateCharacter, validateLevelUp, validateVisit } from './hero/validate.mjs'
+import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES } from './hero/validate.mjs'
+import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
+import { friendRows, errorText } from './overlay/friends.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen, emit } = window.__TAURI__.event
@@ -14,6 +16,12 @@ const ctx = canvas.getContext('2d')
 const stats = document.getElementById('stats')
 const menu = document.getElementById('menu')
 const emotes = document.getElementById('emotes')
+const card = document.getElementById('card')
+const friendsPanel = document.getElementById('friends')
+const friendsList = document.getElementById('friends-list')
+const friendsNote = document.getElementById('friends-note')
+const friendsOpenApp = document.getElementById('friends-open')
+const visitLabel = document.getElementById('visit-label')
 const stillButton = document.getElementById('still')
 // The hide shortcut is Control+Option+H on a Mac and Ctrl+Alt+H on Windows (main.rs).
 if (/Windows/.test(navigator.userAgent)) document.querySelector('#pause .key').textContent = 'Ctrl+Alt+H'
@@ -22,6 +30,8 @@ const activity = heroActivity()
 const images = new Map()
 let workArea, animation, character, progression, player, sessions = []
 let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
+const visits = visitTracker()
+let friendsRequest = 0, sending = false, noteTimer
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = false
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
@@ -139,19 +149,24 @@ async function playLevelUp() {
   levelingUp = false
 }
 
+function emoteButton(name) {
+  const button = document.createElement('button')
+  const icon = document.createElement('img')
+  icon.src = `./assets/emote-${name}.png`
+  icon.alt = ''
+  // Without the icon file the button falls back to its word.
+  icon.addEventListener('error', () => { button.textContent = EMOTE_LABELS[name]; button.style.width = 'auto' }, { once: true })
+  button.append(icon)
+  button.title = EMOTE_LABELS[name]
+  button.setAttribute('aria-label', EMOTE_LABELS[name])
+  return button
+}
+
 function updateEmotes() {
   emotes.replaceChildren()
   for (const name of ['wave', 'laugh', 'victory', 'kiss', 'angry']) {
     if (!animation?.clips[name]) continue
-    const button = document.createElement('button')
-    const icon = document.createElement('img')
-    icon.src = `./assets/emote-${name}.png`
-    icon.alt = ''
-    // Without the icon file the button falls back to its word.
-    icon.addEventListener('error', () => { button.textContent = EMOTE_LABELS[name]; button.style.width = 'auto' }, { once: true })
-    button.append(icon)
-    button.title = EMOTE_LABELS[name]
-    button.setAttribute('aria-label', EMOTE_LABELS[name])
+    const button = emoteButton(name)
     button.addEventListener('click', () => {
       statsOpen = false
       activity.emote(name, Date.now(), animation.clips[name].durations.reduce((sum, ms) => sum + ms, 0))
@@ -159,6 +174,87 @@ function updateEmotes() {
     })
     emotes.append(button)
   }
+}
+
+// The friend panel replaces the card in the same bubble; opening it fetches the list each time.
+function showFriends(open) {
+  card.hidden = open
+  friendsPanel.hidden = !open
+  if (open) void loadFriends()
+  else friendsRequest++
+}
+
+function note(text, { error = false, emote } = {}) {
+  clearTimeout(noteTimer)
+  friendsNote.replaceChildren()
+  friendsNote.hidden = !text
+  friendsNote.classList.toggle('error', error)
+  if (!text) return
+  if (emote) {
+    const icon = document.createElement('img')
+    icon.src = `./assets/emote-${emote}.png`
+    icon.alt = EMOTE_LABELS[emote]
+    friendsNote.append(icon)
+  }
+  friendsNote.append(text)
+}
+
+async function loadFriends() {
+  const current = ++friendsRequest
+  friendsList.replaceChildren()
+  friendsOpenApp.hidden = true
+  note('Loading friends…')
+  let rows
+  try { rows = friendRows(await invoke('daemon_request', { method: 'friends', params: {} })) }
+  catch (error) {
+    if (current === friendsRequest) note(errorText(error), { error: true })
+    wake()
+    return
+  }
+  if (current !== friendsRequest) return
+  note(rows.length ? null : 'No friends yet — add some on Clash of Meat')
+  friendsOpenApp.hidden = rows.length > 0
+  for (const friend of rows) friendsList.append(friendRow(friend))
+  wake()
+}
+
+function friendRow(friend) {
+  const row = document.createElement('div')
+  row.className = friend.online ? 'friend' : 'friend offline'
+  const who = document.createElement('span')
+  who.className = 'who'
+  who.textContent = friend.online ? friend.name : `${friend.name} (offline)`
+  who.title = `@${friend.handle}`
+  row.append(who)
+  if (friend.online) {
+    for (const name of VISIT_EMOTES) {
+      const button = emoteButton(name)
+      button.title = `${EMOTE_LABELS[name]} to ${friend.name}`
+      button.addEventListener('click', () => void sendVisit(friend, name))
+      row.append(button)
+    }
+  }
+  return row
+}
+
+async function sendVisit(friend, emote) {
+  if (sending) return
+  sending = true
+  const buttons = friendsList.querySelectorAll('button')
+  for (const button of buttons) button.disabled = true
+  try {
+    await invoke('daemon_request', { method: 'send_visit', params: { target: friend.handle, emote } })
+    note(`sent to ${friend.name}`, { emote })
+    noteTimer = setTimeout(() => { note(null); wake() }, 2000)
+  } catch (error) { note(errorText(error), { error: true }) }
+  for (const button of buttons) button.disabled = false
+  sending = false
+  wake()
+}
+
+// The daemon acknowledges it with the next heartbeat, and the server stops re-sending it.
+function visitDone(id) {
+  void invoke('daemon_request', { method: 'visit_done', params: { id } }).catch(error => console.error('visit done:', error))
 }
 
 function setStayStill(next) {
@@ -192,8 +288,16 @@ async function setHero(data, heartbeat = false) {
     const recent = aura && now - auraStarted < aura.durationMs + 5000
     if (!nextAura && !recent && previous && character && previous.id === character.id && character.level > previous.level) void playLevelUp()
   }
-  visitor = validateVisit(data?.visit, now)
-  if (visitor) visitorStarted = now
+  // Each visit plays once; a repeat of one that already finished is acknowledged again, in case
+  // the last acknowledgement was lost. A hidden hero leaves it for a later heartbeat.
+  const visit = validateVisit(data?.visit, now)
+  if (visit && !paused && !hidden) {
+    if (visits.first(visit.id)) {
+      visitor = visit
+      visitorStarted = now
+      visitLabel.textContent = `from ${visit.name}`
+    } else if (visitor?.id !== visit.id) visitDone(visit.id)
+  }
   const current = ++generation
   if (character && animation) {
     try { await decodeHero() } catch (error) { console.error('hero image decoding:', error); return }
@@ -280,11 +384,20 @@ async function draw() {
     const chosen = frameImage(animation, companionFrame(animation, pose.state, pose.elapsed), pose.facing)
     drawImage(chosen.png ?? character.png, rect.spriteX, rect.spriteY, 128, chosen.flip)
   }
-  if (visitor && now - visitorStarted < 8000) {
+  if (visitor && now - visitorStarted >= 8000) {
+    visitDone(visitor.id)
+    visitor = null
+  }
+  visitLabel.hidden = !visitor
+  if (visitor) {
     const visitAnimation = visitor.character.animation
-    const v = visitPose(visitAnimation, now - visitorStarted, 0, Math.max(0, workArea.width - 128))
+    const v = visitPose(visitAnimation, now - visitorStarted, 0, Math.max(0, workArea.width - 128), visitor.emote)
     const frame = frameImage(visitAnimation, v.frame, v.facing)
     drawImage(frame.png, rect.spriteX + v.offset, rect.spriteY, 128, frame.flip)
+    const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)
+    visitLabel.hidden = left === null
+    visitLabel.style.left = `${left ?? 0}px`
+    visitLabel.style.top = `${rect.spriteY - 4}px`
   }
   if (gained) {
     // Rises 32 px above the head, as in the terminal.
@@ -353,7 +466,13 @@ canvas.addEventListener('pointermove', event => {
 })
 function release() {
   if (!drag) return
-  if (!drag.moved) { statsOpen = !statsOpen; menuOpen = false; updateStats() }
+  if (!drag.moved) {
+    statsOpen = !statsOpen
+    menuOpen = false
+    // The bubble always opens on the hero card.
+    if (statsOpen) showFriends(false)
+    updateStats()
+  }
   else if (lift >= 2) fall = { from: lift, startedAt: Date.now() }
   else play('angry', Date.now(), 0)
   drag = null
@@ -388,6 +507,14 @@ document.getElementById('open-app').addEventListener('click', async () => {
   statsOpen = false
   wake()
   try { await invoke('open_app', { path: '/heroes' }) }
+  catch (error) { console.error('open Clash of Meat:', error) }
+})
+document.getElementById('send-friend').addEventListener('click', () => { showFriends(true); wake() })
+document.getElementById('friends-back').addEventListener('click', () => { showFriends(false); wake() })
+friendsOpenApp.addEventListener('click', async () => {
+  statsOpen = false
+  wake()
+  try { await invoke('open_app', { path: '/friends' }) }
   catch (error) { console.error('open Clash of Meat:', error) }
 })
 document.getElementById('settings').addEventListener('click', async () => {

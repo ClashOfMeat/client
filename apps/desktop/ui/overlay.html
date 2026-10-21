@@ -8,13 +8,23 @@
 </head>
 <body>
   <canvas id="hero" aria-label="Clash of Meat hero"></canvas>
+  <div id="visit-label" class="visit-label" hidden></div>
   <div id="stats" class="bubble" hidden>
-    <div id="name"></div>
-    <div id="xp-text"></div>
-    <div class="xp-track"><div id="xp-fill"></div></div>
-    <div class="info"><span id="providers"></span><span id="tokens" hidden></span></div>
-    <div id="emotes" class="emotes"></div>
-    <button id="open-app" class="open-app">Open Clash of Meat ↗</button>
+    <div id="card">
+      <div id="name"></div>
+      <div id="xp-text"></div>
+      <div class="xp-track"><div id="xp-fill"></div></div>
+      <div class="info"><span id="providers"></span><span id="tokens" hidden></span></div>
+      <div id="emotes" class="emotes"></div>
+      <button id="send-friend" class="wide">Send to a friend ▸</button>
+      <button id="open-app" class="wide">Open Clash of Meat ↗</button>
+    </div>
+    <div id="friends" class="friends" hidden>
+      <div class="friends-head"><button id="friends-back" class="back" aria-label="Back to the hero card">‹</button>Send to a friend</div>
+      <div id="friends-note" class="friends-note" hidden></div>
+      <div id="friends-list" class="friends-list"></div>
+      <button id="friends-open" class="wide" hidden>Open Clash of Meat ↗</button>
+    </div>
   </div>
   <div id="menu" class="bubble menu" hidden>
     <button id="pause">Hide hero <span class="key">⌃⌥H</span></button>
