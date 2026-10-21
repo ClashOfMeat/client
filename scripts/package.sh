@@ -53,6 +53,8 @@ fi
 
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
+# cargo needs the workspace; --out was resolved against the caller's directory above.
+cd "$root"
 
 # Decide before the long build whether this run can sign.
 sign=false
