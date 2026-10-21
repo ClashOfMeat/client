@@ -1,0 +1,19 @@
+docs/plans/2026-10-20-desktop-client-plan.md
+  s_e27a8a804f380d::t_aa7fe3ece268d9 170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aec5bde477cb543c088fc4ff304023fe5c7617d7",
+  "prompts": {},
+  "sessions": {
+    "s_e27a8a804f380d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15e74-d289-7022-944c-6a846ca851f9",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
