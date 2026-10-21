@@ -102,6 +102,11 @@ enum SyncCommand {
         level: u64,
         reply: Sender<std::result::Result<Value, SocketError>>,
     },
+    LevelUp {
+        from: u64,
+        to: u64,
+        reply: Sender<std::result::Result<Value, SocketError>>,
+    },
     PairStart {
         device: String,
         tools: Vec<String>,
@@ -477,6 +482,33 @@ fn handle_request(
             }
             return None;
         }
+        "level_up" => {
+            let from = params.get("fromLevel").and_then(Value::as_u64);
+            let to = params.get("toLevel").and_then(Value::as_u64);
+            let (Some(from), Some(to)) = (from, to) else {
+                return Some((
+                    reply,
+                    Err(SocketError::new(
+                        "bad_request",
+                        "fromLevel and toLevel are required",
+                    )),
+                ));
+            };
+            if sync_tx
+                .send(SyncCommand::LevelUp {
+                    from,
+                    to,
+                    reply: reply.clone(),
+                })
+                .is_err()
+            {
+                return Some((
+                    reply,
+                    Err(SocketError::new("internal", "sync thread stopped")),
+                ));
+            }
+            return None;
+        }
         "pair_status" => Ok(pair_state.clone()),
         "wire_provider" => match params.get("id").and_then(Value::as_str) {
             Some("cursor") => {
@@ -668,6 +700,15 @@ fn sync_loop(
                     forced = true;
                 }
                 let _ = reply.send(result.map(|_| json!({"evolved":true})));
+            }
+            Ok(SyncCommand::LevelUp { from, to, reply }) => {
+                let token = store.meta("installation.token").ok().flatten();
+                let result = make_client(&env, &version, token).and_then(|client| {
+                    client
+                        .level_up(from, to)
+                        .map_err(|error| SocketError::new("level_up_failed", error.to_string()))
+                });
+                let _ = reply.send(result);
             }
             Ok(SyncCommand::Live) => {
                 let earliest = last_heartbeat + Duration::from_secs(10);

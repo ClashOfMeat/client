@@ -42,6 +42,7 @@ export function validateCharacter(character) {
   if (character.nextLevelAt !== undefined && character.nextLevelAt !== null && !count(character.nextLevelAt)) return null
   if (character.canLevelUp !== undefined && typeof character.canLevelUp !== 'boolean') return null
   if (character.name != null && (typeof character.name !== 'string' || character.name.length > 80)) return null
+  if (character.evolution != null && (!Number.isInteger(character.evolution) || character.evolution < 1 || character.evolution > 99)) return null
   if (character.heroId !== undefined && (typeof character.heroId !== 'string' || !/^[a-z0-9_]{1,80}$/.test(character.heroId))) return null
   return { id: character.id, png: character.png,
     ...(character.xp !== undefined ? { xp: character.xp } : {}),
@@ -51,6 +52,7 @@ export function validateCharacter(character) {
     ...(character.level !== undefined ? { level: character.level } : {}),
     ...(character.heroId ? { heroId: character.heroId } : {}),
     ...(character.name ? { name: character.name } : {}),
+    ...(character.evolution != null ? { evolution: character.evolution } : {}),
     ...(animation ? { animation } : {}) }
 }
 

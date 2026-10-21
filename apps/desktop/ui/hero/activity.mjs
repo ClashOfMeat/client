@@ -169,7 +169,10 @@ export function heroActivity(now = Date.now(), { random = Math.random } = {}) {
     drag(position, at) {
       advance(at)
       finishEmote()
-      x = Number.isFinite(position) ? Math.max(0, Math.min(width, position)) : x
+      const next = Number.isFinite(position) ? Math.max(0, Math.min(width, position)) : x
+      // A carried hero faces the way it is pulled; tiny jitters keep the current facing.
+      if (Math.abs(next - x) >= 2) facing = next > x ? 'right' : 'left'
+      x = next
       if (target !== null) {
         target = null
         schedule()

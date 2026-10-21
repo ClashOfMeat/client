@@ -756,3 +756,13 @@ fn evolve_posts_the_character_and_its_level() {
     assert_eq!(requests[0].path, "/api/companion/evolve");
     assert_eq!(requests[0].body, json!({"characterId": ID, "level": 4}));
 }
+
+#[test]
+fn level_up_asks_for_the_effect_between_two_levels() {
+    let server = Server::start(vec![Reply::ok(json!({"levelUp": {"version": 1}}))]);
+    let effect = client(&server).level_up(12, 13).unwrap();
+    assert_eq!(effect["levelUp"]["version"], 1);
+    let requests = server.finish();
+    assert_eq!(requests[0].path, "/api/companion/level-up");
+    assert_eq!(requests[0].body, json!({"fromLevel": 12, "toLevel": 13}));
+}

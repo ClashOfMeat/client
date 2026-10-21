@@ -32,8 +32,6 @@ button:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 2
 button:disabled { opacity: .5; cursor: default; }
 button[hidden] { display: none; }
 
-.evolve { display: block; width: 100%; margin-top: 9px; padding: 7px 8px; color: #2b1a00; border-color: #8a5a14;
-  background: linear-gradient(#ffe083, #d9a22b); box-shadow: inset 0 2px #fff3b8, inset 0 -2px #a8741c, 0 2px #18120d; }
 .emotes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
 .emotes button { width: 36px; height: 36px; padding: 3px; display: grid; place-items: center; }
 .emotes img { width: 26px; height: 26px; image-rendering: pixelated; pointer-events: none; }
@@ -41,15 +39,3 @@ button[hidden] { display: none; }
 .menu { display: grid; gap: 4px; width: 172px; right: auto; padding: 8px; }
 .menu button { padding: 7px 9px; text-align: left; }
 .menu button .key { float: right; color: var(--muted); font-weight: 400; }
-
-/* Gold plaque above the hero while an evolution waits (art from assets/level-up-plaque.png). */
-.levelup { position: absolute; width: 160px; height: 43px; padding: 0; border: 0; box-shadow: none; background: url("./assets/level-up-plaque.png") center / 100% 100% no-repeat;
-  image-rendering: pixelated; display: grid; place-items: center; }
-/* The glow pulses through opacity only, which the compositor animates without repainting. */
-.levelup::before { content: ""; position: absolute; inset: 2px 6px; z-index: -1; border-radius: 12px; box-shadow: 0 0 12px 4px #ffe083;
-  opacity: .25; animation: levelup-pulse 1.6s ease-in-out infinite; }
-.levelup:hover:not(:disabled) { filter: brightness(1.1); }
-.levelup:active { transform: translateY(1px); }
-.levelup canvas { position: relative; image-rendering: pixelated; pointer-events: none; }
-@keyframes levelup-pulse { 50% { opacity: .9; } }
-@media (prefers-reduced-motion: reduce) { .levelup::before { animation: none; } }

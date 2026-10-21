@@ -225,6 +225,14 @@ impl Client {
         )
     }
 
+    /// The gold level-up effect for an ordinary level gain; it changes nothing on the server.
+    pub fn level_up(&self, from: u64, to: u64) -> Result<Value, ApiError> {
+        self.post(
+            "/api/companion/level-up",
+            &json!({"fromLevel": from, "toLevel": to}),
+        )
+    }
+
     pub fn upload_observations(
         &self,
         store: &mut Store,

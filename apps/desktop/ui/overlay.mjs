@@ -1,7 +1,7 @@
 import { heroActivity } from './hero/activity.mjs'
 import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
 import { xpGain, bubbleFrame, levelUpFrame, visitPose } from './hero/effects.mjs'
-import { xpTextFrame, levelUpTextFrame, drawXpText } from './hero/xp-text.mjs'
+import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit } from './hero/validate.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
@@ -15,8 +15,6 @@ const stats = document.getElementById('stats')
 const menu = document.getElementById('menu')
 const emotes = document.getElementById('emotes')
 const stillButton = document.getElementById('still')
-const evolveButton = document.getElementById('evolve')
-const levelupButton = document.getElementById('levelup')
 const EMOTE_LABELS = { wave: 'Wave', laugh: 'Laugh', victory: 'Victory', kiss: 'Kiss', angry: 'Angry' }
 const activity = heroActivity()
 const images = new Map()
@@ -25,7 +23,7 @@ let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = false
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
-let evolving = false, hitKey = ''
+let evolving = false, evolveRetryAt = 0, levelingUp = false, hitKey = ''
 // Height of the feet above the ground while carried or falling, and the fall in progress.
 let lift = 0, fall = null
 let lastActivityAt = Date.now()
@@ -98,9 +96,6 @@ function updateStats() {
     xpText.textContent = 'XP unavailable'
     xpFill.style.width = '0%'
   }
-  evolveButton.hidden = character.canLevelUp !== true
-  evolveButton.disabled = evolving
-  evolveButton.textContent = evolving ? 'Evolving…' : `★ Evolve to Lv ${(character.level ?? 1) + 1}`
   const tokens = tokenCount(progression)
   const tokensLine = document.getElementById('tokens')
   tokensLine.hidden = tokens === null
@@ -114,18 +109,32 @@ function heroName(id) {
   return id ? id.split('_').map(word => word[0].toUpperCase() + word.slice(1)).join(' ') : 'Hero'
 }
 
-// The server checks the level and plays the effect; the daemon then broadcasts the new skin as a heartbeat.
+// Evolutions happen by themselves, but only while the hero is on screen so the effect is seen.
+// The daemon broadcasts the new skin with its effect as a heartbeat; a failure waits a minute.
 async function evolve() {
-  if (evolving || character?.canLevelUp !== true) return
+  if (evolving || character?.canLevelUp !== true || Date.now() < evolveRetryAt) return
   evolving = true
-  statsOpen = false
-  updateStats()
-  wake()
   try { await invoke('daemon_request', { method: 'evolve', params: { characterId: character.id, level: character.level } }) }
-  catch (error) { console.error('evolve:', error) }
+  catch (error) { console.error('evolve:', error); evolveRetryAt = Date.now() + 60_000 }
   evolving = false
-  updateStats()
   wake()
+}
+
+// Ordinary levels arrive with XP; they get the same gold effect, on the current skin.
+async function playLevelUp() {
+  if (levelingUp || paused || hidden || !Number.isInteger(character?.evolution)) return
+  levelingUp = true
+  try {
+    const result = await invoke('daemon_request', { method: 'level_up', params: { fromLevel: character.evolution, toLevel: character.evolution } })
+    const effect = validateLevelUp(result?.levelUp)
+    if (effect) {
+      await Promise.all(effect.frames.map(bitmap))
+      aura = effect
+      auraStarted = Date.now()
+      wake()
+    }
+  } catch (error) { console.error('level up:', error) }
+  levelingUp = false
 }
 
 function updateEmotes() {
@@ -178,6 +187,8 @@ async function setHero(data, heartbeat = false) {
   if (heartbeat) {
     gained = xpGain(previous, character, now)
     if (aura && previous?.level < character?.level) auraStarted = now
+    const recent = aura && now - auraStarted < aura.durationMs + 5000
+    if (!nextAura && !recent && previous && character && previous.id === character.id && character.level > previous.level) void playLevelUp()
   }
   visitor = validateVisit(data?.visit, now)
   if (visitor) visitorStarted = now
@@ -280,11 +291,7 @@ async function draw() {
     drawXpText(ctx, xpTextFrame(gained.amount, now - gained.startedAt, { centerX: rect.spriteX + 64, areaHeight: 46, scale: 2, maxWidth: rect.width }))
     ctx.restore()
   }
-  levelupButton.hidden = character.canLevelUp !== true || evolving || auraPlaying
-  if (!levelupButton.hidden) {
-    levelupButton.style.left = `${Math.max(0, Math.min(rect.width - 160, rect.spriteX + 64 - 80))}px`
-    levelupButton.style.top = `${Math.max(0, rect.spriteY - 40)}px`
-  }
+  if (character.canLevelUp === true && !evolving && !auraPlaying) void evolve()
   stats.hidden = !statsOpen || menuOpen
   menu.hidden = !menuOpen
   updateHitRegions()
@@ -295,7 +302,7 @@ async function draw() {
 // Only these rectangles take clicks; the rest of the window lets them through (overlay.rs).
 function updateHitRegions() {
   const regions = drag ? [[0, 0, rect.width, rect.height]] : [[rect.spriteX + 8, rect.spriteY + 8, 112, 120]]
-  for (const element of [levelupButton, stats, menu]) {
+  for (const element of [stats, menu]) {
     if (element.hidden) continue
     const box = element.getBoundingClientRect()
     regions.push([box.left, box.top, box.width, box.height])
@@ -368,20 +375,6 @@ document.getElementById('pause').addEventListener('click', async () => {
   await nativeWindow.hide()
   visible = false
 })
-evolveButton.addEventListener('click', () => { void evolve() })
-levelupButton.addEventListener('click', () => { void evolve() })
-// The plaque's words are drawn once in the same 5x7 pixel font as the XP popup.
-{
-  const text = document.getElementById('levelup-text'), ratio = window.devicePixelRatio || 1
-  const frame = { ...levelUpTextFrame({ centerX: 53, top: 0 }), left: 0, color: '#3b2203' }
-  text.width = frame.width * ratio
-  text.height = frame.height * ratio
-  text.style.width = `${frame.width}px`
-  text.style.height = `${frame.height}px`
-  const pen = text.getContext('2d')
-  pen.scale(ratio, ratio)
-  drawXpText(pen, frame)
-}
 stillButton.addEventListener('click', async () => {
   menuOpen = false
   const next = !stayStill

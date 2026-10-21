@@ -179,3 +179,16 @@ test('strollNow walks at once, even with no agent working', () => {
   assert.equal(pose.facing, 'right')
   assert(hero.snapshot(3000, { width: 300 }).x > 0)
 })
+
+test('a dragged hero faces the way it is pulled', () => {
+  const hero = heroActivity(0, { random: () => 0.5 })
+  hero.snapshot(0, { width: 500 })
+  hero.drag(200, 10)
+  assert.equal(hero.snapshot(10, { width: 500 }).facing, 'right')
+  hero.drag(150, 20)
+  assert.equal(hero.snapshot(20, { width: 500 }).facing, 'left')
+  hero.drag(151, 30)
+  assert.equal(hero.snapshot(30, { width: 500 }).facing, 'left')
+  hero.drag(300, 40)
+  assert.equal(hero.snapshot(40, { width: 500 }).facing, 'right')
+})

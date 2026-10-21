@@ -126,6 +126,7 @@ pub fn daemon_request(
             | "pair_start"
             | "wire_provider"
             | "evolve"
+            | "level_up"
     ) {
         return Err("unsupported method".into());
     }

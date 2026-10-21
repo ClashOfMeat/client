@@ -74,3 +74,10 @@ test('character keeps a display name and rejects a bad one', () => {
   assert.equal(validateCharacter({ ...character, name: 'x'.repeat(81) }), null)
   assert.equal(validateCharacter({ ...character, name: 7 }), null)
 })
+
+test('character keeps its evolution stage and rejects a bad one', () => {
+  const character = { id: uuid, png, evolution: 4 }
+  assert.equal(validateCharacter(character).evolution, 4)
+  assert.equal(validateCharacter({ ...character, evolution: 0 }), null)
+  assert.equal(validateCharacter({ ...character, evolution: 2.5 }), null)
+})
