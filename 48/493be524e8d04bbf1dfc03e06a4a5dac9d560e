@@ -1,0 +1,19 @@
+apps/desktop/ui/hero/README.md
+  s_d656464662876d::t_3ee1da725bb59a 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "48493be524e8d04bbf1dfc03e06a4a5dac9d560e",
+  "prompts": {},
+  "sessions": {
+    "s_d656464662876d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e48a02db-4ae4-4ff5-a51b-3a251f7f4304",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
