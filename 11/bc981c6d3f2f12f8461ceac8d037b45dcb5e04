@@ -1,0 +1,65 @@
+Cargo.lock
+  s_06ed9d8c83611e::t_41b48a484f2b62 79-84,198,638-646,1044-1054
+apps/desktop/src-tauri/Cargo.lock
+  s_06ed9d8c83611e::t_7c1b8e6c4c8bf3 59-189,305-317,521,523,536-544,951-977,1005-1024,1157-1169,1552-1557,2600-2609,2664-2669,2758-2768,2814-2827,3499-3508,3993-4008,4436,4440-4450,4500-4510,5321-5390,5474-5514
+apps/desktop/src-tauri/Cargo.toml
+  s_06ed9d8c83611e::t_4c276541e087b5 16,21-23
+apps/desktop/src-tauri/gen/schemas/windows-schema.json
+  s_06ed9d8c83611e::t_d9f0d324a98934 1-2478
+apps/desktop/src-tauri/src/daemon.rs
+  s_06ed9d8c83611e::t_a74375d641800e 3,13-14,83-84,88,92-131,221-222,226-230
+apps/desktop/src-tauri/src/main.rs
+  s_06ed9d8c83611e::t_77589ff2907a03 6,12-13,44-56,105-108,112-119
+apps/desktop/src-tauri/src/overlay.rs
+  s_06ed9d8c83611e::t_c6d48ecda144e2 68-73,83-100
+apps/desktop/src-tauri/src/settings.rs
+  s_06ed9d8c83611e::t_9b0eee7a67d405 8,65-67,69,71,104-105,110-113,116,168-173
+apps/desktop/src-tauri/tauri.conf.json
+  s_06ed9d8c83611e::t_304fb9a903ec62 31-32,36-41
+apps/desktop/src-tauri/windows/hooks.nsh
+  s_06ed9d8c83611e::t_2df8ffa9843c46 1-19
+apps/desktop/ui/overlay.mjs
+  s_06ed9d8c83611e::t_147180585346ed 18-19
+crates/cli/src/client.rs
+  s_06ed9d8c83611e::t_650e578887dd87 3
+crates/cli/src/hook.rs
+  s_06ed9d8c83611e::t_327932aa468de3 153-161
+crates/cli/src/install.rs
+  s_06ed9d8c83611e::t_f57347cd7a639b 1-2,24,72-74,86-108
+crates/cli/src/main.rs
+  s_06ed9d8c83611e::t_4cd5627abe8d23 38,40,110-112
+crates/core/Cargo.toml
+  s_06ed9d8c83611e::t_8af7602c402873 21-23
+crates/core/src/env.rs
+  s_06ed9d8c83611e::t_264ad4ec7801c8 16-19
+crates/core/src/ipc.rs
+  s_06ed9d8c83611e::t_7ee9d0dee6cf86 1-7
+crates/core/src/lib.rs
+  s_06ed9d8c83611e::t_a71f74d173dff4 4
+crates/core/src/store/mod.rs
+  s_06ed9d8c83611e::t_3631be4b1a2601 5,342
+crates/daemon/src/detect.rs
+  s_06ed9d8c83611e::t_78c8f646c6ef8c 8-13,21-27,36-41,72
+crates/daemon/src/socket.rs
+  s_06ed9d8c83611e::t_612423c7ca5434 5
+crates/daemon/src/wiring.rs
+  s_06ed9d8c83611e::t_b5f488d688ae93 39,45-50
+crates/providers/src/claude_cowork.rs
+  s_06ed9d8c83611e::t_38dd0109966e1d 19,22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "11bc981c6d3f2f12f8461ceac8d037b45dcb5e04",
+  "prompts": {},
+  "sessions": {
+    "s_06ed9d8c83611e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d702cc3f-99c9-4e88-9694-115fc0f6d057",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
