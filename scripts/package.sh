@@ -4,7 +4,7 @@
 set -euo pipefail
 
 die() { echo "package: $*" >&2; exit 1; }
-usage="usage: $0 <version> <target-triple> [--out DIR] [--app URL]"
+usage="usage: $0 <version> <target-triple> [--out DIR] [--app URL] [--tauri-config JSON]"
 (( $# >= 2 )) || die "$usage"
 version=$1
 target=$2
@@ -18,6 +18,8 @@ case "$target" in
 esac
 root=$(cd "$(dirname "$0")/.." && pwd)
 out="$root/dist/$version"
+# Extra Tauri config merged over tauri.conf.json, e.g. a test identifier: {"identifier":"com.clashofmeat.e2e"}.
+tauri_config=
 while (( $# )); do
   case "$1" in
     --out)
@@ -27,6 +29,10 @@ while (( $# )); do
     --app)
       [[ $# -ge 2 && -n $2 ]] || die "$usage"
       CLASHOFMEAT_DEFAULT_APP_URL=$2
+      shift 2 ;;
+    --tauri-config)
+      [[ $# -ge 2 && -n $2 ]] || die "$usage"
+      tauri_config=$2
       shift 2 ;;
     *) die "$usage" ;;
   esac
@@ -88,10 +94,12 @@ chmod 755 "$sidecar_dir/$sidecar_name"
   unset TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PATH TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
     TAURI_PRIVATE_KEY TAURI_PRIVATE_KEY_PATH TAURI_PRIVATE_KEY_PASSWORD
   cd "$root/apps/desktop/src-tauri"
+  config=(--config "{\"version\":\"$version\"}")
+  if [[ -n $tauri_config ]]; then config+=(--config "$tauri_config"); fi
   if [[ $os == windows ]]; then
-    cargo tauri build --runner cargo-xwin --target "$target" --bundles nsis --config "{\"version\":\"$version\"}"
+    cargo tauri build --runner cargo-xwin --target "$target" --bundles nsis "${config[@]}"
   else
-    cargo tauri build --bundles app --target "$target" --config "{\"version\":\"$version\"}"
+    cargo tauri build --bundles app --target "$target" "${config[@]}"
   fi
 )
 

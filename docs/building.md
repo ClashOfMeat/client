@@ -93,7 +93,7 @@ It runs, in order, and stops at the first failure:
 ## 4. Build one installer
 
 ```sh
-scripts/package.sh <version> <target> [--out DIR] [--app URL]
+scripts/package.sh <version> <target> [--out DIR] [--app URL] [--tauri-config JSON]
 ```
 
 Examples:
@@ -120,6 +120,9 @@ What it does:
 `--app URL` (or the `CLASHOFMEAT_DEFAULT_APP_URL` environment variable) is compiled into the CLI as its default app
 URL. The Windows installer runs `clashofmeat.exe install` without `--app`, so a Windows build without it cannot pair.
 URLs must be `https://`; `http://localhost` and `http://127.0.0.1` are allowed for local testing.
+
+`--tauri-config JSON` is merged over `tauri.conf.json` for this build (after the version). The local end-to-end
+test uses it to build under a test identifier (`{"identifier":"com.clashofmeat.e2e"}`); releases do not use it.
 
 Output goes to `dist/<version>/` (ignored by git) unless you pass `--out`. Tauri's own bundles stay under
 `apps/desktop/src-tauri/target/<target>/release/bundle/`.
