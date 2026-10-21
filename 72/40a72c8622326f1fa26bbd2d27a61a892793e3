@@ -1,0 +1,24 @@
+scripts/budget.sh
+  s_e9d8fa917d08ef::t_c1a96a659c44b1 1-118
+  s_e9d8fa917d08ef::t_6cc951c08643fb 119-122
+docs/building.md
+  s_e9d8fa917d08ef::t_6475160cf7c428 93-115
+scripts/README.md
+  s_e9d8fa917d08ef::t_e91c0f76a0eb2b 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7240a72c8622326f1fa26bbd2d27a61a892793e3",
+  "prompts": {},
+  "sessions": {
+    "s_e9d8fa917d08ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9be47e34-74a9-4217-acd6-b0096383d9e0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
