@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{ActivationPolicy, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct HeroSettings {
@@ -61,6 +61,13 @@ pub fn set(app: &tauri::AppHandle, next: HeroSettings) -> Result<HeroSettings, S
         .map_err(|e| e.to_string())?;
     fs::rename(&tmp, path).map_err(|e| e.to_string())?;
     *app.state::<HeroConfig>().0.lock().unwrap() = next.clone();
+    // A hidden hero leaves a Dock icon behind; clicking it reopens the app, which shows the hero
+    // again and drops the icon (main.rs, RunEvent::Reopen).
+    let _ = app.set_activation_policy(if next.show {
+        ActivationPolicy::Accessory
+    } else {
+        ActivationPolicy::Regular
+    });
     let _ = app.emit("hero-settings", &next);
     Ok(next)
 }
