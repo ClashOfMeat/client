@@ -28,3 +28,27 @@ Up to four workstreams run at once. Items marked **Paul** need him (production a
 13. Production env: `CLASHOFMEAT_DESKTOP_STABLE_VERSION=0.1.0` and `CLASHOFMEAT_DESKTOP_STABLE_MANIFEST=<update.json URL>`.
 14. Paul installs on his Mac and his Windows PC; archive ClashOfMeat/plugin once the setup page points to the app
     (it has no users, so nothing has to keep resolving).
+
+## Status (2026-10-21, evening)
+
+Ready to deploy; nothing in production exists yet.
+
+- **Done:**
+  - Web app: desktop work merged into `dev` (ClashOfMeat/app #13, #14, #15). CI is green and migrations 066–069 are
+    applied locally. The launch steps are in ClashOfMeat/app `docs/desktop-launch.md`.
+  - Landing: ClashOfMeat/landing #4 is merged into `main`. Its deploy failed for lack of Cloudflare secrets.
+  - End-to-end on the Mac, all passing:
+    - static update: install 0.1.0 → update to 0.1.1, bad signature rejected;
+    - through the local web app: `/install.sh`, pairing, sync, update via `/api/clients/desktop/update`.
+  - Release builds stay within the resource budget (`scripts/budget.sh`).
+  - `release.sh 0.1.0 --app https://app.clashofmeat.com --dry-run` built both Mac archives and the Windows installer
+    with the production URL. Its only blocker is the signing key (Paul's password).
+- **Paul:**
+  - DNS for clashofmeat.com and app.clashofmeat.com (NXDOMAIN today).
+  - The VPS and its secrets on ClashOfMeat/app (`VPS_*`, `ENV_PROD`).
+  - The Cloudflare secrets on ClashOfMeat/landing.
+  - A Release run.
+  - Then `scripts/release.sh 0.1.0 --app https://app.clashofmeat.com` with the key password.
+  - Then the stable `ENV_PROD` values, the licence, and making this repo public.
+- **Not tested:** Windows at runtime (after production is up, on Paul's PC), the Intel build at runtime, and the
+  daemon restart after an update.
