@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Check, package, sign and publish one desktop release (macOS arm64 + x86_64, Windows x64) as GitHub release
-# desktop-v<version>. Everything runs on this Mac; see docs/building.md.
+# desktop-v<version>. Everything runs on this Mac; see docs/building.md. --mac-only skips the Windows installer.
 set -euo pipefail
 
 die() { echo "release: $*" >&2; exit 1; }
 note() { echo "release: $*"; }
-usage="usage: $0 <version> --app <url> [--min-version x.y.z] [--security] [--dry-run] [--out DIR]"
+usage="usage: $0 <version> --app <url> [--min-version x.y.z] [--security] [--mac-only] [--dry-run] [--out DIR]"
 repo=ClashOfMeat/client
 targets=(aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc)
 placeholder=REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY
@@ -19,6 +19,7 @@ app=
 min_version=
 security=false
 dry_run=false
+mac_only=false
 dist="$root/dist/$version"
 while (( $# )); do
   case "$1" in
@@ -26,6 +27,7 @@ while (( $# )); do
     --min-version) [[ $# -ge 2 && -n $2 ]] || die "$usage"; min_version=$2; shift 2 ;;
     --security) security=true; shift ;;
     --dry-run) dry_run=true; shift ;;
+    --mac-only) mac_only=true; shift ;;
     --out) [[ $# -ge 2 && -n $2 ]] || die "$usage"; dist=$2; shift 2 ;;
     *) die "$usage" ;;
   esac
@@ -37,6 +39,7 @@ if [[ -n $min_version ]]; then
   [[ $min_version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "--min-version must be x.y.z"
 fi
 tag="desktop-v$version"
+if [[ $mac_only == true ]]; then targets=(aarch64-apple-darwin x86_64-apple-darwin); fi
 # A real release stops on any problem below; a dry run reports it and carries on.
 problem() { if [[ $dry_run == true ]]; then echo "release: dry run: $*" >&2; else die "$*"; fi; }
 
@@ -92,8 +95,19 @@ done
 
 mac=("$dist/Clash.of.Meat_${version}_aarch64.app.tar.gz" "$dist/Clash.of.Meat_${version}_x86_64.app.tar.gz")
 win="$dist/Clash.of.Meat_${version}_x64-setup.exe"
-if [[ -s ${mac[0]}.sig && -s ${mac[1]}.sig && -s $win.sig ]]; then
-  manifest_args=()
+assets=("${mac[@]}" "${mac[@]/%/.sha256}" "${mac[@]/%/.sig}")
+signed=("${mac[@]}")
+manifest_args=()
+if [[ $mac_only == true ]]; then
+  manifest_args+=(--mac-only)
+else
+  assets+=("$win" "$win.sha256" "$win.sig")
+  signed+=("$win")
+fi
+assets+=("install/install.sh#install.sh")
+unsigned=0
+for file in "${signed[@]}"; do [[ -s $file.sig ]] || unsigned=1; done
+if (( unsigned == 0 )); then
   if [[ -n $min_version ]]; then manifest_args+=(--min-version "$min_version"); fi
   if [[ $security == true ]]; then manifest_args+=(--security); fi
   scripts/update-manifest.sh "$dist" "$version" "https://github.com/$repo/releases/download/$tag/" ${manifest_args[@]+"${manifest_args[@]}"}
@@ -103,16 +117,13 @@ fi
 
 if [[ $dry_run == true ]]; then
   note "dry run: would run gh release create $tag --repo $repo --target $sha with:"
-  printf '  %s\n' "${mac[@]}" "${mac[@]/%/.sha256}" "${mac[@]/%/.sig}" "$win" "$win.sha256" "$win.sig" "install/install.sh#install.sh"
+  printf '  %s\n' "${assets[@]}"
   note "dry run: then gh release upload $tag $dist/manifest.json $dist/update.json"
   exit 0
 fi
 
 # Assets first, then the two pointers, so nobody reads a manifest whose files are not there yet.
-gh release create "$tag" \
-  "${mac[@]}" "${mac[@]/%/.sha256}" "${mac[@]/%/.sig}" \
-  "$win" "$win.sha256" "$win.sig" \
-  install/install.sh#install.sh \
+gh release create "$tag" "${assets[@]}" \
   --repo "$repo" --title "$tag" --notes "Clash of Meat desktop $version" --target "$sha"
 gh release upload "$tag" "$dist/manifest.json" "$dist/update.json" --repo "$repo"
 note "published https://github.com/$repo/releases/tag/$tag"
