@@ -111,6 +111,11 @@ fn record(payload: &Value) -> Option<Value> {
     }) {
         fields.insert("version".into(), json!(version));
     }
+    if event == "beforeSubmitPrompt" {
+        if let Some(prompt) = payload["prompt"].as_str() {
+            fields.insert("prompt_chars".into(), json!(prompt.chars().count()));
+        }
+    }
     if event == "stop" {
         if let Some(status) = payload["status"]
             .as_str()

@@ -234,7 +234,21 @@ impl Client {
         let counters = store
             .pending(EventKind::Counter, 100)
             .map_err(store_error)?;
-        let readings = store.pending(EventKind::Reading, 50).map_err(store_error)?;
+        let mut readings = store.pending(EventKind::Reading, 50).map_err(store_error)?;
+        let expired: Vec<_> = readings
+            .iter()
+            .filter(|event| {
+                OffsetDateTime::parse(&event.at, &Rfc3339)
+                    .is_ok_and(|at| at < now - time::Duration::days(7))
+            })
+            .map(snapshot)
+            .collect();
+        // Quota snapshots have no historical upload mode; retain them locally after their upload window closes.
+        store.mark_synced(&expired).map_err(store_error)?;
+        readings.retain(|event| {
+            OffsetDateTime::parse(&event.at, &Rfc3339)
+                .is_ok_and(|at| at >= now - time::Duration::days(7))
+        });
         if counters.is_empty() && readings.is_empty() {
             return Ok(UploadOutcome {
                 response: None,
@@ -282,6 +296,15 @@ impl Client {
                 "observations": observations, "readings": reading_payload,
             }),
         )?;
+        let accepted = response["accepted"].as_u64();
+        let duplicates = response["duplicates"].as_u64();
+        if accepted.zip(duplicates).and_then(|(a, b)| a.checked_add(b))
+            != Some((counters.len() + readings.len()) as u64)
+        {
+            return Err(ApiError::Invalid(
+                "Clash of Meat returned an invalid observation acknowledgement.".into(),
+            ));
+        }
         let snapshots: Vec<(String, u64, String)> = counters
             .iter()
             .chain(readings.iter())
@@ -298,7 +321,7 @@ impl Client {
 
     /// Uploads only the completed payloads assembled by the private observer.
     pub fn upload_observer_tasks(&self, store: &mut Store) -> Result<usize, ApiError> {
-        let payloads = observer::completed_payloads(store, usize::MAX).map_err(store_error)?;
+        let payloads = observer::completed_payloads(store, 100).map_err(store_error)?;
         let mut groups: Vec<(Value, Vec<Value>)> = Vec::new();
         for payload in payloads {
             let source = payload["source"].clone();
@@ -311,22 +334,30 @@ impl Client {
         }
         let mut uploaded = 0;
         for (source, tasks) in groups {
-            match self.send_observer_tasks(store, &source, &tasks) {
-                Ok(()) => uploaded += tasks.len(),
-                Err(ApiError::Status { status: 400, .. }) => {
-                    for task in tasks {
-                        match self.send_observer_tasks(store, &source, std::slice::from_ref(&task))
-                        {
-                            Ok(()) => uploaded += 1,
-                            Err(ApiError::Status { status: 400, .. }) => {
-                                observer::reject(store, task["id"].as_str().unwrap_or_default())
+            for tasks in tasks.chunks(50) {
+                match self.send_observer_tasks(store, &source, tasks) {
+                    Ok(()) => uploaded += tasks.len(),
+                    Err(ApiError::Status { status: 400, .. }) => {
+                        for task in tasks {
+                            match self.send_observer_tasks(
+                                store,
+                                &source,
+                                std::slice::from_ref(task),
+                            ) {
+                                Ok(()) => uploaded += 1,
+                                Err(ApiError::Status { status: 400, .. }) => {
+                                    observer::reject(
+                                        store,
+                                        task["id"].as_str().unwrap_or_default(),
+                                    )
                                     .map_err(store_error)?;
+                                }
+                                Err(error) => return Err(error),
                             }
-                            Err(error) => return Err(error),
                         }
                     }
+                    Err(error) => return Err(error),
                 }
-                Err(error) => return Err(error),
             }
         }
         Ok(uploaded)

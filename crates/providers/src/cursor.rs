@@ -127,6 +127,12 @@ impl Provider for Cursor {
         let task = TaskRef::Key(generation.into());
         let event_type = value.get("event").and_then(Value::as_str);
         if event_type == Some("beforeSubmitPrompt") {
+            if let Some(chars) = value["prompt_chars"]
+                .as_u64()
+                .filter(|n| *n <= ids::MAX_OBSERVATION_VALUE)
+            {
+                signals.push(event(generation, &session_id, &at, "prompt_chars", chars));
+            }
             signals.push(Signal::Observer(Observation::Start {
                 context: conversation.into(),
                 task_key: generation.into(),

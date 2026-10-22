@@ -541,7 +541,7 @@ fn changed_row_during_request_stays_pending() {
                     None,
                 )
                 .unwrap();
-            Reply::ok(json!({"accepted": 1}))
+            Reply::ok(json!({"accepted": 1, "duplicates": 0}))
         }
     });
     client(&server)
@@ -960,4 +960,91 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
         .unwrap();
     assert!(is_uuid(kiss.body["requestId"].as_str().unwrap()));
     handle.stop().unwrap();
+}
+
+#[test]
+fn observer_backlog_is_chunked_to_server_limit() {
+    let mut store = Store::open_in_memory().unwrap();
+    for i in 0..51 {
+        completed_task(&mut store, &format!("chunk-{i}"), "first");
+    }
+    let server = Server::start(vec![
+        Reply::ok(json!({"accepted":50,"duplicates":0})),
+        Reply::ok(json!({"accepted":1,"duplicates":0})),
+    ]);
+    assert_eq!(
+        client(&server).upload_observer_tasks(&mut store).unwrap(),
+        51
+    );
+    let requests = server.finish();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0].body["tasks"].as_array().unwrap().len(), 50);
+    assert_eq!(requests[1].body["tasks"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn observation_invalid_ack_keeps_counters_and_readings_pending() {
+    for response in [
+        json!({}),
+        json!({"accepted":2}),
+        json!({"accepted":1,"duplicates":0}),
+        json!({"accepted":2,"duplicates":-1}),
+    ] {
+        let mut store = Store::open_in_memory().unwrap();
+        store
+            .save_events(
+                "codex",
+                &[
+                    event("counter", EventKind::Counter, NOW, 5),
+                    event("reading", EventKind::Reading, NOW, 50),
+                ],
+                None,
+            )
+            .unwrap();
+        let server = Server::start(vec![Reply::ok(response)]);
+        assert!(matches!(
+            client(&server).upload_observations(&mut store, now()),
+            Err(ApiError::Invalid(_))
+        ));
+        assert_eq!(store.pending(EventKind::Counter, 10).unwrap().len(), 1);
+        assert_eq!(store.pending(EventKind::Reading, 10).unwrap().len(), 1);
+        server.finish();
+    }
+}
+
+#[test]
+fn expired_readings_do_not_block_live_counters() {
+    let mut store = Store::open_in_memory().unwrap();
+    store
+        .save_events(
+            "codex",
+            &[
+                event("fresh", EventKind::Counter, NOW, 8),
+                event(
+                    "old-reading",
+                    EventKind::Reading,
+                    "2026-10-01T12:00:00Z",
+                    50,
+                ),
+            ],
+            None,
+        )
+        .unwrap();
+    let server = Server::start(vec![Reply::ok(json!({"accepted":1,"duplicates":0}))]);
+    assert_eq!(
+        client(&server)
+            .upload_observations(&mut store, now())
+            .unwrap()
+            .sent,
+        1
+    );
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    assert_eq!(store.pending_count(EventKind::Reading).unwrap(), 0);
+    assert_eq!(
+        server.finish()[0].body["readings"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
 }

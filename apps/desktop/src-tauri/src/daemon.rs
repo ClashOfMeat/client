@@ -192,7 +192,6 @@ fn connect(app: &AppHandle) -> Result<(), String> {
     match parse_line(&line)? {
         ParsedLine::Result { id: 2, .. } => {
             emit(app, "status", json!({"connected":true}));
-            refresh_status(app);
         }
         ParsedLine::Error { message, .. } => return Err(message),
         _ => return Err("unexpected subscribe response".into()),
@@ -204,11 +203,7 @@ fn connect(app: &AppHandle) -> Result<(), String> {
         }
         match parse_line(&line)? {
             ParsedLine::Event { name, data } => {
-                let refresh = matches!(name.as_str(), "sync" | "paired" | "pair_failed");
                 emit(app, "event", json!({"event":name,"data":data}));
-                if refresh {
-                    refresh_status(app);
-                }
             }
             _ => return Err("unexpected subscription line".into()),
         }
@@ -267,12 +262,6 @@ pub fn send_with_params(method: &str, params: Value) -> Result<Value, String> {
         ParsedLine::Result { id: 1, data } => Ok(data),
         ParsedLine::Error { message, .. } => Err(message),
         _ => Err("unexpected daemon response".into()),
-    }
-}
-
-pub fn refresh_status(app: &AppHandle) {
-    if let Ok(value) = send("status") {
-        emit(app, "status", value);
     }
 }
 

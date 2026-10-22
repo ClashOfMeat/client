@@ -277,6 +277,7 @@ fn main_loop(
                 }
             }
             Ok(Message::Socket(request)) => {
+                let rescan = request.method == "set_provider_homes";
                 let reply = handle_request(
                     request,
                     &opts,
@@ -289,6 +290,17 @@ fn main_loop(
                 );
                 if let Some((sender, value)) = reply {
                     let _ = sender.send(value);
+                }
+                if rescan {
+                    let recent = scan_and_broadcast(
+                        &mut engine,
+                        &mut store,
+                        None,
+                        &mut activity,
+                        &mut subscribers,
+                    );
+                    open_files.track(&recent);
+                    let _ = watch_refresh.send(());
                 }
             }
             Ok(Message::SyncDone(result)) => {
@@ -380,7 +392,16 @@ fn scan_and_broadcast(
     subscribers: &mut Vec<Sender<Value>>,
 ) -> Vec<PathBuf> {
     let recent = match engine.scan(store, paths, OffsetDateTime::now_utc()) {
-        Ok(report) => report.recent,
+        Ok(report) => {
+            if report.events_saved > 0 {
+                broadcast(
+                    subscribers,
+                    "observations",
+                    json!({"changed": report.events_saved}),
+                );
+            }
+            report.recent
+        }
         Err(error) => {
             eprintln!("daemon scan: {error}");
             Vec::new()
@@ -617,6 +638,54 @@ fn handle_request(
             Some(_) => Err(SocketError::new("not_wirable", "provider cannot be wired")),
             None => Err(SocketError::new("bad_request", "id is required")),
         },
+        "set_provider_homes" => (|| {
+            let id = params["id"]
+                .as_str()
+                .filter(|id| config::provider_variable(id).is_some())
+                .ok_or_else(|| {
+                    SocketError::new("bad_request", "Choose Claude Code, Codex or Gemini CLI")
+                })?;
+            let homes = params["homes"]
+                .as_array()
+                .filter(|homes| homes.len() <= 8)
+                .ok_or_else(|| {
+                    SocketError::new("bad_request", "Choose up to eight account folders")
+                })?;
+            let mut paths = Vec::new();
+            for home in homes {
+                let home = home
+                    .as_str()
+                    .filter(|home| home.len() <= 4096)
+                    .ok_or_else(|| SocketError::new("bad_request", "Invalid account folder"))?;
+                let path = PathBuf::from(home);
+                if !path.is_absolute() || !path.is_dir() {
+                    return Err(SocketError::new(
+                        "bad_request",
+                        "Choose an existing absolute account folder",
+                    ));
+                }
+                let path = path
+                    .canonicalize()
+                    .map_err(internal)?
+                    .to_string_lossy()
+                    .into_owned();
+                if !paths.contains(&path) {
+                    paths.push(path);
+                }
+            }
+            config::update_config(&opts.env, |config| {
+                let map = config
+                    .other
+                    .entry("providerHomes")
+                    .or_insert_with(|| json!({}));
+                if !map.is_object() {
+                    *map = json!({});
+                }
+                map[id] = json!(paths);
+            })
+            .map_err(internal)?;
+            Ok(json!({"id": id, "homes": paths}))
+        })(),
         "set_provider_enabled" => {
             let id = params.get("id").and_then(Value::as_str);
             let enabled = params.get("enabled").and_then(Value::as_bool);
@@ -793,7 +862,11 @@ fn status(
     let off: HashSet<String> = meta("providers_off")?
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .unwrap_or_default();
+    let config = config::read_config(&opts.env).map_err(internal)?;
     let health = store.health().map_err(internal)?;
+    let limits = store
+        .usage_limits(&now.format(&Rfc3339).map_err(internal)?)
+        .map_err(internal)?;
     let providers: Vec<Value> = clashofmeat_providers::all().iter().map(|provider| {
         let manifest = provider.manifest();
         let row = health.iter().find(|row| row.provider == manifest.id);
@@ -801,16 +874,18 @@ fn status(
         if !manifest.wiring.is_empty() && manifest.id == "cursor" {
             value["wiring"] = json!(wiring::cursor_wiring_state(&opts.env));
         }
+        value["limits"] = json!(limits.iter().filter(|(provider,_,_,_)| provider == manifest.id).map(|(_,key,used,reset)| json!({"key":key,"used":used,"resets_at":reset})).collect::<Vec<_>>());
+        value["homes"] = config.other.get("providerHomes").and_then(|homes| homes.get(manifest.id)).cloned().unwrap_or_else(|| json!([]));
+        if value["homes"].as_array().is_some_and(|homes| !homes.is_empty()) {
+            value["detected"] = json!(true);
+        }
+        if manifest.id == "cursor" && !today.contains_key("cursor") {
+            value["tokens_available"] = json!(false);
+        }
         value
     }).collect();
-    let counters = store
-        .pending(EventKind::Counter, usize::MAX)
-        .map_err(internal)?
-        .len();
-    let readings = store
-        .pending(EventKind::Reading, usize::MAX)
-        .map_err(internal)?
-        .len();
+    let counters = store.pending_count(EventKind::Counter).map_err(internal)?;
+    let readings = store.pending_count(EventKind::Reading).map_err(internal)?;
     Ok(
         json!({"version":opts.version,"paired":meta("installation.token")?.is_some(),"app_url":config::read_config(&opts.env).map_err(internal)?.app_url,"blocked":blocked,"reauth":meta("reauth")?.as_deref()==Some("true"),"pending":{"counters":counters,"readings":readings},"last_sync_at":meta("last_sync_at")?,"providers":providers,"today_tokens":today}),
     )

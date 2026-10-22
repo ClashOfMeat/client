@@ -28,7 +28,8 @@ export function providerView(provider, busy = new Set(), showTokens = false) {
   const tokens = provider.today_tokens ?? provider.todayTokens
   return { id, name: provider.name ?? id, enabled: provider.enabled !== false,
     state, tone, fix: provider.wiring === 'missing',
-    tokens: showTokens && Number.isFinite(tokens) ? formatTokens(tokens) : null }
+    limits: (provider.limits ?? []).map(limit => `${limit.key === 'five_hour_percent' ? '5h' : '7d'} ${limit.used}%`).join(' · ') || 'limits unavailable',
+    tokens: provider.tokens_available === false ? 'not available' : showTokens && Number.isFinite(tokens) ? formatTokens(tokens) : null }
 }
 
 export function updateView(update = {}, daemonBlocked = false) {
@@ -62,7 +63,10 @@ export function settingsView(status, snapshot, heartbeat, { connected = true, no
     sync: relativeSyncTime(status?.last_sync_at, now),
     providers: providers.map(provider => providerView(provider, busyProviders(snapshot), showTokens)),
     showTokens,
-    totalTokens: Number.isFinite(status?.today_tokens) ? formatTokens(status.today_tokens) : null,
+    totalTokens: status?.today_tokens != null ? formatTokens(
+      typeof status.today_tokens === 'number' ? status.today_tokens
+        : Object.values(status.today_tokens).reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0)
+    ) : null,
     update: updateView(updater, status?.blocked),
     hero: heartbeat ?? snapshot?.hero ?? null,
   }

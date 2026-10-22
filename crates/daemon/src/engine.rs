@@ -110,71 +110,78 @@ impl Engine {
         self.sessions
             .retain(|_, session| now - session.last_at <= Duration::minutes(30));
 
+        let config = crate::config::read_config(&self.env)?;
         for provider in &self.providers {
             let manifest = provider.manifest();
             if off.contains(manifest.id) {
                 continue;
             }
             for (source_index, source) in manifest.sources.iter().enumerate() {
-                let root = self.env.resolve(source.root);
-                if !root.is_dir() {
-                    continue;
-                }
-                // A file reported by the watcher may have an old mtime (for example, an
-                // atomic rename). Check only the reported paths, without the since gate.
-                let files = if let Some(paths) = changed.as_ref() {
-                    changed_files(&root, source.glob, paths)
-                } else {
-                    reader::list_files(&root, source.glob, 4, Some(since_ms))
-                };
-                for file in files {
-                    let file_key = file
-                        .path
-                        .strip_prefix(&root)?
-                        .to_string_lossy()
-                        .into_owned();
-                    let mut cursor = store
-                        .cursor(manifest.id, source_index, &file_key)?
-                        .unwrap_or_default();
-                    if file.mtime_ms >= recent_ms {
-                        report.recent.push(file.path.clone());
-                    }
-                    if cursor_complete(&cursor, &file, source.format) {
+                for (root, profile) in
+                    crate::config::source_roots(&self.env, &config, manifest.id, source.root)
+                {
+                    if !root.is_dir() {
                         continue;
                     }
-                    report.files_read += 1;
-                    let mut counts = FileCounts::default();
-                    let read_result = scan_file(
-                        provider.as_ref(),
-                        source_index,
-                        &file_key,
-                        &file.path,
-                        source.format,
-                        &mut cursor,
-                        &mut self.sessions,
-                        store,
-                        paired_at.as_deref(),
-                        now,
-                        &mut report,
-                        &mut counts,
-                        &self.client_version,
-                    );
-                    if read_result.is_err() {
-                        counts.errors += 1;
-                    }
-                    report.records += counts.records;
-                    store.record_health(
-                        manifest.id,
-                        counts.records,
-                        counts.malformed,
-                        counts.oversized,
-                        counts.errors,
-                        Some(&now_iso),
-                    )?;
-                    // Reader I/O is file-local; store failures still abort the scan.
-                    if let Err(error) = read_result {
-                        if !error.is::<std::io::Error>() {
-                            return Err(error);
+                    // A file reported by the watcher may have an old mtime (for example, an
+                    // atomic rename). Check only the reported paths, without the since gate.
+                    let files = if let Some(paths) = changed.as_ref() {
+                        changed_files(&root, source.glob, paths)
+                    } else {
+                        reader::list_files(&root, source.glob, 4, Some(since_ms))
+                    };
+                    for file in files {
+                        let file_key = file
+                            .path
+                            .strip_prefix(&root)?
+                            .to_string_lossy()
+                            .into_owned();
+                        let file_key = profile
+                            .as_ref()
+                            .map_or(file_key.clone(), |key| format!("@profile/{key}/{file_key}"));
+                        let mut cursor = store
+                            .cursor(manifest.id, source_index, &file_key)?
+                            .unwrap_or_default();
+                        if file.mtime_ms >= recent_ms {
+                            report.recent.push(file.path.clone());
+                        }
+                        if cursor_complete(&cursor, &file, source.format) {
+                            continue;
+                        }
+                        report.files_read += 1;
+                        let mut counts = FileCounts::default();
+                        let read_result = scan_file(
+                            provider.as_ref(),
+                            source_index,
+                            &file_key,
+                            &file.path,
+                            source.format,
+                            &mut cursor,
+                            &mut self.sessions,
+                            store,
+                            paired_at.as_deref(),
+                            now,
+                            &mut report,
+                            &mut counts,
+                            &self.client_version,
+                        );
+                        if read_result.is_err() {
+                            counts.errors += 1;
+                        }
+                        report.records += counts.records;
+                        store.record_health(
+                            manifest.id,
+                            counts.records,
+                            counts.malformed,
+                            counts.oversized,
+                            counts.errors,
+                            Some(&now_iso),
+                        )?;
+                        // Reader I/O is file-local; store failures still abort the scan.
+                        if let Err(error) = read_result {
+                            if !error.is::<std::io::Error>() {
+                                return Err(error);
+                            }
                         }
                     }
                 }
@@ -361,14 +368,128 @@ fn collect_signals(
         file_state: &mut cursor.state,
         now,
     };
-    for signal in provider.parse(&record, &mut cx) {
+    for mut signal in provider.parse(&record, &mut cx) {
+        if let Some(profile) = file_key
+            .strip_prefix("@profile/")
+            .and_then(|key| key.split('/').next())
+        {
+            namespace_signal(&mut signal, profile);
+        }
         match signal {
             Signal::Event(event) => events.push(event),
-            Signal::Observer(observation) => observations.push(observation),
+            Signal::Observer(observation) => {
+                if !matches!(provider.manifest().id, "claude-code" | "claude-cowork") {
+                    let metric = match &observation {
+                        Observation::Start {
+                            task_key,
+                            session_id,
+                            at,
+                            ..
+                        } => Some(("prompt_count", task_key.as_str(), session_id.as_str(), at)),
+                        Observation::Tool {
+                            task,
+                            tool_id,
+                            subagent: true,
+                            at,
+                            ..
+                        } => {
+                            let session = match task {
+                                clashofmeat_core::TaskRef::Active(key)
+                                | clashofmeat_core::TaskRef::Key(key) => key,
+                            };
+                            Some(("subagent_count", tool_id.as_str(), session.as_str(), at))
+                        }
+                        _ => None,
+                    };
+                    if let Some((key, identity, session, at)) = metric {
+                        events.push(Event {
+                            identity: format!("{}:{key}:{identity}", provider.manifest().id),
+                            key: key.into(),
+                            value: 1,
+                            kind: clashofmeat_core::EventKind::Counter,
+                            session_id: clashofmeat_core::ids::session_uuid(
+                                provider.manifest().id,
+                                session,
+                            ),
+                            at: at.clone(),
+                            resets_at: None,
+                            model: None,
+                            provider: Some(provider.manifest().id.into()),
+                        });
+                    }
+                }
+                observations.push(observation);
+            }
             Signal::Turn(turn) => {
                 report.activity_changed |= apply_turn(sessions, turn, now);
             }
         }
+    }
+}
+
+// Keep different accounts' source-local IDs separate without uploading account paths.
+fn namespace_signal(signal: &mut Signal, profile: &str) {
+    let key = |value: &mut String| {
+        *value = clashofmeat_core::ids::stable_id(&format!("{profile}:{value}"))
+    };
+    let task = |value: &mut clashofmeat_core::TaskRef| match value {
+        clashofmeat_core::TaskRef::Active(value) | clashofmeat_core::TaskRef::Key(value) => {
+            key(value)
+        }
+    };
+    match signal {
+        Signal::Event(event) => {
+            key(&mut event.identity);
+            key(&mut event.session_id);
+        }
+        Signal::Turn(turn) => key(&mut turn.session_id),
+        Signal::Observer(observation) => match observation {
+            Observation::Start {
+                context,
+                task_key,
+                source_key,
+                session_id,
+                ..
+            } => {
+                key(context);
+                key(task_key);
+                key(session_id);
+                *source_key = format!("profile:{profile}");
+            }
+            Observation::Request {
+                task: reference,
+                response_id,
+                ..
+            } => {
+                task(reference);
+                key(response_id);
+            }
+            Observation::Tool {
+                task: reference,
+                tool_id,
+                ..
+            } => {
+                task(reference);
+                key(tool_id);
+            }
+            Observation::Compaction {
+                task: reference,
+                compaction_id,
+                ..
+            } => {
+                task(reference);
+                key(compaction_id);
+            }
+            Observation::Model {
+                task: reference, ..
+            }
+            | Observation::Finish {
+                task: reference, ..
+            }
+            | Observation::ClientVersion {
+                task: reference, ..
+            } => task(reference),
+        },
     }
 }
 

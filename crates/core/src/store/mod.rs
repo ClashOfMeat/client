@@ -118,6 +118,47 @@ mod tests {
     }
 
     #[test]
+    fn pending_counts_follow_acknowledgements_without_loading_rows() {
+        let mut store = Store::open_in_memory().unwrap();
+        let counter = event("count", "input_tokens", 10, "2026-01-01T00:00:00Z");
+        store
+            .save_events("codex", std::slice::from_ref(&counter), None)
+            .unwrap();
+        assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 1);
+        assert_eq!(store.pending_count(EventKind::Reading).unwrap(), 0);
+        store
+            .mark_synced(&[(counter.id(), counter.value, counter.at)])
+            .unwrap();
+        assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    }
+
+    #[test]
+    fn quota_status_uses_latest_unexpired_report() {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut first = event("quota-1", "five_hour_percent", 80, "2026-01-01T01:00:00Z");
+        first.kind = EventKind::Reading;
+        first.resets_at = Some("2026-01-01T05:00:00Z".into());
+        let mut latest = first.clone();
+        latest.identity = "quota-2".into();
+        latest.at = "2026-01-01T02:00:00Z".into();
+        latest.value = 90;
+        store.save_events("codex", &[first, latest], None).unwrap();
+        assert_eq!(
+            store.usage_limits("2026-01-01T03:00:00Z").unwrap(),
+            vec![(
+                "codex".into(),
+                "five_hour_percent".into(),
+                90,
+                "2026-01-01T05:00:00Z".into()
+            )]
+        );
+        assert!(store
+            .usage_limits("2026-01-01T05:00:00Z")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
     fn upsert_follows_collector_conflict_rule() {
         let mut store = Store::open_in_memory().unwrap();
         let mut tokens = event("same", "input_tokens", 5, "2026-01-01T00:00:00Z");
@@ -426,6 +467,19 @@ impl Store {
         Ok(changed)
     }
 
+    /// Counts queued observations without loading their payloads.
+    pub fn pending_count(&self, kind: EventKind) -> Result<u64> {
+        let kind = match kind {
+            EventKind::Counter => "counter",
+            EventKind::Reading => "reading",
+        };
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM events WHERE synced=0 AND kind=?1",
+            [kind],
+            |row| row.get(0),
+        )?)
+    }
+
     /// Returns unsynced observations of one kind, oldest first.
     pub fn pending(&self, kind: EventKind, limit: usize) -> Result<Vec<StoredEvent>> {
         let kind = match kind {
@@ -454,6 +508,23 @@ impl Store {
                 model: row.get(7)?,
                 provider: row.get(8)?,
             })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// The most recent unexpired, provider-reported quota windows, never estimated from tokens.
+    pub fn usage_limits(&self, now: &str) -> Result<Vec<(String, String, u64, String)>> {
+        let mut statement = self.conn.prepare(
+            "SELECT provider,key,value,resets_at FROM (
+              SELECT provider,key,value,resets_at,ROW_NUMBER() OVER(PARTITION BY provider,key ORDER BY julianday(at) DESC,id DESC) AS position
+              FROM events WHERE kind='reading' AND provider IS NOT NULL
+                AND key IN ('five_hour_percent','seven_day_percent')
+                AND julianday(at)<=julianday(?1) AND julianday(resets_at)>julianday(?1)
+            ) WHERE position=1 ORDER BY provider,key",
+        )?;
+        let rows = statement.query_map([now], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(Into::into)

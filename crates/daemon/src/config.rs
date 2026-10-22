@@ -113,3 +113,46 @@ pub fn app_origin(url: &str) -> Result<String> {
     }
     Ok(format!("{scheme}://{authority}"))
 }
+
+/// Extra local account homes; paths never enter uploads.
+pub fn provider_variable(provider: &str) -> Option<&'static str> {
+    match provider {
+        "claude-code" => Some("CLAUDE_CONFIG_DIR"),
+        "codex" => Some("CODEX_HOME"),
+        "gemini" => Some("GEMINI_CLI_HOME"),
+        _ => None,
+    }
+}
+
+pub fn source_roots(
+    env: &Env,
+    config: &Config,
+    provider: &str,
+    expression: &str,
+) -> Vec<(PathBuf, Option<String>)> {
+    let default = env.resolve(expression);
+    let default = default.canonicalize().unwrap_or(default);
+    let mut roots = vec![(default, None)];
+    let Some(variable) = provider_variable(provider) else {
+        return roots;
+    };
+    if let Some(homes) = config
+        .other
+        .get("providerHomes")
+        .and_then(|map| map.get(provider))
+        .and_then(Value::as_array)
+    {
+        for home in homes.iter().filter_map(Value::as_str).take(8) {
+            let mut account = env.clone();
+            account.vars.insert(variable.into(), home.into());
+            let root = account.resolve(expression);
+            let root = root.canonicalize().unwrap_or(root);
+            if roots.iter().any(|(path, _)| *path == root) {
+                continue;
+            }
+            let profile = clashofmeat_core::ids::stable_id(&format!("{provider}:{home}"));
+            roots.push((root, Some(profile)));
+        }
+    }
+    roots
+}

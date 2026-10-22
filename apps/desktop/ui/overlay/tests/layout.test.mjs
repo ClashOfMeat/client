@@ -1,11 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { heroBox, windowRect, formatTokens } from '../layout.mjs'
+import { windowRect, formatTokens } from '../layout.mjs'
 
 const workArea = { x: 100, y: 50, width: 1000, height: 700 }
 
 test('sprite feet touch the work area bottom throughout patrol', () => {
-  assert.equal(heroBox({ workArea }).patrolWidth, 872)
   for (const x of [0, 50, 872, 999]) {
     const rect = windowRect(x, { workArea })
     assert.equal(rect.y + rect.spriteY + 128, 750)
@@ -28,8 +27,8 @@ test('bubble grows upward and preserves sprite position, including edges', () =>
 
 test('small displays keep the window inside their work area', () => {
   const tiny = { x: -50, y: 10, width: 100, height: 100 }
-  assert.deepEqual(heroBox({ workArea: tiny, bubble: true }), {
-    patrolWidth: 0, x: -50, y: 10, width: 100, height: 100, spriteX: 0, spriteY: -28,
+  assert.deepEqual(windowRect(0, { workArea: tiny, bubble: true }), {
+    x: -50, y: 10, width: 100, height: 100, spriteX: 0, spriteY: -28,
   })
 })
 

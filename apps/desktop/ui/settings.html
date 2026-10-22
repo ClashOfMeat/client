@@ -26,6 +26,18 @@
     <section>
       <div class="section-heading"><h2>Providers</h2><span id="today-total" class="muted" hidden></span></div>
       <div id="providers" class="providers"></div>
+      <details><summary>Additional accounts</summary>
+        <p class="muted">Add an agent’s local account folder. Your existing account stays connected.</p>
+        <form id="account-folder-form">
+          <label for="account-provider">Agent</label>
+          <select id="account-provider"><option value="claude-code">Claude Code</option><option value="codex">Codex</option><option value="gemini">Gemini CLI</option></select>
+          <label for="account-folder">Account folder</label>
+          <input id="account-folder" required placeholder="Absolute path to the account folder">
+          <button type="submit">Add account</button>
+        </form>
+        <p class="muted">Claude: its .claude folder. Codex: its .codex folder. Gemini: the home containing .gemini.</p>
+        <div id="account-folders"></div>
+      </details>
     </section>
     <section>
       <h2>Hero</h2>

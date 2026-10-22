@@ -117,7 +117,7 @@ pub fn desktop_state(app: tauri::AppHandle) -> Value {
     json!({"daemon":crate::daemon::state(&app),"hero":current(&app),"displays":displays(&app),"device":device,"updater":crate::updater::status(&app)})
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn daemon_request(
     app: tauri::AppHandle,
     method: String,
@@ -128,6 +128,7 @@ pub fn daemon_request(
         "status"
             | "snapshot"
             | "set_provider_enabled"
+            | "set_provider_homes"
             | "sync_now"
             | "pair_start"
             | "wire_provider"

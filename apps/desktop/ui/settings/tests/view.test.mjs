@@ -46,3 +46,8 @@ test('settings view hides token column until a provider supplies it', () => {
   status.today_tokens = 310000
   assert.equal(settingsView(status, snapshot, null).totalTokens, '310k')
 })
+
+test('provider map totals and unsupported Cursor usage stay truthful', () => {
+  assert.equal(settingsView({ today_tokens: { codex: 1000, "claude-code": 2500 } }, null, null).totalTokens, '4k')
+  assert.equal(providerView({ id: 'cursor', tokens_available: false, today_tokens: 0 }, new Set(), true).tokens, 'not available')
+})

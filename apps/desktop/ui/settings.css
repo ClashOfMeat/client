@@ -47,3 +47,8 @@ button:disabled { opacity: .5; cursor: default; }
   .error { color: #ff8c8c; }
   .about span.security { color: #e0ae63; }
 }
+
+#account-folder-form { display: grid; gap: 6px; margin: 12px 0; }
+#account-folder { width: 100%; box-sizing: border-box; padding: 6px; color: inherit; background: transparent; border: 1px solid #777; border-radius: 4px; }
+.account-folder { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.account-folder span { flex: 1; min-width: 0; overflow-wrap: anywhere; }

@@ -11,7 +11,7 @@ The client reads the local session files of these agents:
 - Cursor (through a hook the client adds to Cursor's settings)
 - Gemini CLI
 
-It counts tokens on your machine and sends only numbers to your Clash of Meat account. Your hero gains XP from them.
+It counts supported activity on your machine and sends content-free counts to your Clash of Meat account. Cursor hooks report tasks, prompts and tools; exact tokens are unavailable unless the hook supplies usage. Codex session logs also report usage-limit windows when present. Other providers show limits as unavailable rather than estimating them. Your hero gains XP from them.
 
 ## Platforms
 
@@ -27,6 +27,10 @@ Sign in to the Clash of Meat web app and open its setup page.
 - **Windows:** download the setup `.exe` from the setup page and run it. It installs for your user only.
 
 To remove the client on a Mac, run `clashofmeat uninstall`. On Windows, uninstall it from Settings > Apps.
+
+## Multiple accounts
+
+In client Settings, expand **Additional accounts** and add the local folder used by each Claude Code, Codex or Gemini CLI account. The normal account remains enabled. Use the account's `.claude` or `.codex` directory; for Gemini, use the home containing `.gemini` (the value of `GEMINI_CLI_HOME`). Up to eight extra homes per agent are watched simultaneously. Removing a home stops collecting it and preserves its queued counts. Account folder paths stay local; uploads use opaque profile identifiers.
 
 ## Privacy
 
