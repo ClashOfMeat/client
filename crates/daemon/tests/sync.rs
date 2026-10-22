@@ -795,14 +795,14 @@ fn friends_are_fetched_with_the_installation_token_and_cleaned() {
 #[test]
 fn send_visit_posts_the_target_emote_and_request_id_and_keeps_the_server_message() {
     let server = Server::start(vec![
-        Reply::ok(json!({"id": ID, "target": "gab", "expiresAt": NOW, "emote": "wave"})),
+        Reply::ok(json!({"id": ID, "target": "gab", "expiresAt": NOW, "emote": "flex"})),
         Reply::error(409, json!({"error": "Gab's app isn't running."})),
     ]);
     let client = client(&server);
     let request_id = clashofmeat_core::ids::random_uuid();
     assert_eq!(
-        client.send_visit("gab", "wave", &request_id).unwrap()["emote"],
-        "wave"
+        client.send_visit("gab", "flex", &request_id).unwrap()["emote"],
+        "flex"
     );
     let Err(ApiError::Status { status, detail, .. }) = client.send_visit("gab", "kiss", ID) else {
         panic!("expected a status error");
@@ -815,7 +815,7 @@ fn send_visit_posts_the_target_emote_and_request_id_and_keeps_the_server_message
     assert_eq!(requests[0].path, "/api/companion/kiss");
     assert_eq!(
         requests[0].body,
-        json!({"target": "gab", "requestId": request_id, "emote": "wave"})
+        json!({"target": "gab", "requestId": request_id, "emote": "flex"})
     );
 }
 
@@ -912,8 +912,8 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
         "gab"
     );
     assert_eq!(
-        call(2, "send_visit", json!({"target": "gab", "emote": "laugh"}))["result"]["emote"],
-        "laugh"
+        call(2, "send_visit", json!({"target": "gab", "emote": "flex"}))["result"]["emote"],
+        "flex"
     );
     let refused = call(3, "send_visit", json!({"target": "tom", "emote": "kiss"}));
     assert_eq!(refused["error"]["code"], "not_friend");
@@ -921,7 +921,7 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
         refused["error"]["message"],
         "Only friends can receive your hero"
     );
-    let busy = call(8, "send_visit", json!({"target": "lea", "emote": "wave"}));
+    let busy = call(8, "send_visit", json!({"target": "lea", "emote": "angry"}));
     assert_eq!(busy["error"]["code"], "unavailable");
     assert_eq!(
         busy["error"]["message"],

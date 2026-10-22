@@ -43,13 +43,13 @@ test('aura and visitor keep old one-shot timing with pixel travel', () => {
   assert.equal(visitPose(animation, 7000, -84, -200).facing, 'left')
 })
 
-test('a visitor plays its emote between walking in and out, or a kiss without the clip', () => {
-  const waving = { clips: { ...animation.clips, wave: { frames: [5, 6], durations: [100, 100] } } }
-  assert.equal(visitPose(waving, 1000, 84, 240, 'wave').state, 'walk')
-  assert.deepEqual([1500, 1600, 1700].map(ms => visitPose(waving, ms, 84, 240, 'wave').frame), [5, 6, 5])
-  assert.equal(visitPose(waving, 3000, 84, 240, 'wave').state, 'wave')
-  assert.equal(visitPose(waving, 7000, 84, 240, 'wave').state, 'walk')
-  assert.equal(visitPose(animation, 3000, 84, 240, 'laugh').state, 'kiss')
+test('a visitor plays flex once between walking in and out, or a kiss without the clip', () => {
+  const flexing = { clips: { ...animation.clips, flex: { frames: [5, 6], durations: [1100, 1105] } } }
+  assert.equal(visitPose(flexing, 1000, 84, 240, 'flex').state, 'walk')
+  assert.deepEqual([1500, 2600, 3705, 5000].map(ms => visitPose(flexing, ms, 84, 240, 'flex').frame), [5, 6, 6, 6])
+  assert.equal(visitPose(flexing, 3000, 84, 240, 'flex').state, 'flex')
+  assert.equal(visitPose(flexing, 7000, 84, 240, 'flex').state, 'walk')
+  assert.equal(visitPose(animation, 3000, 84, 240, 'wave').state, 'kiss')
   assert.equal(visitPose(animation, 3000, 84, 240).state, 'kiss')
 })
 

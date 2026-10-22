@@ -16,10 +16,9 @@ pub fn animation() -> Value {
             "sit": clip(&[6, 7], 650),
             "talk": clip(&[8, 9], 160),
             "kiss": clip(&[10, 11], 350),
-            "wave": clip(&[12, 13], 240),
-            "laugh": clip(&[14, 15], 220),
             "angry": clip(&[16, 17], 300),
-            "victory": clip(&[18, 19, 20, 23], 180),
+            "flex": clip(&[18, 19, 20, 23], 180),
+            "grab": clip(&[12, 13, 14, 15], 180),
             "sleep": clip(&[21, 22], 850)
         }
     })
