@@ -14,17 +14,13 @@ const COMMAND_SUFFIXES: &[&str] = &[""];
 /// Reports whether any manifest detection hint is present.
 pub fn detect(env: &Env, manifest: &Manifest) -> bool {
     let path = env.vars.get("PATH").map_or("", String::as_str);
-    let command_found = manifest
-        .detect
-        .commands
-        .iter()
-        .any(|command| {
-            std::env::split_paths(path).any(|dir| {
-                COMMAND_SUFFIXES
-                    .iter()
-                    .any(|suffix| dir.join(format!("{command}{suffix}")).is_file())
-            })
-        });
+    let command_found = manifest.detect.commands.iter().any(|command| {
+        std::env::split_paths(path).any(|dir| {
+            COMMAND_SUFFIXES
+                .iter()
+                .any(|suffix| dir.join(format!("{command}{suffix}")).is_file())
+        })
+    });
     let app_found = manifest.detect.apps.iter().any(|app| {
         let name = if app.ends_with(".app") {
             app.to_string()

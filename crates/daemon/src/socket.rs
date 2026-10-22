@@ -1,8 +1,8 @@
 //! Local newline-delimited JSON socket transport.
 
+use clashofmeat_core::ipc::{UnixListener, UnixStream};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
-use clashofmeat_core::ipc::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

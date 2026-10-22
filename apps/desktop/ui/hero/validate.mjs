@@ -1,5 +1,7 @@
-export const VISIT_EMOTES = ['kiss', 'wave', 'laugh', 'victory', 'angry']
-export const COMPANION_STATES = ['idle', 'walk', 'sit', 'talk', 'kiss', 'wave', 'laugh', 'angry', 'victory', 'sleep']
+export const VISIT_EMOTES = ['flex', 'kiss', 'angry']
+export const COMPANION_STATES = ['idle', 'walk', 'sit', 'talk', 'kiss', 'angry', 'flex', 'grab', 'sleep']
+export const LEAGUES = ['bronze', 'silver', 'gold', 'crystal', 'mythic', 'legend', 'goose']
+export const leagueOrBronze = value => LEAGUES.includes(value) ? value : 'bronze'
 
 const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/
 const PNG_SIGNATURE = '\x89PNG\r\n\x1a\n'
@@ -83,5 +85,5 @@ export function validateVisit(value, now = Date.now()) {
   const clean = text => text.replace(/[\x00-\x1f\x7f]/g, '')
   // Older servers only send kisses; an emote this client doesn't know plays as one too.
   const emote = VISIT_EMOTES.includes(value.emote) ? value.emote : 'kiss'
-  return { id: value.id, name: clean(value.name), guild: value.guild === null ? null : clean(value.guild), expiresAt: value.expiresAt, emote, character }
+  return { id: value.id, name: clean(value.name), guild: value.guild === null ? null : clean(value.guild), expiresAt: value.expiresAt, emote, league: leagueOrBronze(value.league), character }
 }
