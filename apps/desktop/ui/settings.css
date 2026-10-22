@@ -22,7 +22,9 @@ button:disabled { opacity: .5; cursor: default; }
 .provider-tokens { text-align: right; min-width: 36px; color: #777780; font-size: 12px; }
 .provider button { padding: 2px 6px; font-size: 11px; }
 .provider input { margin: 0; }
-.hero-settings { display: flex; align-items: center; gap: 8px; }
+.hero-settings { display: flex; align-items: center; gap: 6px; }
+.hero-settings label { white-space: nowrap; }
+.hero-settings label[for="show-hero"] { margin-right: 12px; }
 .hero-settings label[for="screen"] { margin-left: auto; }
 .hero-settings select { max-width: 132px; }
 .about { display: flex; align-items: baseline; gap: 10px; }
