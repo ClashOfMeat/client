@@ -114,16 +114,35 @@ fn follow_cursor(window: WebviewWindow) {
     thread::spawn(move || {
         let mut ignoring = true;
         let mut clicks = left_clicks();
+        let mut cursor_scale = None;
+        let mut tick = 0u32;
         loop {
             thread::sleep(Duration::from_millis(50));
             let visible = window.is_visible().unwrap_or(false);
+            // On macOS, tao scales the cursor by the main display's factor but the window's
+            // position by its own display's one, so on a second screen with another factor (a 1x
+            // monitor beside a Retina laptop) the two disagree. Each goes back to points with its
+            // own factor; the main display's is read again every 2 s in case displays change.
+            if tick.is_multiple_of(40) {
+                cursor_scale = if cfg!(target_os = "macos") {
+                    window
+                        .primary_monitor()
+                        .ok()
+                        .flatten()
+                        .map(|monitor| monitor.scale_factor())
+                } else {
+                    None
+                };
+            }
+            tick = tick.wrapping_add(1);
             let local = (|| {
                 let cursor = window.cursor_position().ok()?;
                 let origin = window.outer_position().ok()?;
                 let scale = window.scale_factor().ok()?;
+                let cursor_scale = cursor_scale.unwrap_or(scale);
                 Some((
-                    (cursor.x - origin.x as f64) / scale,
-                    (cursor.y - origin.y as f64) / scale,
+                    cursor.x / cursor_scale - origin.x as f64 / scale,
+                    cursor.y / cursor_scale - origin.y as f64 / scale,
                 ))
             })();
             let inside = visible
