@@ -1,0 +1,67 @@
+README.md
+  s_0314855daebb10::t_8bd2bce5e9d2e7 14,31-34
+apps/desktop/src-tauri/src/settings.rs
+  s_e36d0795ec67ac::t_e9aec8d5f71477 120,131
+apps/desktop/ui/overlay/tests/layout.test.mjs
+  s_e36d0795ec67ac::t_709217201d7f30 3,30-31
+apps/desktop/ui/settings.css
+  s_e36d0795ec67ac::t_a8cd947ec21b50 50-54
+apps/desktop/ui/settings.html
+  s_e36d0795ec67ac::t_3c6d3bd4864880 29-40
+apps/desktop/ui/settings/view.mjs
+  s_0314855daebb10::t_de7166353f08eb 31-32,66-69
+crates/cli/tests/e2e.rs
+  s_f5469caeba39e5::t_073584cc4b81d2 71-75,126-128,138-142
+crates/daemon/src/config.rs
+  s_e36d0795ec67ac::t_c3d58c306dc402 116-158
+crates/daemon/src/engine.rs
+  s_e36d0795ec67ac::t_81c899d4ba79e8 113,120-123,126-184,371-377,380-422,430-495
+crates/daemon/src/run.rs
+  s_f5469caeba39e5::t_908c701f48a719 280,294-304,395-404,641-688,865,867-869,877-884,887-888
+crates/daemon/src/sync.rs
+  s_f5469caeba39e5::t_b13b8497c3c014 237-251,299-307,324,337-352,354-355,359
+crates/daemon/src/watch.rs
+  s_f5469caeba39e5::t_5d3adf21dce5f0 58-59,62-70,72-84,89-95
+crates/daemon/tests/engine.rs
+  s_e36d0795ec67ac::t_68da35d2068c9a 482-539
+crates/daemon/tests/sync.rs
+  s_f5469caeba39e5::t_c631ff15e9b019 544,964-1050
+crates/providers/src/gemini.rs
+  s_0314855daebb10::t_1e49d9a5a9b742 141-153,375
+crates/providers/tests/parity_gemini.rs
+  s_f5469caeba39e5::t_cd6bc96cbb1d0a 12-24
+scripts/check.sh
+  s_f5469caeba39e5::t_c42a8d75d44454 13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a928391f1352a5c34f593f08b81ab3de85b5557",
+  "prompts": {},
+  "sessions": {
+    "s_0314855daebb10": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15f9c-aa38-7773-b49e-b67323ebc6e7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    },
+    "s_e36d0795ec67ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01a15f9c-aa38-7773-b49e-b67323ebc6e7",
+        "model": "unknown"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    },
+    "s_f5469caeba39e5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71b7d72e-deaa-452b-8939-dcf305e1d36c",
+        "model": "unknown"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
