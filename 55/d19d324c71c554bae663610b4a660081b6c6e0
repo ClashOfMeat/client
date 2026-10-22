@@ -1,0 +1,61 @@
+apps/desktop/ui/hero/tests/flex.test.mjs
+  s_c6fb21e5153431::t_488cb84c8526c4 1-2,4-10,13-15,17-22,34
+  s_c6fb21e5153431::t_cfe225472ad310 23-33
+  s_c6fb21e5153431::t_d4bf4c16b00916 3,11-12,16
+apps/desktop/ui/overlay.mjs
+  s_c6fb21e5153431::t_3be5e226e06b5d 166-169,173,213
+  s_c6fb21e5153431::t_8c7cc9bc5129f6 387-388,391-396,542
+  s_c6fb21e5153431::t_3da7df22d8c961 374-375
+  s_c6fb21e5153431::t_b053faa79ab1cd 366-367,376
+  s_c6fb21e5153431::t_271f6ccd7a3690 352-365,368-373,377,440-441,444,521-522,539-541
+  s_c6fb21e5153431::t_798e5042bd2bab 301-303
+  s_c6fb21e5153431::t_ae3fd68398f64a 339,347-348,442-443,456-459
+  s_c6fb21e5153431::t_62b04dd486a5ad 7
+  s_c6fb21e5153431::t_51d75387625e66 6,29,32,57-68,185,295,300,378
+  s_c6fb21e5153431::t_3a374d940280ee 379
+crates/daemon/src/sync.rs
+  s_c6fb21e5153431::t_ae9faf7815d285 552
+apps/desktop/ui/hero/tests/activity.test.mjs
+  s_c6fb21e5153431::t_ea8db0b41c3bcb 28-29,110,112,116-117,133-142,148,238,240
+apps/desktop/ui/hero/validate.mjs
+  s_c6fb21e5153431::t_d144087b596d6d 1-4,88
+crates/daemon/examples/fake/sprite.rs
+  s_c6fb21e5153431::t_24e4803c38fad2 20-21
+apps/desktop/ui/hero/tests/effects.test.mjs
+  s_c6fb21e5153431::t_14826536e9025a 46-52
+apps/desktop/ui/hero/effects.mjs
+  s_c6fb21e5153431::t_8bf4e6dc72e93a 32-35
+crates/daemon/tests/sync.rs
+  s_c6fb21e5153431::t_cc0090769ed0a3 798,804-805,818,915-916,924
+apps/desktop/ui/hero/flex.mjs
+  s_c6fb21e5153431::t_7b98472f0a3b8f 1-6,22-30,46-55
+  s_c6fb21e5153431::t_84ffcf2b5fed50 33-42
+  s_c6fb21e5153431::t_a9be62dee560b3 7-21,31-32,43-45
+apps/desktop/ui/hero/tests/frames.test.mjs
+  s_c6fb21e5153431::t_b915c8bb0e5bc6 10,45-53
+  s_c6fb21e5153431::t_87d9765279679e 54-55
+apps/desktop/ui/assets/README.md
+  s_c6fb21e5153431::t_6617782dee7917 1-9
+apps/desktop/ui/hero/frames.mjs
+  s_c6fb21e5153431::t_0d49cb1afa8769 3-13,17,29-30,42
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_c6fb21e5153431::t_c4f5017d3947d4 3,70-73,75
+scripts/check-hero-emote-payload.mjs
+  s_c6fb21e5153431::t_d4aea279ffc963 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "55d19d324c71c554bae663610b4a660081b6c6e0",
+  "prompts": {},
+  "sessions": {
+    "s_c6fb21e5153431": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16003-b24f-7a40-ba29-f242b8e4691d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
