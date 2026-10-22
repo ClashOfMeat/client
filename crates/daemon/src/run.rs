@@ -122,6 +122,8 @@ enum SyncCommand {
 /// Starts a daemon and returns a handle for shutdown.
 pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
     let home = config::home(&opts.env);
+    // The Cursor hook writes its spool here; watched from the start, its first record isn't missed.
+    let _ = fs::create_dir_all(home.join("spool"));
     let bound = BoundSocket::bind(&home)?;
     let socket_path = bound.path().to_path_buf();
     let mut store = Store::open(config::store_path(&opts.env))?;
@@ -369,7 +371,7 @@ fn main_loop(
     }
 }
 
-/// Scans, broadcasts any activity change and returns the files written in the last half hour.
+/// Scans, broadcasts any activity change and returns the files written in the last six hours.
 fn scan_and_broadcast(
     engine: &mut Engine,
     store: &mut Store,
@@ -393,9 +395,9 @@ fn scan_and_broadcast(
     recent
 }
 
-/// Provider files written in the last half hour, with the size last seen. Codex keeps its
-/// session file open, and macOS reports no change to an open file until it is closed, so the
-/// main loop checks these few sizes every 2 s on top of the watcher.
+/// Provider files written in the last six hours, with the size last seen. Codex keeps its
+/// session file open, even through long pauses, and macOS reports no change to an open file
+/// until it is closed, so the main loop checks these few sizes every 2 s on top of the watcher.
 #[derive(Default)]
 struct OpenFiles(HashMap<PathBuf, (u64, Instant)>);
 
@@ -409,10 +411,10 @@ impl OpenFiles {
         }
     }
 
-    /// The files that grew since the last look. One quiet for half an hour drops out.
+    /// The files that grew since the last look. One quiet for six hours drops out.
     fn grown(&mut self) -> Vec<PathBuf> {
         self.0
-            .retain(|_, (_, at)| at.elapsed() < Duration::from_secs(1800));
+            .retain(|_, (_, at)| at.elapsed() < Duration::from_secs(6 * 3600));
         let mut grown = Vec::new();
         for (path, (len, at)) in &mut self.0 {
             let Ok(metadata) = fs::metadata(path) else {

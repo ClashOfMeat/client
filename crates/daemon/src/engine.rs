@@ -26,7 +26,7 @@ pub struct ScanReport {
     pub records: u64,
     pub events_saved: usize,
     pub activity_changed: bool,
-    /// Files written in the last half hour. A writer that keeps its file open (Codex) raises no
+    /// Files written in the last six hours. A writer that keeps its file open (Codex) raises no
     /// watcher event on macOS until it closes the file, so the daemon polls these for growth.
     pub recent: Vec<PathBuf>,
 }
@@ -95,7 +95,7 @@ impl Engine {
             / 1_000_000;
         let since_ms = i64::try_from(since_ms).unwrap_or(i64::MIN);
         let recent_ms =
-            i64::try_from((now - Duration::minutes(30)).unix_timestamp_nanos() / 1_000_000)
+            i64::try_from((now - Duration::hours(6)).unix_timestamp_nanos() / 1_000_000)
                 .unwrap_or(i64::MIN);
         let off: HashSet<String> = store
             .meta("providers_off")?

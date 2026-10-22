@@ -243,8 +243,11 @@ impl Provider for Cursor {
             }
         }
 
+        // Only the stop hook ends the turn; the prompt, tool and response hooks keep it busy.
         signals.push(turn(&session_id, &at, TurnPhase::Step));
-        signals.push(turn(&session_id, &at, TurnPhase::Stop));
+        if event_type == Some("stop") {
+            signals.push(turn(&session_id, &at, TurnPhase::Stop));
+        }
         signals
     }
 }
@@ -299,6 +302,20 @@ mod tests {
                 ids::session_uuid("cursor", "conversation-1")
             );
             assert_eq!(turn.at, "2026-10-02T12:00:00.000Z");
+        }
+    }
+
+    #[test]
+    fn hooks_before_stop_keep_the_session_busy() {
+        for hook in ["beforeSubmitPrompt", "postToolUse", "afterAgentResponse"] {
+            let phases: Vec<_> = parse(base(hook))
+                .into_iter()
+                .filter_map(|signal| match signal {
+                    Signal::Turn(turn) => Some(turn.phase),
+                    Signal::Event(_) | Signal::Observer(_) => None,
+                })
+                .collect();
+            assert_eq!(phases, vec![TurnPhase::Step], "{hook}");
         }
     }
 
