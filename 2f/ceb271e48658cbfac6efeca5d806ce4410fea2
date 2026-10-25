@@ -1,0 +1,41 @@
+crates/core/src/signal.rs
+  s_3c65b42bf834d6::t_fbc1d82a9d61a0 37-39
+crates/core/src/store/migrations.rs
+  s_3c65b42bf834d6::t_6fbe2d6ff880b2 2-3,81-85
+crates/core/src/store/mod.rs
+  s_3c65b42bf834d6::t_6a610b21f1a4a9 59-60,80,434-435,439,467,496,515
+crates/daemon/src/engine.rs
+  s_3c65b42bf834d6::t_31a83c849d1060 418
+crates/daemon/src/sync.rs
+  s_3c65b42bf834d6::t_893e4a8fa6a843 299,392-395,569-570,591-606
+crates/daemon/tests/engine.rs
+  s_3c65b42bf834d6::t_ed25cd9efa9d92 56
+crates/daemon/tests/socket.rs
+  s_3c65b42bf834d6::t_617c0eea4c6d2a 74
+crates/daemon/tests/sync.rs
+  s_3c65b42bf834d6::t_874cf72c1b0693 191,1242-1279
+crates/providers/src/claude_code.rs
+  s_3c65b42bf834d6::t_d6389de619df75 219-225,237,373-406
+crates/providers/src/codex.rs
+  s_3c65b42bf834d6::t_4ae4a6b6ded22b 263,276,320,426
+crates/providers/src/cursor.rs
+  s_3c65b42bf834d6::t_bcf8ea6399d3bd 99
+crates/providers/src/gemini.rs
+  s_3c65b42bf834d6::t_95e5a7afbd02f4 152,252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2fceb271e48658cbfac6efeca5d806ce4410fea2",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
