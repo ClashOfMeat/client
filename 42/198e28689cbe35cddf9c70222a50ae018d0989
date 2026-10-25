@@ -1,0 +1,27 @@
+apps/desktop/src-tauri/src/daemon.rs
+  s_3c65b42bf834d6::t_d30bfe794ed611 195-197,209-212,214-216,282-287
+crates/daemon/src/config.rs
+  s_3c65b42bf834d6::t_0875ac38fd42e8 153-156,161-214
+crates/daemon/src/engine.rs
+  s_3c65b42bf834d6::t_0af03378e69f2e 113
+crates/daemon/src/run.rs
+  s_3c65b42bf834d6::t_9fd907e7fea4aa 686
+crates/daemon/tests/engine.rs
+  s_3c65b42bf834d6::t_727a8c218482a4 506,535-547
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "42198e28689cbe35cddf9c70222a50ae018d0989",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
