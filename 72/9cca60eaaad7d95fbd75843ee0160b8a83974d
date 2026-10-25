@@ -1,0 +1,29 @@
+apps/desktop/ui/overlay.mjs
+  s_3c65b42bf834d6::t_efacfc6d71cf63 11,35-36,103,613,618-625,635
+apps/desktop/ui/overlay/predict.mjs
+  s_3c65b42bf834d6::t_d2353838e3177d 1-25
+apps/desktop/ui/overlay/tests/predict.test.mjs
+  s_3c65b42bf834d6::t_1be073ef09a573 1-26
+crates/core/src/store/mod.rs
+  s_3c65b42bf834d6::t_7daf5d2b2d3591 164-186,578-594
+crates/daemon/src/run.rs
+  s_3c65b42bf834d6::t_0a250b230a94a0 254,299,315,333,338-341,386,398,414,424-430,448-468,520,549
+crates/daemon/src/sync.rs
+  s_3c65b42bf834d6::t_5c7ce31540f3e8 698-700,712,870-877
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "729cca60eaaad7d95fbd75843ee0160b8a83974d",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
