@@ -1,0 +1,31 @@
+crates/daemon/src/cadence.rs
+  s_3c65b42bf834d6::t_8c72a44c53bd23 162-165
+  s_3c65b42bf834d6::t_94084d97f3ac56 1-161,166-328
+  s_3c65b42bf834d6::t_44957858aa2d87 329-376
+crates/daemon/src/lib.rs
+  s_3c65b42bf834d6::t_8172b61ba4b4c9 1
+crates/daemon/src/live.rs
+  s_3c65b42bf834d6::t_a22eee7540488b 48-49,57-58,87-88,96
+crates/daemon/src/run.rs
+  s_3c65b42bf834d6::t_eed32789cc68f2 18,86-94,174,179-180,204,240,273-274,277-278,916,925-927,975,984,1054-1060,1062-1067,1069,1102-1112,1116-1126
+crates/daemon/src/sync.rs
+  s_3c65b42bf834d6::t_ed1dc37f722e43 424-433,519-535,653-655,687,689-691,704-755,782-789
+crates/daemon/tests/sync.rs
+  s_3c65b42bf834d6::t_699640985ceb26 588-595,1055-1112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "da1928f6f2239c2947caf96b575f30c9b8a65a96",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
