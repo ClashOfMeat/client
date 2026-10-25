@@ -1,0 +1,23 @@
+apps/desktop/src-tauri/src/updater.rs
+  s_3c65b42bf834d6::t_cb3f5f2b8abacb 42-46,50-61,217-228,230-237,243,246,261,295-299,310-313,355-382
+docs/building.md
+  s_3c65b42bf834d6::t_7a636cf301dadd 164-167,174-175,177
+scripts/e2e-mac.sh
+  s_3c65b42bf834d6::t_21d86beffa301f 106-108,157,159,182-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ad1a61fe43c42c9cf90e6a219f367e2a50dfc457",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
