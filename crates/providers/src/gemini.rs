@@ -138,6 +138,20 @@ fn observe(message: &Value, cx: &Cx, record: &Record) -> Vec<Signal> {
     let task = TaskRef::Active(context.clone());
     let subagent = cx.file_state.get("subagent").and_then(Value::as_bool) == Some(true);
     if message_type == Some("user") && !subagent {
+        if let Some(text) = message["content"].as_str() {
+            signals.push(Signal::Event(Event {
+                identity: format!("gemini:prompt:{task_key}"),
+                key: "prompt_chars".into(),
+                value: text.chars().count() as u64,
+                kind: EventKind::Counter,
+                session_id: session_uuid.clone(),
+                at: at.clone(),
+                resets_at: None,
+                model: None,
+                provider: Some("gemini".into()),
+                agent_id: None,
+            }));
+        }
         signals.push(Signal::Observer(Observation::Start {
             context,
             task_key: task_key.clone(),
@@ -235,6 +249,7 @@ fn observe(message: &Value, cx: &Cx, record: &Record) -> Vec<Signal> {
             resets_at: None,
             model: None,
             provider: Some("gemini".into()),
+            agent_id: None,
         }));
     }
     signals
@@ -359,7 +374,7 @@ mod tests {
         assert_eq!(
             signals
                 .iter()
-                .filter(|signal| !matches!(signal, Signal::Observer(_)))
+                .filter(|signal| matches!(signal, Signal::Turn(_)))
                 .count(),
             2
         );

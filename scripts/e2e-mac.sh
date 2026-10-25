@@ -103,7 +103,9 @@ base="http://localhost:$port/releases/download"
 (
   export TAURI_SIGNING_PRIVATE_KEY_PATH="$work/e2e.key" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=
   CLASHOFMEAT_UPDATE_PUBKEY=$(cat "$work/e2e.key.pub")
-  export CLASHOFMEAT_UPDATE_PUBKEY
+  # Release builds read both overrides only at build time; each step below swaps this file's content.
+  CLASHOFMEAT_UPDATE_URL="$base/desktop-v0.1.1/update-e2e.json"
+  export CLASHOFMEAT_UPDATE_PUBKEY CLASHOFMEAT_UPDATE_URL
   # Test builds only: the local server is plain http, which the updater refuses unless this is set.
   config="{\"identifier\":\"$identifier\",\"plugins\":{\"updater\":{\"dangerousInsecureTransportProtocol\":true}}}"
   for version in 0.1.0 0.1.1; do
@@ -152,8 +154,9 @@ kill "$connect" 2>/dev/null || true
 # is downloaded and verified.
 python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); d["minimum"] = "0.1.1"; json.dump(d, open(sys.argv[2], "w"))' \
   "$releases/desktop-v0.1.1/update.json" "$releases/desktop-v0.1.1/update-required.json"
+cp "$releases/desktop-v0.1.1/update-required.json" "$releases/desktop-v0.1.1/update-e2e.json"
 executable="$bundle/Contents/MacOS/clashofmeat-desktop"
-CLASHOFMEAT_UPDATE_URL="$base/desktop-v0.1.1/update-required.json" "$executable" >"$work/app.log" 2>&1 </dev/null &
+"$executable" >"$work/app.log" 2>&1 </dev/null &
 app=$!
 pids+=("$app")
 until_ok 60 grep -q "GET /releases/download/desktop-v0.1.1/Clash.of.Meat_0.1.1_${arch}.app.tar.gz" "$work/server.log" ||
@@ -176,7 +179,8 @@ d["version"] = "0.1.2"
 d["platforms"]["darwin-aarch64"]["signature"], d["platforms"]["darwin-x86_64"]["signature"] = (
     d["platforms"]["darwin-x86_64"]["signature"], d["platforms"]["darwin-aarch64"]["signature"])
 json.dump(d, open(sys.argv[2], "w"))' "$releases/desktop-v0.1.1/update.json" "$releases/desktop-v0.1.1/update-bad.json"
-CLASHOFMEAT_UPDATE_URL="$base/desktop-v0.1.1/update-bad.json" "$executable" >"$work/app-bad.log" 2>&1 </dev/null &
+cp "$releases/desktop-v0.1.1/update-bad.json" "$releases/desktop-v0.1.1/update-e2e.json"
+"$executable" >"$work/app-bad.log" 2>&1 </dev/null &
 pids+=($!)
 until_ok 60 grep -q 'signature verification failed' "$work/app-bad.log" || { cat "$work/app-bad.log" >&2; die "a bad signature was not refused"; }
 [[ $(plist_version) == 0.1.1 ]] || die "the bad update changed the installed app"

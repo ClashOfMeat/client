@@ -217,6 +217,68 @@ impl Provider for Codex {
                         turn(session_id, TurnPhase::Stop, completed),
                     ];
                 }
+                Some("token_count") => {
+                    let mut signals = Vec::new();
+                    for (window, minutes, key, hit) in [
+                        (
+                            "primary",
+                            300,
+                            "five_hour_percent",
+                            "five_hour_limit_hit_count",
+                        ),
+                        (
+                            "secondary",
+                            10080,
+                            "seven_day_percent",
+                            "seven_day_limit_hit_count",
+                        ),
+                    ] {
+                        let limit = &payload["rate_limits"][window];
+                        if limit["window_minutes"].as_u64() != Some(minutes) {
+                            continue;
+                        }
+                        let Some(percent) = limit["used_percent"]
+                            .as_f64()
+                            .filter(|p| p.is_finite() && *p >= 0.0 && *p <= 100.0)
+                        else {
+                            continue;
+                        };
+                        let Some(reset) = limit["resets_at"]
+                            .as_i64()
+                            .and_then(|t| OffsetDateTime::from_unix_timestamp(t).ok())
+                            .and_then(|t| t.format(&Rfc3339).ok())
+                        else {
+                            continue;
+                        };
+                        signals.push(Signal::Event(Event {
+                            identity: format!("codex:quota:{session_id}:{window}:{at}"),
+                            key: key.into(),
+                            value: percent.round() as u64,
+                            kind: EventKind::Reading,
+                            session_id: session_id.clone(),
+                            at: at.clone(),
+                            resets_at: Some(reset.clone()),
+                            model: None,
+                            provider: Some("codex".into()),
+                            agent_id: None,
+                        }));
+                        if percent >= 100.0 {
+                            signals.push(Signal::Event(Event {
+                                identity: format!("codex:quota-hit:{window}:{reset}"),
+                                key: hit.into(),
+                                value: 1,
+                                kind: EventKind::Counter,
+                                session_id: session_id.clone(),
+                                at: at.clone(),
+                                resets_at: None,
+                                model: None,
+                                provider: Some("codex".into()),
+                                agent_id: None,
+                            }));
+                        }
+                    }
+                    return signals;
+                }
                 Some("turn_aborted") => {
                     return vec![
                         Signal::Observer(Observation::Finish {
@@ -233,6 +295,32 @@ impl Provider for Codex {
         }
         if kind == Some("response_item") {
             let mut signals = Vec::new();
+            if payload["type"] == "message"
+                && payload["role"] == "user"
+                && cx.file_state.get("subagent") != Some(&Value::Bool(true))
+            {
+                let chars = payload["content"].as_array().map_or(0, |parts| {
+                    parts
+                        .iter()
+                        .filter_map(|part| part["text"].as_str())
+                        .map(|text| text.chars().count() as u64)
+                        .sum()
+                });
+                if chars > 0 && chars <= ids::MAX_OBSERVATION_VALUE {
+                    signals.push(Signal::Event(Event {
+                        identity: format!("codex:prompt:{session_id}:{at}"),
+                        key: "prompt_chars".into(),
+                        value: chars,
+                        kind: EventKind::Counter,
+                        session_id: session_id.clone(),
+                        at: at.clone(),
+                        resets_at: None,
+                        model: None,
+                        provider: Some("codex".into()),
+                        agent_id: None,
+                    }));
+                }
+            }
             if matches!(
                 payload.get("type").and_then(Value::as_str),
                 Some("function_call" | "custom_tool_call")
@@ -335,6 +423,7 @@ impl Provider for Codex {
                 resets_at: None,
                 model: None,
                 provider: Some("codex".into()),
+                agent_id: None,
             }));
         }
         signals.push(turn(session_id, TurnPhase::Step, at));
@@ -459,5 +548,72 @@ mod tests {
             0
         );
         assert_eq!(events[0].at, "2026-10-01T09:00:02.000Z");
+    }
+}
+
+#[cfg(test)]
+mod quota_tests {
+    use super::*;
+    use serde_json::{json, Map};
+    use time::macros::datetime;
+    #[test]
+    fn documented_quota_windows_produce_readings_and_idempotent_hits() {
+        let value = json!({"type":"event_msg","timestamp":"2026-10-20T12:00:00Z","payload":{
+        "type":"token_count","rate_limits":{
+            "primary":{"used_percent":100.0,"window_minutes":300,"resets_at":1792501200},
+            "secondary":{"used_percent":45.0,"window_minutes":10080,"resets_at":1793000000}
+        }}});
+        let record = Record {
+            source: 0,
+            file_key: "session.jsonl".into(),
+            offset: 0,
+            value,
+        };
+        let signals = Codex.parse(
+            &record,
+            &mut Cx {
+                file_state: &mut Map::new(),
+                now: datetime!(2026-10-20 12:00 UTC),
+            },
+        );
+        let events: Vec<_> = signals
+            .iter()
+            .filter_map(|s| {
+                if let Signal::Event(e) = s {
+                    Some(e)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(events.len(), 3);
+        assert_eq!(
+            events
+                .iter()
+                .find(|e| e.key == "five_hour_percent")
+                .unwrap()
+                .value,
+            100
+        );
+        assert_eq!(
+            events
+                .iter()
+                .find(|e| e.key == "seven_day_percent")
+                .unwrap()
+                .value,
+            45
+        );
+        assert_eq!(
+            events
+                .iter()
+                .find(|e| e.key == "five_hour_limit_hit_count")
+                .unwrap()
+                .value,
+            1
+        );
+        assert!(events
+            .iter()
+            .filter(|e| e.kind == EventKind::Reading)
+            .all(|e| e.resets_at.is_some()));
     }
 }

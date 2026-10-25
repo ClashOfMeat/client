@@ -83,6 +83,10 @@ pub fn install(env: &Env, app: &str, no_launch_agent: bool) -> Result<()> {
 }
 
 pub fn uninstall(env: &Env, keep_data: bool) -> Result<()> {
+    // Before anything else, while the token and the app address are still here.
+    if clashofmeat_daemon::sync::revoke_installation(env, env!("CARGO_PKG_VERSION"))? {
+        println!("Disconnected this computer from Clash of Meat.");
+    }
     if cfg!(target_os = "macos") {
         remove_mac_install(env)?;
     } else {
@@ -156,7 +160,7 @@ pub(crate) fn launchctl(env: &Env, args: &[&str]) -> Result<()> {
 }
 
 pub(crate) fn uid() -> Result<String> {
-    let output = Command::new("id").arg("-u").output()?;
+    let output = Command::new("/usr/bin/id").arg("-u").output()?;
     if !output.status.success() {
         bail!("could not determine user ID");
     }
@@ -185,5 +189,14 @@ fn xml(value: &str) -> String {
 
 fn plist(env: &Env, exe: &Path) -> String {
     let log = config::home(env).join("logs/daemon.log");
-    format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n<key>Label</key><string>{LABEL}</string>\n<key>ProgramArguments</key><array><string>{}</string><string>daemon</string></array>\n<key>RunAtLoad</key><true/>\n<key>KeepAlive</key><true/>\n<key>ProcessType</key><string>Background</string>\n<key>StandardOutPath</key><string>{}</string>\n<key>StandardErrorPath</key><string>{}</string>\n<key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string><key>HOME</key><string>{}</string></dict>\n</dict></plist>\n", xml(&exe.to_string_lossy()), xml(&log.to_string_lossy()), xml(&log.to_string_lossy()), xml(&env.home.to_string_lossy()))
+    // A LaunchAgent doesn't see the shell's environment, so agent folders moved with these
+    // variables are passed on as they were when `clashofmeat install` ran.
+    let agent_homes: String = ["CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_CLI_HOME"]
+        .iter()
+        .filter_map(|name| {
+            let value = env.vars.get(*name).filter(|value| !value.is_empty())?;
+            Some(format!("<key>{name}</key><string>{}</string>", xml(value)))
+        })
+        .collect();
+    format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict>\n<key>Label</key><string>{LABEL}</string>\n<key>ProgramArguments</key><array><string>{}</string><string>daemon</string></array>\n<key>RunAtLoad</key><true/>\n<key>KeepAlive</key><true/>\n<key>ProcessType</key><string>Background</string>\n<key>StandardOutPath</key><string>{}</string>\n<key>StandardErrorPath</key><string>{}</string>\n<key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string><key>HOME</key><string>{}</string>{agent_homes}</dict>\n</dict></plist>\n", xml(&exe.to_string_lossy()), xml(&log.to_string_lossy()), xml(&log.to_string_lossy()), xml(&env.home.to_string_lossy()))
 }

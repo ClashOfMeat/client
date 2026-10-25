@@ -56,6 +56,8 @@ pub struct StoredEvent {
     pub model: Option<String>,
     /// Originating provider, if present.
     pub provider: Option<String>,
+    /// The subagent that produced it, if known.
+    pub agent_id: Option<String>,
 }
 
 #[cfg(test)]
@@ -75,6 +77,7 @@ mod tests {
             resets_at: None,
             model: None,
             provider: Some("codex".into()),
+            agent_id: None,
         }
     }
 
@@ -115,6 +118,70 @@ mod tests {
                 0o600
             );
         }
+    }
+
+    #[test]
+    fn pending_counts_follow_acknowledgements_without_loading_rows() {
+        let mut store = Store::open_in_memory().unwrap();
+        let counter = event("count", "input_tokens", 10, "2026-01-01T00:00:00Z");
+        store
+            .save_events("codex", std::slice::from_ref(&counter), None)
+            .unwrap();
+        assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 1);
+        assert_eq!(store.pending_count(EventKind::Reading).unwrap(), 0);
+        store
+            .mark_synced(&[(counter.id(), counter.value, counter.at)])
+            .unwrap();
+        assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    }
+
+    #[test]
+    fn quota_status_uses_latest_unexpired_report() {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut first = event("quota-1", "five_hour_percent", 80, "2026-01-01T01:00:00Z");
+        first.kind = EventKind::Reading;
+        first.resets_at = Some("2026-01-01T05:00:00Z".into());
+        let mut latest = first.clone();
+        latest.identity = "quota-2".into();
+        latest.at = "2026-01-01T02:00:00Z".into();
+        latest.value = 90;
+        store.save_events("codex", &[first, latest], None).unwrap();
+        assert_eq!(
+            store.usage_limits("2026-01-01T03:00:00Z").unwrap(),
+            vec![(
+                "codex".into(),
+                "five_hour_percent".into(),
+                90,
+                "2026-01-01T05:00:00Z".into()
+            )]
+        );
+        assert!(store
+            .usage_limits("2026-01-01T05:00:00Z")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn effective_tokens_count_a_tenth_of_cache_reads_and_skip_refused_rows() {
+        let mut store = Store::open_in_memory().unwrap();
+        let at = "2026-01-01T12:00:00Z";
+        let rows = [
+            event("r", "input_tokens", 100, at),
+            event("r", "cache_read_tokens", 1000, at),
+            event("r", "cache_write_tokens", 10, at),
+            event("s", "output_tokens", 5, at),
+            event("old", "output_tokens", 7, "2025-12-01T00:00:00Z"),
+            event("p", "prompt_count", 1, at),
+        ];
+        store.save_events("codex", &rows, None).unwrap();
+        let since = "2026-01-01T00:00:00Z";
+        assert_eq!(store.effective_tokens_since(since, false).unwrap(), 215);
+        assert_eq!(store.effective_tokens_since(since, true).unwrap(), 0);
+        let snapshot = |e: &Event| (e.id(), e.value, e.at.clone());
+        store.mark_synced(&[snapshot(&rows[0])]).unwrap();
+        store.reject(&[snapshot(&rows[3])]).unwrap();
+        assert_eq!(store.effective_tokens_since(since, true).unwrap(), 100);
+        assert_eq!(store.effective_tokens_since(since, false).unwrap(), 210);
     }
 
     #[test]
@@ -387,11 +454,12 @@ impl Store {
         let mut changed = 0;
         {
             let mut statement = tx.prepare_cached(
-                "INSERT INTO events (id, session_id, at, key, value, resets_at, kind, source, model, provider)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'live', ?8, ?9)
+                "INSERT INTO events (id, session_id, at, key, value, resets_at, kind, source, model, provider, agent_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'live', ?8, ?9, ?10)
                  ON CONFLICT(id) DO UPDATE SET
                    value=MAX(events.value, excluded.value),
                    model=COALESCE(excluded.model, events.model),
+                   agent_id=COALESCE(excluded.agent_id, events.agent_id),
                    at=CASE WHEN events.key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens','model_step_count')
                      THEN MAX(events.at, excluded.at) ELSE events.at END,
                    synced=0
@@ -419,11 +487,25 @@ impl Store {
                     kind,
                     event.model,
                     event.provider,
+                    event.agent_id,
                 ])?;
             }
         }
         tx.commit()?;
         Ok(changed)
+    }
+
+    /// Counts queued observations without loading their payloads.
+    pub fn pending_count(&self, kind: EventKind) -> Result<u64> {
+        let kind = match kind {
+            EventKind::Counter => "counter",
+            EventKind::Reading => "reading",
+        };
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM events WHERE synced=0 AND kind=?1",
+            [kind],
+            |row| row.get(0),
+        )?)
     }
 
     /// Returns unsynced observations of one kind, oldest first.
@@ -434,7 +516,7 @@ impl Store {
         };
         let limit = i64::try_from(limit).unwrap_or(i64::MAX);
         let mut statement = self.conn.prepare(
-            "SELECT id, session_id, at, key, value, resets_at, kind, model, provider
+            "SELECT id, session_id, at, key, value, resets_at, kind, model, provider, agent_id
              FROM events WHERE synced=0 AND kind=?1 ORDER BY at, id LIMIT ?2",
         )?;
         let rows = statement.query_map(params![kind, limit], |row| {
@@ -453,7 +535,25 @@ impl Store {
                 },
                 model: row.get(7)?,
                 provider: row.get(8)?,
+                agent_id: row.get(9)?,
             })
+        })?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(Into::into)
+    }
+
+    /// The most recent unexpired, provider-reported quota windows, never estimated from tokens.
+    pub fn usage_limits(&self, now: &str) -> Result<Vec<(String, String, u64, String)>> {
+        let mut statement = self.conn.prepare(
+            "SELECT provider,key,value,resets_at FROM (
+              SELECT provider,key,value,resets_at,ROW_NUMBER() OVER(PARTITION BY provider,key ORDER BY julianday(at) DESC,id DESC) AS position
+              FROM events WHERE kind='reading' AND provider IS NOT NULL
+                AND key IN ('five_hour_percent','seven_day_percent')
+                AND julianday(at)<=julianday(?1) AND julianday(resets_at)>julianday(?1)
+            ) WHERE position=1 ORDER BY provider,key",
+        )?;
+        let rows = statement.query_map([now], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(Into::into)
@@ -475,12 +575,44 @@ impl Store {
             .map_err(Into::into)
     }
 
+    /// Effective tokens of observations since `since`, counted as the server scores them: input,
+    /// output and cache writes in full, a tenth of cache reads. `synced_only` counts only what
+    /// the server acknowledged; otherwise everything except observations it refused.
+    pub fn effective_tokens_since(&self, since: &str, synced_only: bool) -> Result<u64> {
+        let total: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(CASE key WHEN 'cache_read_tokens' THEN value / 10.0 ELSE value END), 0)
+             FROM events
+             WHERE kind='counter'
+               AND key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens')
+               AND julianday(at)>=julianday(?1)
+               AND (synced=1 OR (?2=0 AND synced=0))",
+            params![since, synced_only],
+            |row| row.get(0),
+        )?;
+        Ok(total as u64)
+    }
+
     /// Acknowledges only observations whose value and timestamp still match the snapshot.
     pub fn mark_synced(&mut self, snapshots: &[(String, u64, String)]) -> Result<()> {
         let tx = self.conn.transaction()?;
         {
             let mut statement =
                 tx.prepare_cached("UPDATE events SET synced=1 WHERE id=?1 AND value=?2 AND at=?3")?;
+            for (id, value, at) in snapshots {
+                statement.execute(params![id, value, at])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Sets aside observations the server refused, so they leave the upload queue but still count
+    /// locally. A later, larger value of the same observation queues it again.
+    pub fn reject(&mut self, snapshots: &[(String, u64, String)]) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        {
+            let mut statement =
+                tx.prepare_cached("UPDATE events SET synced=2 WHERE id=?1 AND value=?2 AND at=?3")?;
             for (id, value, at) in snapshots {
                 statement.execute(params![id, value, at])?;
             }

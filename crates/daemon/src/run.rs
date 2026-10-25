@@ -15,6 +15,7 @@ use serde_json::{json, Map, Value};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime, UtcOffset};
 
 use crate::{
+    cadence::{Cadence, Due, Outcome},
     config, detect,
     engine::Engine,
     hero,
@@ -80,6 +81,15 @@ impl Drop for DaemonHandle {
     fn drop(&mut self) {
         self.stop_inner();
     }
+}
+
+/// Agent activity, as the main loop last saw it, for the sync thread's pace.
+#[derive(Default)]
+struct Busy {
+    /// An agent is working right now.
+    now: AtomicBool,
+    /// An agent worked in the last five minutes.
+    recent: AtomicBool,
 }
 
 pub(crate) enum Message {
@@ -161,13 +171,13 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
             }
         })
     };
-    let busy_recent = Arc::new(AtomicBool::new(false));
+    let busy = Arc::new(Busy::default());
     let sync = {
         let env = opts.env.clone();
         let version = opts.version.clone();
         let sender = sender.clone();
-        let busy_recent = busy_recent.clone();
-        thread::spawn(move || sync_loop(env, version, sync_rx, sender, busy_recent))
+        let busy = busy.clone();
+        thread::spawn(move || sync_loop(env, version, sync_rx, sender, busy))
     };
     {
         // Not joined on stop: a blocked read ends within the 60 s read timeout.
@@ -191,7 +201,7 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
             inbox,
             watch_refresh,
             main_sync,
-            busy_recent,
+            busy,
             first.recent,
         )
     });
@@ -227,7 +237,7 @@ fn main_loop(
     inbox: Receiver<Message>,
     watch_refresh: Sender<()>,
     sync_tx: Sender<SyncCommand>,
-    busy_recent: Arc<AtomicBool>,
+    busy: Arc<Busy>,
     recent: Vec<PathBuf>,
 ) {
     let mut subscribers: Vec<Sender<Value>> = Vec::new();
@@ -241,6 +251,7 @@ fn main_loop(
     open_files.track(&recent);
     let mut polled_at = Instant::now();
     let mut pair_state = json!({"status":"unpaired"});
+    let mut local = LocalTokens::default();
     loop {
         let full_deadline = full_at + Duration::from_secs(600);
         let deadline = changed_at
@@ -260,10 +271,12 @@ fn main_loop(
                     activity = next.clone();
                     broadcast(&mut subscribers, "activity", next);
                 }
-                if activity["busy"] == true {
+                let working = activity["busy"] == true;
+                if working {
                     recent_busy = Some(Instant::now());
                 }
-                busy_recent.store(
+                busy.now.store(working, Ordering::Relaxed);
+                busy.recent.store(
                     recent_busy.is_some_and(|at| at.elapsed() < Duration::from_secs(300)),
                     Ordering::Relaxed,
                 );
@@ -277,11 +290,13 @@ fn main_loop(
                 }
             }
             Ok(Message::Socket(request)) => {
+                let rescan = request.method == "set_provider_homes";
                 let reply = handle_request(
                     request,
                     &opts,
                     &mut store,
                     &activity,
+                    local.pending,
                     cached.as_ref(),
                     &pair_state,
                     &sync_tx,
@@ -289,6 +304,18 @@ fn main_loop(
                 );
                 if let Some((sender, value)) = reply {
                     let _ = sender.send(value);
+                }
+                if rescan {
+                    let recent = scan_and_broadcast(
+                        &mut engine,
+                        &mut store,
+                        None,
+                        &mut activity,
+                        &mut subscribers,
+                        &mut local,
+                    );
+                    open_files.track(&recent);
+                    let _ = watch_refresh.send(());
                 }
             }
             Ok(Message::SyncDone(result)) => {
@@ -303,11 +330,15 @@ fn main_loop(
                     json!({"ok":ok,"uploaded":result.uploaded,"error":error}),
                 );
                 if let Some(heartbeat) = result.heartbeat {
-                    let view = hero::hero_view(&heartbeat);
+                    let mut view = hero::hero_view(&heartbeat);
                     if let Err(error) = hero::save_cache(&config::home(&opts.env), &view) {
                         eprintln!("daemon hero cache: {error}");
                     }
                     cached = Some(view.clone());
+                    // The overlay adds this machine's activity since the heartbeat to its numbers.
+                    local.base = result.tokens_base;
+                    local.refresh(&store);
+                    view["localTokens"] = json!(local.pending);
                     broadcast(&mut subscribers, "heartbeat", view);
                 }
             }
@@ -352,6 +383,7 @@ fn main_loop(
                     Some(&paths),
                     &mut activity,
                     &mut subscribers,
+                    &mut local,
                 );
                 open_files.track(&recent);
             }
@@ -363,6 +395,7 @@ fn main_loop(
                 None,
                 &mut activity,
                 &mut subscribers,
+                &mut local,
             );
             open_files.track(&recent);
             let _ = watch_refresh.send(());
@@ -378,9 +411,26 @@ fn scan_and_broadcast(
     paths: Option<&[PathBuf]>,
     activity: &mut Value,
     subscribers: &mut Vec<Sender<Value>>,
+    local: &mut LocalTokens,
 ) -> Vec<PathBuf> {
     let recent = match engine.scan(store, paths, OffsetDateTime::now_utc()) {
-        Ok(report) => report.recent,
+        Ok(report) => {
+            if report.events_saved > 0 {
+                broadcast(
+                    subscribers,
+                    "observations",
+                    json!({"changed": report.events_saved}),
+                );
+                if local.refresh(store) {
+                    broadcast(
+                        subscribers,
+                        "local_tokens",
+                        json!({"effective": local.pending}),
+                    );
+                }
+            }
+            report.recent
+        }
         Err(error) => {
             eprintln!("daemon scan: {error}");
             Vec::new()
@@ -393,6 +443,27 @@ fn scan_and_broadcast(
         broadcast(subscribers, "activity", next);
     }
     recent
+}
+
+/// This machine's effective tokens that the last heartbeat's numbers don't include yet, so the
+/// overlay's XP bar and token count move right away; each heartbeat starts over.
+#[derive(Default)]
+struct LocalTokens {
+    /// The last heartbeat's `tokens_base`: since when, and how much was acknowledged then.
+    base: Option<(String, u64)>,
+    pending: u64,
+}
+
+impl LocalTokens {
+    /// Recounts; true when the number changed.
+    fn refresh(&mut self, store: &Store) -> bool {
+        let pending = self.base.as_ref().map_or(0, |(since, synced)| {
+            store
+                .effective_tokens_since(since, false)
+                .map_or(0, |total| total.saturating_sub(*synced))
+        });
+        std::mem::replace(&mut self.pending, pending) != pending
+    }
 }
 
 /// Provider files written in the last six hours, with the size last seen. Codex keeps its
@@ -446,6 +517,7 @@ fn handle_request(
     opts: &RunOptions,
     store: &mut Store,
     activity: &Value,
+    local_tokens: u64,
     cached: Option<&Value>,
     pair_state: &Value,
     sync_tx: &Sender<SyncCommand>,
@@ -469,12 +541,13 @@ fn handle_request(
                     ))
                 });
             endpoint.and_then(|endpoint| {
-                store.meta("installation.token").map_err(internal).map(|token| {
+                let url = config::read_config(&opts.env).map_err(internal)?.app_url;
+                sync::installation_token(store, url.as_deref()).map_err(internal).map(|token| {
                     json!({"endpoint": endpoint, "authorization": token.map(|token| format!("Bearer {token}"))})
                 })
             })
         }
-        "snapshot" => Ok(json!({"activity":activity,"hero":cached})),
+        "snapshot" => Ok(json!({"activity":activity,"hero":cached,"localTokens":local_tokens})),
         "subscribe" => {
             if let Some(subscriber) = subscriber {
                 subscribers.push(subscriber);
@@ -617,6 +690,55 @@ fn handle_request(
             Some(_) => Err(SocketError::new("not_wirable", "provider cannot be wired")),
             None => Err(SocketError::new("bad_request", "id is required")),
         },
+        "set_provider_homes" => (|| {
+            let id = params["id"]
+                .as_str()
+                .filter(|id| config::provider_variable(id).is_some())
+                .ok_or_else(|| {
+                    SocketError::new("bad_request", "Choose Claude Code, Codex or Gemini CLI")
+                })?;
+            let homes = params["homes"]
+                .as_array()
+                .filter(|homes| homes.len() <= 8)
+                .ok_or_else(|| {
+                    SocketError::new("bad_request", "Choose up to eight account folders")
+                })?;
+            let mut paths = Vec::new();
+            for home in homes {
+                let home = home
+                    .as_str()
+                    .filter(|home| home.len() <= 4096)
+                    .ok_or_else(|| SocketError::new("bad_request", "Invalid account folder"))?;
+                let path = PathBuf::from(home);
+                if !path.is_absolute() || !path.is_dir() {
+                    return Err(SocketError::new(
+                        "bad_request",
+                        "Choose an existing absolute account folder",
+                    ));
+                }
+                let path = path
+                    .canonicalize()
+                    .map_err(internal)?
+                    .to_string_lossy()
+                    .into_owned();
+                if !paths.contains(&path) {
+                    paths.push(path);
+                }
+            }
+            config::update_config(&opts.env, |config| {
+                let map = config
+                    .other
+                    .entry("providerHomes")
+                    .or_insert_with(|| json!({}));
+                if !map.is_object() {
+                    *map = json!({});
+                }
+                map[id] = json!(paths);
+            })
+            .and_then(|_| config::ensure_profiles(&opts.env))
+            .map_err(internal)?;
+            Ok(json!({"id": id, "homes": paths}))
+        })(),
         "set_provider_enabled" => {
             let id = params.get("id").and_then(Value::as_str);
             let enabled = params.get("enabled").and_then(Value::as_bool);
@@ -661,13 +783,13 @@ fn handle_request(
 /// holds up the main loop or a heartbeat.
 fn friend_request(
     opts: &RunOptions,
-    store: &Store,
+    store: &mut Store,
     reply: Sender<std::result::Result<Value, SocketError>>,
     call: impl FnOnce(&sync::Client) -> std::result::Result<Value, sync::ApiError> + Send + 'static,
 ) -> Option<SocketReply> {
-    let token = match store.meta("installation.token") {
-        Ok(Some(token)) => token,
-        Ok(None) => {
+    let client = match make_client(&opts.env, &opts.version, Some(store)) {
+        Ok(client) if client.token.is_some() => client,
+        Ok(_) => {
             return Some((
                 reply,
                 Err(SocketError::new(
@@ -676,10 +798,6 @@ fn friend_request(
                 )),
             ))
         }
-        Err(error) => return Some((reply, Err(internal(error)))),
-    };
-    let client = match make_client(&opts.env, &opts.version, Some(token)) {
-        Ok(client) => client,
         Err(error) => return Some((reply, Err(error))),
     };
     thread::spawn(move || {
@@ -771,7 +889,7 @@ fn token_totals(
 
 fn status(
     opts: &RunOptions,
-    store: &Store,
+    store: &mut Store,
     params: &Value,
 ) -> std::result::Result<Value, SocketError> {
     let now = OffsetDateTime::now_utc();
@@ -788,12 +906,19 @@ fn status(
         None => now.date().midnight().assume_utc(),
     };
     let today = token_totals(store, since, now)?;
+    let config = config::read_config(&opts.env).map_err(internal)?;
+    let paired = sync::installation_token(store, config.app_url.as_deref())
+        .map_err(internal)?
+        .is_some();
     let meta = |key| store.meta(key).map_err(internal);
     let blocked = meta("blocked")?.and_then(|raw| sync::blocked_message(&raw, &opts.version));
     let off: HashSet<String> = meta("providers_off")?
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .unwrap_or_default();
     let health = store.health().map_err(internal)?;
+    let limits = store
+        .usage_limits(&now.format(&Rfc3339).map_err(internal)?)
+        .map_err(internal)?;
     let providers: Vec<Value> = clashofmeat_providers::all().iter().map(|provider| {
         let manifest = provider.manifest();
         let row = health.iter().find(|row| row.provider == manifest.id);
@@ -801,18 +926,20 @@ fn status(
         if !manifest.wiring.is_empty() && manifest.id == "cursor" {
             value["wiring"] = json!(wiring::cursor_wiring_state(&opts.env));
         }
+        value["limits"] = json!(limits.iter().filter(|(provider,_,_,_)| provider == manifest.id).map(|(_,key,used,reset)| json!({"key":key,"used":used,"resets_at":reset})).collect::<Vec<_>>());
+        value["homes"] = config.other.get("providerHomes").and_then(|homes| homes.get(manifest.id)).cloned().unwrap_or_else(|| json!([]));
+        if value["homes"].as_array().is_some_and(|homes| !homes.is_empty()) {
+            value["detected"] = json!(true);
+        }
+        if manifest.id == "cursor" && !today.contains_key("cursor") {
+            value["tokens_available"] = json!(false);
+        }
         value
     }).collect();
-    let counters = store
-        .pending(EventKind::Counter, usize::MAX)
-        .map_err(internal)?
-        .len();
-    let readings = store
-        .pending(EventKind::Reading, usize::MAX)
-        .map_err(internal)?
-        .len();
+    let counters = store.pending_count(EventKind::Counter).map_err(internal)?;
+    let readings = store.pending_count(EventKind::Reading).map_err(internal)?;
     Ok(
-        json!({"version":opts.version,"paired":meta("installation.token")?.is_some(),"app_url":config::read_config(&opts.env).map_err(internal)?.app_url,"blocked":blocked,"reauth":meta("reauth")?.as_deref()==Some("true"),"pending":{"counters":counters,"readings":readings},"last_sync_at":meta("last_sync_at")?,"providers":providers,"today_tokens":today}),
+        json!({"version":opts.version,"paired":paired,"app_url":config.app_url,"blocked":blocked,"reauth":meta("reauth")?.as_deref()==Some("true"),"pending":{"counters":counters,"readings":readings},"last_sync_at":meta("last_sync_at")?,"providers":providers,"today_tokens":today}),
     )
 }
 
@@ -825,7 +952,7 @@ fn sync_loop(
     version: String,
     commands: Receiver<SyncCommand>,
     main: Sender<Message>,
-    busy_recent: Arc<AtomicBool>,
+    busy: Arc<Busy>,
 ) {
     let mut store = match Store::open(config::store_path(&env)) {
         Ok(store) => store,
@@ -834,16 +961,14 @@ fn sync_loop(
             return;
         }
     };
-    let mut last_heartbeat = Instant::now();
-    let mut last_upload = Instant::now();
+    let mut cadence = Cadence::new(Instant::now());
+    // The queue size, and when it last changed: the final flush waits for it to settle.
+    let mut queued = (0, Instant::now());
     let mut art = hero::load_cache(&config::home(&env))
         .ok()
         .flatten()
         .map(|view| sync::HeroArt::from_view(&view))
         .unwrap_or_default();
-    // Our own uploads also announce a revision, so a live change waits until
-    // 10 s after the last heartbeat: one extra light heartbeat at most, never a loop.
-    let mut live_due: Option<Instant> = None;
     let mut pairing: Option<sync::Pairing> = None;
     let mut next_poll = Instant::now();
     let session = sync::companion_session(&mut store)
@@ -862,8 +987,7 @@ fn sync_loop(
                 level,
                 reply,
             }) => {
-                let token = store.meta("installation.token").ok().flatten();
-                let result = make_client(&env, &version, token).and_then(|client| {
+                let result = make_client(&env, &version, Some(&mut store)).and_then(|client| {
                     client
                         .evolve(&character_id, level)
                         .map_err(|error| SocketError::new("evolve_failed", error.to_string()))
@@ -877,8 +1001,7 @@ fn sync_loop(
                 let _ = reply.send(result.map(|_| json!({"evolved":true})));
             }
             Ok(SyncCommand::LevelUp { from, to, reply }) => {
-                let token = store.meta("installation.token").ok().flatten();
-                let result = make_client(&env, &version, token).and_then(|client| {
+                let result = make_client(&env, &version, Some(&mut store)).and_then(|client| {
                     client
                         .level_up(from, to)
                         .map_err(|error| SocketError::new("level_up_failed", error.to_string()))
@@ -886,8 +1009,7 @@ fn sync_loop(
                 let _ = reply.send(result);
             }
             Ok(SyncCommand::Live) => {
-                let earliest = last_heartbeat + Duration::from_secs(10);
-                live_due.get_or_insert(earliest.max(Instant::now()));
+                cadence.on_live(Instant::now());
             }
             Ok(SyncCommand::VisitDone { id }) => {
                 if !played.contains(&id) {
@@ -896,8 +1018,7 @@ fn sync_loop(
                     }
                     played.push(id);
                 }
-                let earliest = last_heartbeat + Duration::from_secs(10);
-                live_due.get_or_insert(earliest.max(Instant::now()));
+                cadence.nudge(Instant::now());
             }
             Ok(SyncCommand::PairStart {
                 device,
@@ -967,28 +1088,27 @@ fn sync_loop(
                 }
             }
         }
-        // Even when idle, a heartbeat a minute keeps this app "online" for friends' visits.
-        let interval = if busy_recent.load(Ordering::Relaxed) {
-            Duration::from_secs(30)
-        } else {
-            Duration::from_secs(60)
-        };
-        let pending = last_upload.elapsed() >= Duration::from_secs(30)
-            && (store
-                .pending(EventKind::Counter, 1)
-                .is_ok_and(|v| !v.is_empty())
-                || store
-                    .pending(EventKind::Reading, 1)
-                    .is_ok_and(|v| !v.is_empty()));
-        if live_due.is_some_and(|at| Instant::now() >= at) {
-            live_due = None;
-            forced = true;
+        let pending = store.pending_count(EventKind::Counter).unwrap_or(0)
+            + store.pending_count(EventKind::Reading).unwrap_or(0);
+        if pending != queued.0 {
+            queued = (pending, Instant::now());
         }
-        if !forced && last_heartbeat.elapsed() < interval && !pending {
+        let due = if forced {
+            Due::Sync
+        } else {
+            cadence.due(
+                Instant::now(),
+                busy.now.load(Ordering::Relaxed),
+                pending > 0,
+                queued.1.elapsed(),
+            )
+        };
+        // Unpaired: nothing to do, and no need to read the config every second.
+        if due == Due::Wait || !matches!(store.meta("installation.token"), Ok(Some(_))) {
             continue;
         }
-        let token = match store.meta("installation.token") {
-            Ok(Some(token)) => token,
+        let client = match make_client(&env, &version, Some(&mut store)) {
+            Ok(client) if client.token.is_some() => client,
             _ => continue,
         };
         if let Ok(Some(raw)) = store.meta("blocked") {
@@ -1006,10 +1126,6 @@ fn sync_loop(
         {
             continue;
         }
-        let client = match make_client(&env, &version, Some(token)) {
-            Ok(client) => client,
-            Err(_) => continue,
-        };
         let mut presence = Map::new();
         if let Some(session) = &session {
             presence.insert("sessionId".into(), json!(session));
@@ -1017,18 +1133,31 @@ fn sync_loop(
         if !played.is_empty() {
             presence.insert("acknowledgedVisits".into(), json!(played));
         }
-        let result = sync::sync_once_with(
-            &client,
-            &mut store,
-            OffsetDateTime::now_utc(),
-            &mut art,
-            &presence,
-        );
+        let result = if due == Due::Drain {
+            sync::drain_once(&client, &mut store, OffsetDateTime::now_utc())
+        } else {
+            sync::sync_once_with(
+                &client,
+                &mut store,
+                OffsetDateTime::now_utc(),
+                &mut art,
+                &presence,
+            )
+        };
         if result.heartbeat.is_some() {
             played.clear();
         }
-        last_heartbeat = Instant::now();
-        last_upload = Instant::now();
+        cadence.after(
+            Instant::now(),
+            Outcome {
+                due,
+                uploaded: result.uploaded,
+                more: result.more,
+                error: result.error.as_ref(),
+                next_sync: result.next_sync,
+                busy: busy.recent.load(Ordering::Relaxed),
+            },
+        );
         if result.error.is_none() && !result.deferred {
             let _ = store.delete_meta("blocked");
             let _ = store.set_meta("reauth", "false");
@@ -1040,14 +1169,20 @@ fn sync_loop(
     }
 }
 
+/// A client for the configured app. Given the store, it carries the installation token, when that
+/// app issued it.
 fn make_client(
     env: &Env,
     version: &str,
-    token: Option<String>,
+    store: Option<&mut Store>,
 ) -> std::result::Result<sync::Client, SocketError> {
     let url = config::read_config(env)
         .map_err(internal)?
         .app_url
         .ok_or_else(|| SocketError::new("not_configured", "app_url is not configured"))?;
+    let token = match store {
+        Some(store) => sync::installation_token(store, Some(&url)).map_err(internal)?,
+        None => None,
+    };
     sync::Client::new(&url, token, version).map_err(internal)
 }

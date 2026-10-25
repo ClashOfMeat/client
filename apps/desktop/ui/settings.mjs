@@ -8,6 +8,14 @@ let hero = { show: true, screen: 'main', still: false }
 let displays = []
 let device = 'This Mac'
 let updater = {}
+let refreshing = false
+let refreshAgain = false
+let refreshTimer
+
+function scheduleRefresh() {
+  if (refreshTimer || document.visibilityState === 'hidden') return
+  refreshTimer = setTimeout(() => { refreshTimer = undefined; void refresh() }, 1000)
+}
 
 function error(message) {
   $('error').textContent = String(message)
@@ -52,6 +60,25 @@ function render() {
     select.append(option)
   }
   select.value = hero.screen
+  const folders = $('account-folders')
+  folders.replaceChildren()
+  for (const provider of daemon.status?.providers ?? []) {
+    for (const home of provider.homes ?? []) {
+      const row = document.createElement('div')
+      row.className = 'account-folder'
+      const name = document.createElement('span')
+      name.textContent = `${provider.name}: ${home}`
+      const remove = document.createElement('button')
+      remove.textContent = 'Remove'
+      remove.setAttribute('aria-label', `Remove ${provider.name} account ${home}`)
+      remove.addEventListener('click', async () => {
+        try { await request('set_provider_homes', { id: provider.id, homes: provider.homes.filter(path => path !== home) }); await refresh() }
+        catch (reason) { error(reason) }
+      })
+      row.append(name, remove)
+      folders.append(row)
+    }
+  }
   const list = $('providers')
   list.replaceChildren()
   for (const provider of view.providers) {
@@ -71,6 +98,11 @@ function render() {
     const state = document.createElement('span')
     state.className = `provider-state ${provider.tone}`
     state.textContent = provider.state
+    state.title = `Latest reported account limits: ${provider.limits}`
+    const limits = document.createElement('small')
+    limits.className = 'provider-limits'
+    limits.textContent = provider.limits
+    state.append(document.createElement('br'), limits)
     row.append(check, name, state)
     if (view.showTokens) {
       const tokens = document.createElement('span')
@@ -92,11 +124,27 @@ function render() {
 }
 
 async function refresh() {
+  if (document.visibilityState === 'hidden') return
+  if (refreshing) { refreshAgain = true; return }
+  refreshing = true
   const midnight = new Date()
   midnight.setHours(0, 0, 0, 0)
   try { daemon.status = await request('status', { today_since: midnight.toISOString() }); daemon.connected = true; render() }
   catch (reason) { daemon.connected = false; error(reason); render() }
+  finally { refreshing = false; if (refreshAgain) { refreshAgain = false; scheduleRefresh() } }
 }
+
+$('account-folder-form').addEventListener('submit', async event => {
+  event.preventDefault()
+  const id = $('account-provider').value
+  const provider = daemon.status?.providers?.find(provider => provider.id === id)
+  try {
+    await request('set_provider_homes', { id, homes: [...(provider?.homes ?? []), $('account-folder').value.trim()] })
+    $('account-folder').value = ''
+    error('')
+    await refresh()
+  } catch (reason) { error(reason) }
+})
 
 $('sync').addEventListener('click', async () => {
   try { error(''); await request('sync_now'); await refresh() } catch (reason) { error(reason) }
@@ -149,13 +197,17 @@ render()
 await listen('daemon', ({ payload }) => {
   if (payload.kind === 'snapshot') daemon.snapshot = payload.data
   if (payload.kind === 'status') {
-    if (typeof payload.data.connected === 'boolean') daemon.connected = payload.data.connected
+    if (typeof payload.data.connected === 'boolean') {
+      daemon.connected = payload.data.connected
+      if (daemon.connected) void refresh()
+    }
     else daemon.status = payload.data
   }
   if (payload.kind === 'event') {
     const { event, data } = payload.data
     if (event === 'activity' && daemon.snapshot) daemon.snapshot.activity = data
     if (event === 'heartbeat') daemon.heartbeat = data
+    if (event === 'sync' || event === 'observations') scheduleRefresh()
     if (event === 'paired') { $('pair-code').hidden = true; void refresh() }
     if (event === 'pair_failed') { $('pair-code').hidden = true; error(data?.reason ?? 'Pairing failed') }
   }
@@ -163,5 +215,6 @@ await listen('daemon', ({ payload }) => {
 })
 await listen('hero-settings', ({ payload }) => { hero = payload; render() })
 await listen('updater', ({ payload }) => { updater = payload; render() })
-setInterval(render, 60_000)
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void refresh() })
+setInterval(refresh, 60_000)
 void refresh()

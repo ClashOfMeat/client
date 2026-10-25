@@ -55,27 +55,42 @@ pub(crate) fn start(
 }
 
 fn add_roots(env: &Env, watcher: &mut RecommendedWatcher, watched: &mut HashSet<PathBuf>) {
+    let config = crate::config::read_config(env).unwrap_or_default();
+    let mut wanted = HashSet::new();
     for provider in clashofmeat_providers::all() {
         for source in provider.manifest().sources {
-            let root = env.resolve(source.root);
-            let mut path = root.as_path();
-            while !path.is_dir() {
-                match path.parent() {
-                    Some(parent) => path = parent,
-                    None => break,
+            for (root, _) in
+                crate::config::source_roots(env, &config, provider.manifest().id, source.root)
+            {
+                let mut path = root.as_path();
+                while !path.is_dir() {
+                    match path.parent() {
+                        Some(parent) => path = parent,
+                        None => break,
+                    }
                 }
-            }
-            if path.is_dir() && watched.insert(path.to_path_buf()) {
-                let mode = if path == root {
-                    RecursiveMode::Recursive
-                } else {
-                    RecursiveMode::NonRecursive
-                };
-                if let Err(error) = watcher.watch(path, mode) {
-                    watched.remove(path);
-                    eprintln!("daemon watcher root {}: {error}", path.display());
+                if path.is_dir() {
+                    wanted.insert(path.to_path_buf());
+                }
+                if path.is_dir() && watched.insert(path.to_path_buf()) {
+                    let mode = if path == root {
+                        RecursiveMode::Recursive
+                    } else {
+                        RecursiveMode::NonRecursive
+                    };
+                    if let Err(error) = watcher.watch(path, mode) {
+                        watched.remove(path);
+                        eprintln!("daemon watcher root {}: {error}", path.display());
+                    }
                 }
             }
         }
     }
+    watched.retain(|path| {
+        if wanted.contains(path) {
+            return true;
+        }
+        let _ = watcher.unwatch(path);
+        false
+    });
 }

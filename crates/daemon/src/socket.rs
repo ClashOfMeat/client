@@ -2,7 +2,7 @@
 
 use clashofmeat_core::ipc::{UnixListener, UnixStream};
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -115,6 +115,9 @@ impl Drop for BoundSocket {
     }
 }
 
+/// The longest request line a client may send.
+const MAX_LINE: usize = 1_048_576;
+
 fn serve_client(
     mut stream: UnixStream,
     requests: Sender<crate::run::Message>,
@@ -127,16 +130,17 @@ fn serve_client(
     };
     let mut line = String::new();
     while !stopping.load(Ordering::Relaxed) {
-        match reader.read_line(&mut line) {
+        // Never buffer more than one request's worth: a client that streams without a newline
+        // is cut off at the cap instead of growing the daemon's memory.
+        let room = (MAX_LINE + 1).saturating_sub(line.len()) as u64;
+        match (&mut reader).take(room).read_line(&mut line) {
             Ok(0) => break,
+            Ok(_) if line.len() > MAX_LINE && !line.ends_with('\n') => break,
             Ok(_) => {}
             Err(error)
                 if error.kind() == std::io::ErrorKind::TimedOut
                     || error.kind() == std::io::ErrorKind::WouldBlock =>
             {
-                if line.len() > 1_048_576 {
-                    break;
-                }
                 continue;
             }
             Err(_) => break,

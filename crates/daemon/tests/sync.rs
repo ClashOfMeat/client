@@ -188,6 +188,7 @@ fn event(identity: &str, kind: EventKind, at: &str, value: u64) -> Event {
         resets_at: None,
         model: None,
         provider: None,
+        agent_id: None,
     }
 }
 
@@ -541,7 +542,7 @@ fn changed_row_during_request_stays_pending() {
                     None,
                 )
                 .unwrap();
-            Reply::ok(json!({"accepted": 1}))
+            Reply::ok(json!({"accepted": 1, "duplicates": 0}))
         }
     });
     client(&server)
@@ -585,10 +586,14 @@ fn sync_handles_auth_block_and_rate_limit() {
                 json!({"version":"0.1.0","message":"Clash of Meat: update required"})
             ),
             429 => {
-                assert_eq!(
-                    store.meta("retry_after_until").unwrap().as_deref(),
-                    Some("2026-10-20T12:02:00Z")
-                );
+                // Retry-After plus up to a fifth more, so throttled clients spread out.
+                let until = OffsetDateTime::parse(
+                    &store.meta("retry_after_until").unwrap().unwrap(),
+                    &Rfc3339,
+                )
+                .unwrap();
+                assert!(until >= now() + time::Duration::seconds(120));
+                assert!(until <= now() + time::Duration::seconds(144));
                 assert!(
                     sync_once(&client, &mut store, now() + time::Duration::seconds(30)).deferred
                 );
@@ -960,4 +965,416 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
         .unwrap();
     assert!(is_uuid(kiss.body["requestId"].as_str().unwrap()));
     handle.stop().unwrap();
+}
+
+#[test]
+fn observer_backlog_is_chunked_to_server_limit() {
+    let mut store = Store::open_in_memory().unwrap();
+    for i in 0..51 {
+        completed_task(&mut store, &format!("chunk-{i}"), "first");
+    }
+    let server = Server::start(vec![
+        Reply::ok(json!({"accepted":50,"duplicates":0})),
+        Reply::ok(json!({"accepted":1,"duplicates":0})),
+    ]);
+    assert_eq!(
+        client(&server).upload_observer_tasks(&mut store).unwrap(),
+        51
+    );
+    let requests = server.finish();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0].body["tasks"].as_array().unwrap().len(), 50);
+    assert_eq!(requests[1].body["tasks"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn observation_invalid_ack_keeps_counters_and_readings_pending() {
+    for response in [
+        json!({}),
+        json!({"accepted":2}),
+        json!({"accepted":1,"duplicates":0}),
+        json!({"accepted":2,"duplicates":-1}),
+    ] {
+        let mut store = Store::open_in_memory().unwrap();
+        store
+            .save_events(
+                "codex",
+                &[
+                    event("counter", EventKind::Counter, NOW, 5),
+                    event("reading", EventKind::Reading, NOW, 50),
+                ],
+                None,
+            )
+            .unwrap();
+        let server = Server::start(vec![Reply::ok(response)]);
+        assert!(matches!(
+            client(&server).upload_observations(&mut store, now()),
+            Err(ApiError::Invalid(_))
+        ));
+        assert_eq!(store.pending(EventKind::Counter, 10).unwrap().len(), 1);
+        assert_eq!(store.pending(EventKind::Reading, 10).unwrap().len(), 1);
+        server.finish();
+    }
+}
+
+#[test]
+fn expired_readings_do_not_block_live_counters() {
+    let mut store = Store::open_in_memory().unwrap();
+    store
+        .save_events(
+            "codex",
+            &[
+                event("fresh", EventKind::Counter, NOW, 8),
+                event(
+                    "old-reading",
+                    EventKind::Reading,
+                    "2026-10-01T12:00:00Z",
+                    50,
+                ),
+            ],
+            None,
+        )
+        .unwrap();
+    let server = Server::start(vec![Reply::ok(json!({"accepted":1,"duplicates":0}))]);
+    assert_eq!(
+        client(&server)
+            .upload_observations(&mut store, now())
+            .unwrap()
+            .sent,
+        1
+    );
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    assert_eq!(store.pending_count(EventKind::Reading).unwrap(), 0);
+    assert_eq!(
+        server.finish()[0].body["readings"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
+}
+
+#[test]
+fn a_503_with_retry_after_defers_and_one_without_does_not() {
+    for (header, deferred) in [(Some("30"), true), (None, false)] {
+        let mut reply = Reply::error(503, json!({"error": "busy"}));
+        if let Some(seconds) = header {
+            reply.headers.push(("Retry-After", seconds));
+        }
+        let server = Server::start(vec![reply]);
+        let mut store = Store::open_in_memory().unwrap();
+        let client = client(&server);
+        let result = sync_once(&client, &mut store, now());
+        assert!(matches!(
+            result.error,
+            Some(ApiError::Status { status: 503, .. })
+        ));
+        assert_eq!(store.meta("retry_after_until").unwrap().is_some(), deferred);
+        assert_eq!(
+            sync_once(&client, &mut store, now() + time::Duration::seconds(5)).deferred,
+            deferred
+        );
+        server.finish();
+    }
+}
+
+#[test]
+fn a_sync_sends_one_batch_and_drains_the_rest_separately() {
+    let mut store = Store::open_in_memory().unwrap();
+    let events: Vec<_> = (0..150)
+        .map(|i| event(&format!("backlog-{i:03}"), EventKind::Counter, NOW, 1))
+        .collect();
+    store.save_events("codex", &events, None).unwrap();
+    let server = Server::start(vec![
+        Reply::ok(json!({"connected": true, "nextSyncInSeconds": 90})),
+        Reply::ok(json!({"accepted": 100, "duplicates": 0})),
+        Reply::ok(json!({"accepted": 50, "duplicates": 0, "nextSyncInSeconds": 3})),
+    ]);
+    let client = client(&server);
+    let first = sync_once(&client, &mut store, now());
+    assert!(first.error.is_none());
+    assert_eq!((first.uploaded, first.more), (100, true));
+    assert_eq!(first.next_sync, Some(Duration::from_secs(90)));
+    let rest = clashofmeat_daemon::sync::drain_once(&client, &mut store, now());
+    assert!(rest.heartbeat.is_none());
+    assert_eq!((rest.uploaded, rest.more), (50, false));
+    // Clamped to the 10 s floor.
+    assert_eq!(rest.next_sync, Some(Duration::from_secs(10)));
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    let paths: Vec<_> = server.finish().into_iter().map(|r| r.path).collect();
+    assert_eq!(
+        paths,
+        [
+            "/api/installations/heartbeat",
+            "/api/observations",
+            "/api/observations"
+        ]
+    );
+}
+
+/// Answers observation uploads like the server: refused (400) when the batch holds `bad`.
+fn refusing(bad: Vec<String>) -> impl FnMut(&Request) -> Reply {
+    move |request| {
+        let ids: Vec<&str> = ["observations", "readings"]
+            .iter()
+            .flat_map(|key| request.body[key].as_array().unwrap())
+            .map(|item| item["id"].as_str().unwrap())
+            .collect();
+        if ids.iter().any(|id| bad.iter().any(|bad| bad == id)) {
+            Reply::error(400, json!({"error": "invalid observation"}))
+        } else {
+            Reply::ok(json!({"accepted": ids.len(), "duplicates": 0}))
+        }
+    }
+}
+
+#[test]
+fn a_refused_batch_is_split_until_the_bad_observation_is_set_aside() {
+    let mut store = Store::open_in_memory().unwrap();
+    let events: Vec<_> = (0..8)
+        .map(|i| event(&format!("split-{i}"), EventKind::Counter, NOW, 1))
+        .collect();
+    let bad = events[5].id();
+    store.save_events("codex", &events, None).unwrap();
+    // 8 → 4+4 → (2+2) → (1+1): one bad row among eight takes seven requests.
+    let server = Server::with_handler(7, {
+        let bad = vec![bad.clone()];
+        move || refusing(bad)
+    });
+    let outcome = client(&server)
+        .upload_observations(&mut store, now())
+        .unwrap();
+    assert_eq!(outcome.sent, 7);
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    let requests = server.finish();
+    assert_eq!(requests.len(), 7);
+    let sent_alone = requests
+        .iter()
+        .filter(|request| request.body["observations"].as_array().unwrap().len() == 1)
+        .count();
+    assert_eq!(sent_alone, 2);
+    // A larger value of the set-aside observation queues it again.
+    let mut grown = events[5].clone();
+    grown.value = 2;
+    store.save_events("codex", &[grown], None).unwrap();
+    assert_eq!(store.pending(EventKind::Counter, 10).unwrap()[0].id, bad);
+}
+
+#[test]
+fn a_batch_refused_whole_stays_queued() {
+    let mut store = Store::open_in_memory().unwrap();
+    let events: Vec<_> = (0..2)
+        .map(|i| event(&format!("refused-{i}"), EventKind::Counter, NOW, 1))
+        .collect();
+    let bad: Vec<_> = events.iter().map(Event::id).collect();
+    store.save_events("codex", &events, None).unwrap();
+    let server = Server::with_handler(3, move || refusing(bad));
+    assert!(matches!(
+        client(&server).upload_observations(&mut store, now()),
+        Err(ApiError::Status { status: 400, .. })
+    ));
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 2);
+    assert_eq!(server.finish().len(), 3);
+}
+
+#[test]
+fn a_task_batch_too_large_for_the_server_is_sent_one_by_one() {
+    let mut store = Store::open_in_memory().unwrap();
+    completed_task(&mut store, "large-a", "first");
+    completed_task(&mut store, "large-b", "first");
+    let server = Server::start(vec![
+        Reply::error(413, json!({"error": "too large"})),
+        Reply::ok(json!({"accepted": 1, "duplicates": 0})),
+        Reply::ok(json!({"accepted": 1, "duplicates": 0})),
+    ]);
+    assert_eq!(
+        client(&server).upload_observer_tasks(&mut store).unwrap(),
+        2
+    );
+    assert_eq!(server.finish().len(), 3);
+}
+
+#[test]
+fn timestamps_ahead_of_the_server_clock_go_up_as_its_now() {
+    // The server's clock is an hour behind ours.
+    let wall = OffsetDateTime::now_utc();
+    let date = (wall - time::Duration::hours(1))
+        .format(time::macros::format_description!(
+            "[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT"
+        ))
+        .unwrap();
+    let date: &'static str = Box::leak(date.into_boxed_str());
+    let mut heartbeat = Reply::ok(json!({"connected": true}));
+    heartbeat.headers.push(("Date", date));
+    let server = Server::start(vec![
+        heartbeat,
+        Reply::ok(json!({"accepted": 2, "duplicates": 0})),
+    ]);
+    let mut store = Store::open_in_memory().unwrap();
+    let ahead = wall.format(&Rfc3339).unwrap();
+    let past = (wall - time::Duration::hours(2)).format(&Rfc3339).unwrap();
+    store
+        .save_events(
+            "codex",
+            &[
+                event("ahead", EventKind::Counter, &ahead, 1),
+                event("past", EventKind::Counter, &past, 1),
+            ],
+            None,
+        )
+        .unwrap();
+    let result = sync_once(&client(&server), &mut store, wall);
+    assert!(result.error.is_none(), "{:?}", result.error);
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    let requests = server.finish();
+    let sent: Vec<OffsetDateTime> = requests[1].body["observations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| OffsetDateTime::parse(item["at"].as_str().unwrap(), &Rfc3339).unwrap())
+        .collect();
+    let server_now = wall - time::Duration::hours(1);
+    assert!(sent.contains(&OffsetDateTime::parse(&past, &Rfc3339).unwrap()));
+    assert!(sent
+        .iter()
+        .any(|at| (*at - server_now).abs() < time::Duration::seconds(3)));
+}
+
+#[test]
+fn agent_ids_go_up_only_to_a_server_that_lists_the_feature() {
+    for (heartbeat, sent) in [
+        (json!({"connected": true}), false),
+        (json!({"connected": true, "features": ["somethingElse"]}), false),
+        (json!({"connected": true, "features": ["agentId"]}), true),
+    ] {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut subagent = event("subagent", EventKind::Counter, NOW, 4);
+        subagent.agent_id = Some("a1b2c3d4".into());
+        let main = event("main", EventKind::Counter, NOW, 5);
+        store
+            .save_events("claude", &[subagent.clone(), main], None)
+            .unwrap();
+        let server = Server::start(vec![
+            Reply::ok(heartbeat),
+            Reply::ok(json!({"accepted": 2, "duplicates": 0})),
+        ]);
+        assert!(sync_once(&client(&server), &mut store, now()).error.is_none());
+        let requests = server.finish();
+        let observations = requests[1].body["observations"].as_array().unwrap();
+        let agent_ids: Vec<_> = observations
+            .iter()
+            .filter_map(|item| item.get("agentId"))
+            .collect();
+        if sent {
+            assert_eq!(agent_ids, [&json!("a1b2c3d4")]);
+            let tagged = observations
+                .iter()
+                .find(|item| item.get("agentId").is_some())
+                .unwrap();
+            assert_eq!(tagged["id"], subagent.id());
+        } else {
+            assert!(agent_ids.is_empty());
+        }
+    }
+}
+
+#[test]
+fn the_token_is_kept_only_for_the_app_that_issued_it() {
+    use clashofmeat_daemon::sync::installation_token;
+    let mut store = Store::open_in_memory().unwrap();
+    let linked = clashofmeat_daemon::sync::Linked {
+        installation_id: ID.into(),
+        token: TOKEN.into(),
+        origin: "https://app.clashofmeat.com".into(),
+    };
+    mark_paired(&mut store, &linked, now()).unwrap();
+    assert_eq!(
+        installation_token(&mut store, Some("https://app.clashofmeat.com/")).unwrap(),
+        Some(TOKEN.into())
+    );
+    assert_eq!(installation_token(&mut store, None).unwrap(), None);
+    assert!(store.meta("installation.token").unwrap().is_some());
+    // Another app address: the token is dropped rather than sent there.
+    assert_eq!(
+        installation_token(&mut store, Some("https://staging.example.com")).unwrap(),
+        None
+    );
+    assert!(store.meta("installation.token").unwrap().is_none());
+    assert!(store.meta("installation.id").unwrap().is_none());
+    assert_eq!(
+        installation_token(&mut store, Some("https://app.clashofmeat.com")).unwrap(),
+        None
+    );
+    // A token paired before origins were recorded adopts the current app.
+    let mut legacy = Store::open_in_memory().unwrap();
+    legacy.set_meta("installation.token", TOKEN).unwrap();
+    assert_eq!(
+        installation_token(&mut legacy, Some("https://app.clashofmeat.com")).unwrap(),
+        Some(TOKEN.into())
+    );
+    assert_eq!(
+        legacy.meta("installation.origin").unwrap().as_deref(),
+        Some("https://app.clashofmeat.com")
+    );
+}
+
+#[test]
+fn revoking_deletes_the_installation_and_tolerates_older_servers() {
+    for reply in [
+        Reply::ok(json!({"revoked": true})),
+        Reply::error(404, json!({"error": "Not found"})),
+        Reply::error(405, json!({"error": "Method not allowed"})),
+        Reply::error(500, json!({"error": "down"})),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let env = Env::for_home(dir.path());
+        let server = Server::start(vec![reply]);
+        update_config(&env, |config| config.app_url = Some(server.origin.clone())).unwrap();
+        let mut store = Store::open(store_path(&env)).unwrap();
+        store.set_meta("installation.token", TOKEN).unwrap();
+        store.set_meta("installation.id", ID).unwrap();
+        drop(store);
+        assert!(clashofmeat_daemon::sync::revoke_installation(&env, "0.1.0").unwrap());
+        let store = Store::open(store_path(&env)).unwrap();
+        assert!(store.meta("installation.token").unwrap().is_none());
+        let requests = server.finish();
+        assert_eq!(requests[0].method, "DELETE");
+        assert_eq!(requests[0].path, "/api/installations/self");
+        assert_eq!(requests[0].headers["authorization"], format!("Bearer {TOKEN}"));
+        // Nothing left to revoke.
+        assert!(!clashofmeat_daemon::sync::revoke_installation(&env, "0.1.0").unwrap());
+    }
+}
+
+#[test]
+fn a_running_daemon_drops_the_token_when_the_app_address_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::for_home(dir.path());
+    update_config(&env, |config| {
+        config.app_url = Some("https://other.example.com".into())
+    })
+    .unwrap();
+    let mut store = Store::open(store_path(&env)).unwrap();
+    store.set_meta("installation.token", TOKEN).unwrap();
+    store
+        .set_meta("installation.origin", "https://app.clashofmeat.com")
+        .unwrap();
+    drop(store);
+    let handle = run::start(RunOptions {
+        env: env.clone(),
+        version: "0.1.0".into(),
+    })
+    .unwrap();
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    assert_eq!(
+        socket_request(&mut stream, &mut reader, 1, "status")["result"]["paired"],
+        false
+    );
+    handle.stop().unwrap();
+    let store = Store::open(store_path(&env)).unwrap();
+    assert!(store.meta("installation.token").unwrap().is_none());
 }

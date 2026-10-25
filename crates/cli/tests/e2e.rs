@@ -68,7 +68,11 @@ impl Server {
                     }
                     "/api/pairings/exchange" => (200, json!({"installationId":ID,"token":TOKEN})),
                     "/api/installations/heartbeat" => (200, json!({"connected":true})),
-                    "/api/observations" => (200, json!({"accepted":10,"duplicates":0})),
+                    "/api/observations" => (
+                        200,
+                        json!({"accepted":request.body["observations"].as_array().unwrap().len()+request.body["readings"].as_array().unwrap().len(),"duplicates":0}),
+                    ),
+                    "/api/live" => (404, json!({"error":"no live stream in this fixture"})),
                     other => panic!("unexpected request {other}"),
                 };
                 observed.lock().unwrap().push(request);
@@ -119,7 +123,9 @@ fn read_request(stream: &mut TcpStream) -> Request {
         .filter_map(|line| line.split_once(':'))
         .map(|(key, value)| (key.to_ascii_lowercase(), value.trim().to_owned()))
         .collect();
-    let length: usize = headers["content-length"].parse().unwrap();
+    let length: usize = headers
+        .get("content-length")
+        .map_or(0, |value| value.parse().unwrap());
     while bytes.len() - header_end < length {
         let mut chunk = [0; 4096];
         let count = stream.read(&mut chunk).unwrap();
@@ -129,7 +135,11 @@ fn read_request(stream: &mut TcpStream) -> Request {
     Request {
         path,
         headers,
-        body: serde_json::from_slice(&bytes[header_end..header_end + length]).unwrap(),
+        body: if length == 0 {
+            Value::Null
+        } else {
+            serde_json::from_slice(&bytes[header_end..header_end + length]).unwrap()
+        },
     }
 }
 

@@ -48,7 +48,7 @@ pub fn detect(env: &Env, manifest: &Manifest) -> bool {
 /// Returns the user's computer name, with a hostname fallback.
 pub fn device_name() -> String {
     #[cfg(target_os = "macos")]
-    if let Ok(output) = Command::new("scutil")
+    if let Ok(output) = Command::new("/usr/sbin/scutil")
         .args(["--get", "ComputerName"])
         .output()
     {
@@ -59,13 +59,19 @@ pub fn device_name() -> String {
             }
         }
     }
-    Command::new("hostname")
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| if cfg!(windows) { "PC" } else { "Mac" }.into())
+    // Absolute on Unix, so a `hostname` earlier on PATH (the LaunchAgent's starts with Homebrew's
+    // user-writable bin) is never run instead.
+    Command::new(if cfg!(windows) {
+        "hostname"
+    } else {
+        "/bin/hostname"
+    })
+    .output()
+    .ok()
+    .filter(|output| output.status.success())
+    .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
+    .filter(|name| !name.is_empty())
+    .unwrap_or_else(|| if cfg!(windows) { "PC" } else { "Mac" }.into())
 }
 
 /// Returns identifiers of detected built-in providers.

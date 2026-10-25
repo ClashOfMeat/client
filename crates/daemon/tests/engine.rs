@@ -53,6 +53,7 @@ impl Provider for JsonProvider {
             resets_at: None,
             model: None,
             provider: Some("json-test".into()),
+            agent_id: None,
         })];
         if let Some(phase) = record.value["phase"].as_str() {
             signals.push(Signal::Turn(Turn {
@@ -477,5 +478,76 @@ fn json_source_parses_once_per_change() {
             .unwrap()
             .records,
         2
+    );
+}
+
+#[test]
+fn additional_accounts_and_normalized_metrics_are_incremental() {
+    let home = tempfile::tempdir().unwrap();
+    let env = Env::for_home(home.path());
+    let second = home.path().join("work-codex");
+    for folder in [home.path().join(".codex"), second.clone()] {
+        fs::create_dir_all(folder.join("sessions")).unwrap();
+        let at = iso(now());
+        fs::write(folder.join("sessions/rollout.jsonl"), [
+            json!({"type":"session_meta","timestamp":at,"payload":{"id":"same-session"}}),
+            json!({"type":"event_msg","timestamp":at,"payload":{"type":"task_started","turn_id":"same-turn"}}),
+            json!({"type":"response_item","timestamp":at,"payload":{"type":"function_call","call_id":"same-tool","name":"spawn_agent"}}),
+            json!({"type":"event_msg","timestamp":at,"payload":{"type":"task_complete"}}),
+        ].iter().map(|v| format!("{v}\n")).collect::<String>()).unwrap();
+    }
+    clashofmeat_daemon::config::update_config(&env, |config| {
+        config
+            .other
+            .insert("providerHomes".into(), json!({"codex":[second]}));
+    })
+    .unwrap();
+    let mut store = Store::open_in_memory().unwrap();
+    store.set_meta("paired_at", PAIRED).unwrap();
+    let mut engine = Engine::new(env.clone(), vec![Box::new(Codex)], "0.1.0");
+    engine.scan(&mut store, None, now()).unwrap();
+    assert_eq!(
+        store
+            .pending(EventKind::Counter, 100)
+            .unwrap()
+            .iter()
+            .filter(|e| e.key == "prompt_count")
+            .count(),
+        2
+    );
+    assert_eq!(
+        store
+            .pending(EventKind::Counter, 100)
+            .unwrap()
+            .iter()
+            .filter(|e| e.key == "subagent_count")
+            .count(),
+        2
+    );
+    let payloads = observer::completed_payloads(&mut store, 10).unwrap();
+    assert_eq!(payloads.len(), 2);
+    assert_ne!(
+        payloads[0]["source"]["sourceKey"],
+        payloads[1]["source"]["sourceKey"]
+    );
+    assert!(!serde_json::to_string(&payloads)
+        .unwrap()
+        .contains("work-codex"));
+    // The extra home's profile is a random UUID kept in config.json, not a hash of its path.
+    let config = clashofmeat_daemon::config::read_config(&env).unwrap();
+    let profile = config.other["providerProfiles"]["codex"][second.to_str().unwrap()]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(clashofmeat_core::ids::is_uuid(&profile));
+    assert!(payloads
+        .iter()
+        .any(|payload| payload["source"]["sourceKey"] == format!("profile:{profile}")));
+    assert!(payloads
+        .iter()
+        .any(|payload| payload["source"]["sourceKey"] == "collector"));
+    assert_eq!(
+        engine.scan(&mut store, None, now()).unwrap().events_saved,
+        0
     );
 }

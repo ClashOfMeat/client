@@ -8,6 +8,7 @@ import { flexPhase, flexDelay, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT
 import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
 import { friendRows, errorText } from './overlay/friends.mjs'
+import { predict } from './overlay/predict.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen, emit } = window.__TAURI__.event
@@ -31,6 +32,8 @@ const activity = heroActivity()
 const images = new Map()
 const effectImages = new Map()
 let workArea, animation, character, progression, player, sessions = []
+// This machine's effective tokens the last heartbeat did not include yet (see overlay/predict.mjs).
+let localTokens = 0
 let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
 const visits = visitTracker()
 let friendsRequest = 0, sending = false, noteTimer
@@ -93,18 +96,11 @@ function normaliseActivity(data) {
   wake()
 }
 
-function tokenCount(data) {
-  for (const value of [data?.todayTokens, data?.today_tokens, data?.tokensToday, data?.tokens_today, data?.today?.tokens, data?.today?.totalTokens]) {
-    if (Number.isFinite(value) && value >= 0) return value
-  }
-  return null
-}
-
 function updateStats() {
   if (!character) return
   document.getElementById('name').textContent = character.name ?? heroName(character.heroId)
   const level = `Level ${character.level ?? 1}`
-  const xp = character.xp
+  const { xp, tokens } = predict(character, progression, localTokens)
   const next = character.nextLevelAt
   const floor = Number.isSafeInteger(character.levelFloor) ? character.levelFloor : 0
   const span = next - floor
@@ -122,7 +118,6 @@ function updateStats() {
     xpText.textContent = 'XP unavailable'
     xpFill.style.width = '0%'
   }
-  const tokens = tokenCount(progression)
   const tokensLine = document.getElementById('tokens')
   tokensLine.hidden = tokens === null
   if (tokens !== null) tokensLine.textContent = `today ${formatTokens(tokens)} tokens`
@@ -615,11 +610,19 @@ setInterval(async () => {
 
 await listen('daemon', ({ payload }) => {
   if (payload?.kind === 'snapshot') {
+    localTokens = payload.data?.localTokens ?? 0
     normaliseActivity(payload.data?.activity)
     void setHero(payload.data?.hero)
   } else if (payload?.kind === 'event') {
     if (payload.data?.event === 'activity') normaliseActivity(payload.data.data)
-    if (payload.data?.event === 'heartbeat') void setHero(payload.data.data, true)
+    if (payload.data?.event === 'heartbeat') {
+      localTokens = payload.data.data?.localTokens ?? 0
+      void setHero(payload.data.data, true)
+    }
+    if (payload.data?.event === 'local_tokens') {
+      localTokens = payload.data.data?.effective ?? 0
+      updateStats()
+    }
   } else if (payload?.kind === 'status' && payload.data?.connected === false) {
     normaliseActivity({ busy: false, sessions: [] })
   }
@@ -629,6 +632,7 @@ screen = initial.hero?.screen ?? 'main'
 setStayStill(initial.hero?.still === true)
 setPaused(initial.hero?.show === false)
 const snapshot = initial.daemon?.snapshot
+if (snapshot) localTokens = snapshot.localTokens ?? 0
 if (snapshot) normaliseActivity(snapshot.activity)
 if (snapshot) void setHero(snapshot.hero)
 await listen('hero-settings', ({ payload }) => {

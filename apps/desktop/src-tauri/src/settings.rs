@@ -102,7 +102,7 @@ pub fn show(app: &tauri::AppHandle) -> tauri::Result<()> {
 #[tauri::command]
 pub fn desktop_state(app: tauri::AppHandle) -> Value {
     #[cfg(target_os = "macos")]
-    let name = Command::new("scutil")
+    let name = Command::new("/usr/sbin/scutil")
         .args(["--get", "ComputerName"])
         .output()
         .ok()
@@ -117,7 +117,7 @@ pub fn desktop_state(app: tauri::AppHandle) -> Value {
     json!({"daemon":crate::daemon::state(&app),"hero":current(&app),"displays":displays(&app),"device":device,"updater":crate::updater::status(&app)})
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn daemon_request(
     app: tauri::AppHandle,
     method: String,
@@ -128,6 +128,7 @@ pub fn daemon_request(
         "status"
             | "snapshot"
             | "set_provider_enabled"
+            | "set_provider_homes"
             | "sync_now"
             | "pair_start"
             | "wire_provider"
@@ -177,9 +178,22 @@ pub fn open_app(app: tauri::AppHandle, path: String) -> Result<(), String> {
     open_pair_link(format!("{}{path}", base.trim_end_matches('/')))
 }
 
+/// HTTPS anywhere, or plain HTTP to this machine only (local development). The parsed host is
+/// compared, so `http://localhost.evil.com` and `http://localhost@evil.com` are refused.
+fn openable(link: &str) -> bool {
+    let Ok(url) = tauri::Url::parse(link) else {
+        return false;
+    };
+    match url.scheme() {
+        "https" => url.host_str().is_some(),
+        "http" => matches!(url.host_str(), Some("localhost" | "127.0.0.1")),
+        _ => false,
+    }
+}
+
 #[tauri::command]
 pub fn open_pair_link(link: String) -> Result<(), String> {
-    if !link.starts_with("https://") && !link.starts_with("http://localhost") {
+    if !openable(&link) {
         return Err("invalid pairing link".into());
     }
     #[cfg(windows)]
@@ -188,7 +202,7 @@ pub fn open_pair_link(link: String) -> Result<(), String> {
         .status()
         .map_err(|e| e.to_string())?;
     #[cfg(not(windows))]
-    let status = Command::new("open")
+    let status = Command::new("/usr/bin/open")
         .arg(&link)
         .status()
         .map_err(|e| e.to_string())?;
@@ -203,4 +217,30 @@ fn displays(app: &tauri::AppHandle) -> Vec<Value> {
     app.available_monitors().unwrap_or_default().into_iter().enumerate()
         .map(|(index, monitor)| json!({"id":format!("display:{index}"),"name":monitor.name().cloned().unwrap_or_else(|| format!("Display {}",index+1))}))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::openable;
+
+    #[test]
+    fn only_https_or_this_machine_opens() {
+        for link in [
+            "https://app.clashofmeat.com/link?code=ABCDE12345",
+            "http://localhost:3110/link?code=ABCDE12345",
+            "http://127.0.0.1:3110/setup",
+        ] {
+            assert!(openable(link), "{link}");
+        }
+        for link in [
+            "http://localhost.evil.com/link",
+            "http://localhost@evil.com/link",
+            "http://example.com/link",
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "not a url",
+        ] {
+            assert!(!openable(link), "{link}");
+        }
+    }
 }

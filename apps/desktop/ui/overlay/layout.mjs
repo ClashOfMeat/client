@@ -17,13 +17,6 @@ export function windowRect(x, { workArea, sprite = 128, bubble = false, lift = 0
   }
 }
 
-export function heroBox({ workArea, sprite = 128, bubble = false } = {}) {
-  return {
-    patrolWidth: Math.max(0, workArea.width - sprite),
-    ...windowRect(0, { workArea, sprite, bubble }),
-  }
-}
-
 export function formatTokens(n) {
   if (!Number.isFinite(n) || n < 0) return ''
   if (n >= 1_000_000) return `${Number((n / 1_000_000).toFixed(1))}M`
