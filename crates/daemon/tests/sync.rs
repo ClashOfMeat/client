@@ -1277,3 +1277,104 @@ fn agent_ids_go_up_only_to_a_server_that_lists_the_feature() {
         }
     }
 }
+
+#[test]
+fn the_token_is_kept_only_for_the_app_that_issued_it() {
+    use clashofmeat_daemon::sync::installation_token;
+    let mut store = Store::open_in_memory().unwrap();
+    let linked = clashofmeat_daemon::sync::Linked {
+        installation_id: ID.into(),
+        token: TOKEN.into(),
+        origin: "https://app.clashofmeat.com".into(),
+    };
+    mark_paired(&mut store, &linked, now()).unwrap();
+    assert_eq!(
+        installation_token(&mut store, Some("https://app.clashofmeat.com/")).unwrap(),
+        Some(TOKEN.into())
+    );
+    assert_eq!(installation_token(&mut store, None).unwrap(), None);
+    assert!(store.meta("installation.token").unwrap().is_some());
+    // Another app address: the token is dropped rather than sent there.
+    assert_eq!(
+        installation_token(&mut store, Some("https://staging.example.com")).unwrap(),
+        None
+    );
+    assert!(store.meta("installation.token").unwrap().is_none());
+    assert!(store.meta("installation.id").unwrap().is_none());
+    assert_eq!(
+        installation_token(&mut store, Some("https://app.clashofmeat.com")).unwrap(),
+        None
+    );
+    // A token paired before origins were recorded adopts the current app.
+    let mut legacy = Store::open_in_memory().unwrap();
+    legacy.set_meta("installation.token", TOKEN).unwrap();
+    assert_eq!(
+        installation_token(&mut legacy, Some("https://app.clashofmeat.com")).unwrap(),
+        Some(TOKEN.into())
+    );
+    assert_eq!(
+        legacy.meta("installation.origin").unwrap().as_deref(),
+        Some("https://app.clashofmeat.com")
+    );
+}
+
+#[test]
+fn revoking_deletes_the_installation_and_tolerates_older_servers() {
+    for reply in [
+        Reply::ok(json!({"revoked": true})),
+        Reply::error(404, json!({"error": "Not found"})),
+        Reply::error(405, json!({"error": "Method not allowed"})),
+        Reply::error(500, json!({"error": "down"})),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let env = Env::for_home(dir.path());
+        let server = Server::start(vec![reply]);
+        update_config(&env, |config| config.app_url = Some(server.origin.clone())).unwrap();
+        let mut store = Store::open(store_path(&env)).unwrap();
+        store.set_meta("installation.token", TOKEN).unwrap();
+        store.set_meta("installation.id", ID).unwrap();
+        drop(store);
+        assert!(clashofmeat_daemon::sync::revoke_installation(&env, "0.1.0").unwrap());
+        let store = Store::open(store_path(&env)).unwrap();
+        assert!(store.meta("installation.token").unwrap().is_none());
+        let requests = server.finish();
+        assert_eq!(requests[0].method, "DELETE");
+        assert_eq!(requests[0].path, "/api/installations/self");
+        assert_eq!(requests[0].headers["authorization"], format!("Bearer {TOKEN}"));
+        // Nothing left to revoke.
+        assert!(!clashofmeat_daemon::sync::revoke_installation(&env, "0.1.0").unwrap());
+    }
+}
+
+#[test]
+fn a_running_daemon_drops_the_token_when_the_app_address_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::for_home(dir.path());
+    update_config(&env, |config| {
+        config.app_url = Some("https://other.example.com".into())
+    })
+    .unwrap();
+    let mut store = Store::open(store_path(&env)).unwrap();
+    store.set_meta("installation.token", TOKEN).unwrap();
+    store
+        .set_meta("installation.origin", "https://app.clashofmeat.com")
+        .unwrap();
+    drop(store);
+    let handle = run::start(RunOptions {
+        env: env.clone(),
+        version: "0.1.0".into(),
+    })
+    .unwrap();
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    assert_eq!(
+        socket_request(&mut stream, &mut reader, 1, "status")["result"]["paired"],
+        false
+    );
+    handle.stop().unwrap();
+    let store = Store::open(store_path(&env)).unwrap();
+    assert!(store.meta("installation.token").unwrap().is_none());
+}

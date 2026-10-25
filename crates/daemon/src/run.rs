@@ -541,7 +541,8 @@ fn handle_request(
                     ))
                 });
             endpoint.and_then(|endpoint| {
-                store.meta("installation.token").map_err(internal).map(|token| {
+                let url = config::read_config(&opts.env).map_err(internal)?.app_url;
+                sync::installation_token(store, url.as_deref()).map_err(internal).map(|token| {
                     json!({"endpoint": endpoint, "authorization": token.map(|token| format!("Bearer {token}"))})
                 })
             })
@@ -782,13 +783,13 @@ fn handle_request(
 /// holds up the main loop or a heartbeat.
 fn friend_request(
     opts: &RunOptions,
-    store: &Store,
+    store: &mut Store,
     reply: Sender<std::result::Result<Value, SocketError>>,
     call: impl FnOnce(&sync::Client) -> std::result::Result<Value, sync::ApiError> + Send + 'static,
 ) -> Option<SocketReply> {
-    let token = match store.meta("installation.token") {
-        Ok(Some(token)) => token,
-        Ok(None) => {
+    let client = match make_client(&opts.env, &opts.version, Some(store)) {
+        Ok(client) if client.token.is_some() => client,
+        Ok(_) => {
             return Some((
                 reply,
                 Err(SocketError::new(
@@ -797,10 +798,6 @@ fn friend_request(
                 )),
             ))
         }
-        Err(error) => return Some((reply, Err(internal(error)))),
-    };
-    let client = match make_client(&opts.env, &opts.version, Some(token)) {
-        Ok(client) => client,
         Err(error) => return Some((reply, Err(error))),
     };
     thread::spawn(move || {
@@ -892,7 +889,7 @@ fn token_totals(
 
 fn status(
     opts: &RunOptions,
-    store: &Store,
+    store: &mut Store,
     params: &Value,
 ) -> std::result::Result<Value, SocketError> {
     let now = OffsetDateTime::now_utc();
@@ -909,12 +906,15 @@ fn status(
         None => now.date().midnight().assume_utc(),
     };
     let today = token_totals(store, since, now)?;
+    let config = config::read_config(&opts.env).map_err(internal)?;
+    let paired = sync::installation_token(store, config.app_url.as_deref())
+        .map_err(internal)?
+        .is_some();
     let meta = |key| store.meta(key).map_err(internal);
     let blocked = meta("blocked")?.and_then(|raw| sync::blocked_message(&raw, &opts.version));
     let off: HashSet<String> = meta("providers_off")?
         .and_then(|raw| serde_json::from_str(&raw).ok())
         .unwrap_or_default();
-    let config = config::read_config(&opts.env).map_err(internal)?;
     let health = store.health().map_err(internal)?;
     let limits = store
         .usage_limits(&now.format(&Rfc3339).map_err(internal)?)
@@ -939,7 +939,7 @@ fn status(
     let counters = store.pending_count(EventKind::Counter).map_err(internal)?;
     let readings = store.pending_count(EventKind::Reading).map_err(internal)?;
     Ok(
-        json!({"version":opts.version,"paired":meta("installation.token")?.is_some(),"app_url":config::read_config(&opts.env).map_err(internal)?.app_url,"blocked":blocked,"reauth":meta("reauth")?.as_deref()==Some("true"),"pending":{"counters":counters,"readings":readings},"last_sync_at":meta("last_sync_at")?,"providers":providers,"today_tokens":today}),
+        json!({"version":opts.version,"paired":paired,"app_url":config.app_url,"blocked":blocked,"reauth":meta("reauth")?.as_deref()==Some("true"),"pending":{"counters":counters,"readings":readings},"last_sync_at":meta("last_sync_at")?,"providers":providers,"today_tokens":today}),
     )
 }
 
@@ -987,8 +987,7 @@ fn sync_loop(
                 level,
                 reply,
             }) => {
-                let token = store.meta("installation.token").ok().flatten();
-                let result = make_client(&env, &version, token).and_then(|client| {
+                let result = make_client(&env, &version, Some(&mut store)).and_then(|client| {
                     client
                         .evolve(&character_id, level)
                         .map_err(|error| SocketError::new("evolve_failed", error.to_string()))
@@ -1002,8 +1001,7 @@ fn sync_loop(
                 let _ = reply.send(result.map(|_| json!({"evolved":true})));
             }
             Ok(SyncCommand::LevelUp { from, to, reply }) => {
-                let token = store.meta("installation.token").ok().flatten();
-                let result = make_client(&env, &version, token).and_then(|client| {
+                let result = make_client(&env, &version, Some(&mut store)).and_then(|client| {
                     client
                         .level_up(from, to)
                         .map_err(|error| SocketError::new("level_up_failed", error.to_string()))
@@ -1108,8 +1106,8 @@ fn sync_loop(
         if due == Due::Wait {
             continue;
         }
-        let token = match store.meta("installation.token") {
-            Ok(Some(token)) => token,
+        let client = match make_client(&env, &version, Some(&mut store)) {
+            Ok(client) if client.token.is_some() => client,
             _ => continue,
         };
         if let Ok(Some(raw)) = store.meta("blocked") {
@@ -1127,10 +1125,6 @@ fn sync_loop(
         {
             continue;
         }
-        let client = match make_client(&env, &version, Some(token)) {
-            Ok(client) => client,
-            Err(_) => continue,
-        };
         let mut presence = Map::new();
         if let Some(session) = &session {
             presence.insert("sessionId".into(), json!(session));
@@ -1174,14 +1168,20 @@ fn sync_loop(
     }
 }
 
+/// A client for the configured app. Given the store, it carries the installation token, when that
+/// app issued it.
 fn make_client(
     env: &Env,
     version: &str,
-    token: Option<String>,
+    store: Option<&mut Store>,
 ) -> std::result::Result<sync::Client, SocketError> {
     let url = config::read_config(env)
         .map_err(internal)?
         .app_url
         .ok_or_else(|| SocketError::new("not_configured", "app_url is not configured"))?;
+    let token = match store {
+        Some(store) => sync::installation_token(store, Some(&url)).map_err(internal)?,
+        None => None,
+    };
     sync::Client::new(&url, token, version).map_err(internal)
 }

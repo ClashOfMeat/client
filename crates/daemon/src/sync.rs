@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::fmt;
 use std::time::Duration;
 
+use clashofmeat_core::env::Env;
 use clashofmeat_core::ids::is_uuid;
 use clashofmeat_core::observer;
 use clashofmeat_core::signal::EventKind;
@@ -185,6 +186,7 @@ impl Client {
         Ok(Some(Linked {
             installation_id,
             token,
+            origin: self.origin.clone(),
         }))
     }
 
@@ -195,6 +197,20 @@ impl Client {
                 self.post("/api/installations/heartbeat", &json!({}))
             }
             result => result,
+        }
+    }
+
+    /// Revokes this installation's token. Servers from before this endpoint answer 404 or 405.
+    pub fn revoke(&self) -> Result<(), ApiError> {
+        let result = self
+            .authorized(
+                self.agent
+                    .delete(&format!("{}/api/installations/self", self.origin)),
+            )
+            .call();
+        match result {
+            Ok(_) | Err(ureq::Error::Status(404 | 405, _)) => Ok(()),
+            Err(error) => answer(Err(error)).map(|_| ()),
         }
     }
 
@@ -658,6 +674,8 @@ impl Pairing {
 pub struct Linked {
     pub installation_id: String,
     pub token: String,
+    /// The app that issued the token; it is sent nowhere else.
+    pub origin: String,
 }
 
 pub fn mark_paired(
@@ -671,12 +689,80 @@ pub fn mark_paired(
     store
         .set_meta("installation.id", &linked.installation_id)
         .map_err(store_error)?;
+    store
+        .set_meta("installation.origin", &linked.origin)
+        .map_err(store_error)?;
     if store.meta("paired_at").map_err(store_error)?.is_none() {
         store
             .set_meta("paired_at", &now.format(&Rfc3339).map_err(store_error)?)
             .map_err(store_error)?;
     }
     store.set_meta("reauth", "false").map_err(store_error)
+}
+
+/// The installation token, but only for the app that issued it. Pairing records the app's origin
+/// next to the token; once the configured app URL points elsewhere (say, a reinstall with
+/// another `--app`), the token is dropped so it never reaches another server. A token from before
+/// origins were recorded adopts the current app.
+pub fn installation_token(
+    store: &mut Store,
+    app_url: Option<&str>,
+) -> Result<Option<String>, ApiError> {
+    let Some(token) = store.meta("installation.token").map_err(store_error)? else {
+        return Ok(None);
+    };
+    let Some(origin) = app_url.and_then(|url| crate::config::app_origin(url).ok()) else {
+        return Ok(None);
+    };
+    match store.meta("installation.origin").map_err(store_error)? {
+        Some(paired) if paired == origin => Ok(Some(token)),
+        Some(_) => {
+            forget_installation(store)?;
+            Ok(None)
+        }
+        None => {
+            store
+                .set_meta("installation.origin", &origin)
+                .map_err(store_error)?;
+            Ok(Some(token))
+        }
+    }
+}
+
+/// Forgets the installation's token and what the server last said, keeping queued activity.
+pub fn forget_installation(store: &mut Store) -> Result<(), ApiError> {
+    for key in [
+        "installation.token",
+        "installation.id",
+        "installation.origin",
+        "heartbeat",
+        "clock_skew_s",
+    ] {
+        store.delete_meta(key).map_err(store_error)?;
+    }
+    Ok(())
+}
+
+/// Revokes this installation on the server (`uninstall`, `connect --force`), then forgets its
+/// token. Older servers have no revoke endpoint and an unreachable one must not block an
+/// uninstall, so a failed revoke is only reported. True when there was a token.
+pub fn revoke_installation(env: &Env, version: &str) -> anyhow::Result<bool> {
+    let path = crate::config::store_path(env);
+    if !path.is_file() {
+        return Ok(false);
+    }
+    let mut store = Store::open(path)?;
+    let app_url = crate::config::read_config(env)?.app_url;
+    let Some(token) = installation_token(&mut store, app_url.as_deref())? else {
+        return Ok(false);
+    };
+    if let Err(error) = Client::new(app_url.as_deref().unwrap_or_default(), Some(token), version)
+        .and_then(|client| client.revoke())
+    {
+        eprintln!("Could not revoke this computer's connection on the server: {error}");
+    }
+    forget_installation(&mut store)?;
+    Ok(true)
 }
 
 pub struct UploadOutcome {
@@ -958,8 +1044,7 @@ fn fail(
     {
         match status {
             401 => {
-                let _ = store.delete_meta("installation.token");
-                let _ = store.delete_meta("installation.id");
+                let _ = forget_installation(store);
                 let _ = store.set_meta("reauth", "true");
             }
             426 => {

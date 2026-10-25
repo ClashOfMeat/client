@@ -83,6 +83,10 @@ pub fn install(env: &Env, app: &str, no_launch_agent: bool) -> Result<()> {
 }
 
 pub fn uninstall(env: &Env, keep_data: bool) -> Result<()> {
+    // Before anything else, while the token and the app address are still here.
+    if clashofmeat_daemon::sync::revoke_installation(env, env!("CARGO_PKG_VERSION"))? {
+        println!("Disconnected this computer from Clash of Meat.");
+    }
     if cfg!(target_os = "macos") {
         remove_mac_install(env)?;
     } else {

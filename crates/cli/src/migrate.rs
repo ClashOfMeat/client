@@ -49,7 +49,9 @@ pub fn run(env: &Env, origin: &str) -> Result<()> {
     if old_path.is_file() {
         let old = Connection::open_with_flags(&old_path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         let mut store = Store::open(config::store_path(env))?;
-        if store.meta("installation.token")?.is_none() && table_exists(&old, "accounts")? {
+        if clashofmeat_daemon::sync::installation_token(&mut store, Some(origin))?.is_none()
+            && table_exists(&old, "accounts")?
+        {
             let account: Option<(String, String, Option<String>)> = old.query_row(
                     "SELECT id, token, installation_id FROM accounts WHERE plan='collector' AND token IS NOT NULL ORDER BY rowid LIMIT 1",
                     [],
@@ -73,6 +75,7 @@ pub fn run(env: &Env, origin: &str) -> Result<()> {
                     }
                 }
                 store.set_meta("installation.token", &token)?;
+                store.set_meta("installation.origin", origin)?;
                 println!(
                     "Imported collector pairing and {count} file offsets from {}.",
                     old_path.display()

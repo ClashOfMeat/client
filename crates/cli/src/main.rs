@@ -177,6 +177,10 @@ fn connect(
         }
         return Ok(());
     }
+    if status["paired"] == true {
+        // Re-pairing: revoke the old token on the app that issued it, before any new address.
+        clashofmeat_daemon::sync::revoke_installation(env, env!("CARGO_PKG_VERSION"))?;
+    }
     if let Some(origin) = origin {
         config::update_config(env, |config| config.app_url = Some(origin))?;
     }

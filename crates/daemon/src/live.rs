@@ -14,7 +14,7 @@ use crate::{config, sync};
 /// Calls `changed` for every revision the server announces. Returns when
 /// `stopping` is set or `changed` returns false.
 pub fn follow(env: Env, version: String, stopping: Arc<AtomicBool>, changed: impl Fn() -> bool) {
-    let store = match Store::open(config::store_path(&env)) {
+    let mut store = match Store::open(config::store_path(&env)) {
         Ok(store) => store,
         Err(error) => {
             eprintln!("daemon live store: {error}");
@@ -24,10 +24,12 @@ pub fn follow(env: Env, version: String, stopping: Arc<AtomicBool>, changed: imp
     let mut backoff = Duration::from_secs(5);
     while !stopping.load(Ordering::Relaxed) {
         let started = Instant::now();
-        let token = store.meta("installation.token").ok().flatten();
         let app_url = config::read_config(&env)
             .ok()
             .and_then(|config| config.app_url);
+        let token = sync::installation_token(&mut store, app_url.as_deref())
+            .ok()
+            .flatten();
         if let (Some(token), Some(url)) = (token, app_url) {
             match sync::Client::new(&url, Some(token), &version).and_then(|client| client.live()) {
                 Ok(reader) => {
