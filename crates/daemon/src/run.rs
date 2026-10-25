@@ -683,6 +683,7 @@ fn handle_request(
                 }
                 map[id] = json!(paths);
             })
+            .and_then(|_| config::ensure_profiles(&opts.env))
             .map_err(internal)?;
             Ok(json!({"id": id, "homes": paths}))
         })(),

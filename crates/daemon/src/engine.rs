@@ -110,7 +110,7 @@ impl Engine {
         self.sessions
             .retain(|_, session| now - session.last_at <= Duration::minutes(30));
 
-        let config = crate::config::read_config(&self.env)?;
+        let config = crate::config::ensure_profiles(&self.env)?;
         for provider in &self.providers {
             let manifest = provider.manifest();
             if off.contains(manifest.id) {

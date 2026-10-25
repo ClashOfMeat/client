@@ -150,9 +150,65 @@ pub fn source_roots(
             if roots.iter().any(|(path, _)| *path == root) {
                 continue;
             }
-            let profile = clashofmeat_core::ids::stable_id(&format!("{provider}:{home}"));
-            roots.push((root, Some(profile)));
+            // A home without a profile yet waits for `ensure_profiles`, which the next scan runs.
+            if let Some(profile) = profile(config, provider, home) {
+                roots.push((root, Some(profile.to_owned())));
+            }
         }
     }
     roots
+}
+
+/// The random profile ID of an extra home. Uploads carry it instead of anything derived from the
+/// folder path, so a profile reveals nothing about the user name or folder names.
+fn profile<'a>(config: &'a Config, provider: &str, home: &str) -> Option<&'a str> {
+    config
+        .other
+        .get("providerProfiles")?
+        .get(provider)?
+        .get(home)?
+        .as_str()
+        .filter(|id| clashofmeat_core::ids::is_uuid(id))
+}
+
+/// Reads the config, first giving every extra home its random profile ID. A profile is kept when
+/// its home is removed, so adding the folder back resumes the same IDs.
+pub fn ensure_profiles(env: &Env) -> Result<Config> {
+    let config = read_config(env)?;
+    let missing = |config: &Config| -> Vec<(String, String)> {
+        let Some(homes) = config.other.get("providerHomes").and_then(Value::as_object) else {
+            return Vec::new();
+        };
+        homes
+            .iter()
+            .flat_map(|(provider, homes)| {
+                homes
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .filter(|home| profile(config, provider, home).is_none())
+                    .map(|home| (provider.clone(), home.to_owned()))
+            })
+            .collect()
+    };
+    if missing(&config).is_empty() {
+        return Ok(config);
+    }
+    update_config(env, |config| {
+        for (provider, home) in missing(config) {
+            let profiles = config
+                .other
+                .entry("providerProfiles")
+                .or_insert_with(|| Value::Object(Map::new()));
+            if !profiles.is_object() {
+                *profiles = Value::Object(Map::new());
+            }
+            let homes = &mut profiles[&provider];
+            if !homes.is_object() {
+                *homes = Value::Object(Map::new());
+            }
+            homes[&home] = Value::String(clashofmeat_core::ids::random_uuid());
+        }
+    })
 }

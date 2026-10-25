@@ -503,7 +503,7 @@ fn additional_accounts_and_normalized_metrics_are_incremental() {
     .unwrap();
     let mut store = Store::open_in_memory().unwrap();
     store.set_meta("paired_at", PAIRED).unwrap();
-    let mut engine = Engine::new(env, vec![Box::new(Codex)], "0.1.0");
+    let mut engine = Engine::new(env.clone(), vec![Box::new(Codex)], "0.1.0");
     engine.scan(&mut store, None, now()).unwrap();
     assert_eq!(
         store
@@ -532,6 +532,19 @@ fn additional_accounts_and_normalized_metrics_are_incremental() {
     assert!(!serde_json::to_string(&payloads)
         .unwrap()
         .contains("work-codex"));
+    // The extra home's profile is a random UUID kept in config.json, not a hash of its path.
+    let config = clashofmeat_daemon::config::read_config(&env).unwrap();
+    let profile = config.other["providerProfiles"]["codex"][second.to_str().unwrap()]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(clashofmeat_core::ids::is_uuid(&profile));
+    assert!(payloads
+        .iter()
+        .any(|payload| payload["source"]["sourceKey"] == format!("profile:{profile}")));
+    assert!(payloads
+        .iter()
+        .any(|payload| payload["source"]["sourceKey"] == "collector"));
     assert_eq!(
         engine.scan(&mut store, None, now()).unwrap().events_saved,
         0

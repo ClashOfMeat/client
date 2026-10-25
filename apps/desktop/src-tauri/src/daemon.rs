@@ -192,6 +192,9 @@ fn connect(app: &AppHandle) -> Result<(), String> {
     match parse_line(&line)? {
         ParsedLine::Result { id: 2, .. } => {
             emit(app, "status", json!({"connected":true}));
+            // Once per connection: the updater compares the daemon's version with the app's
+            // (to restart a daemon left over from before an update) and reads `blocked`.
+            refresh_status(app);
         }
         ParsedLine::Error { message, .. } => return Err(message),
         _ => return Err("unexpected subscribe response".into()),
@@ -203,7 +206,14 @@ fn connect(app: &AppHandle) -> Result<(), String> {
         }
         match parse_line(&line)? {
             ParsedLine::Event { name, data } => {
+                // Only a failed sync can change `blocked` or `reauth`; successful ones need no
+                // full status, which the settings window polls by itself.
+                let refresh = matches!(name.as_str(), "paired" | "pair_failed")
+                    || (name == "sync" && data["ok"] == false);
                 emit(app, "event", json!({"event":name,"data":data}));
+                if refresh {
+                    refresh_status(app);
+                }
             }
             _ => return Err("unexpected subscription line".into()),
         }
@@ -267,6 +277,12 @@ pub fn send_with_params(method: &str, params: Value) -> Result<Value, String> {
 
 pub fn publish_status(app: &AppHandle, value: Value) {
     emit(app, "status", value);
+}
+
+fn refresh_status(app: &AppHandle) {
+    if let Ok(value) = send("status") {
+        emit(app, "status", value);
+    }
 }
 
 #[cfg(test)]
