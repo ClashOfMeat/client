@@ -251,6 +251,7 @@ fn main_loop(
     open_files.track(&recent);
     let mut polled_at = Instant::now();
     let mut pair_state = json!({"status":"unpaired"});
+    let mut local = LocalTokens::default();
     loop {
         let full_deadline = full_at + Duration::from_secs(600);
         let deadline = changed_at
@@ -295,6 +296,7 @@ fn main_loop(
                     &opts,
                     &mut store,
                     &activity,
+                    local.pending,
                     cached.as_ref(),
                     &pair_state,
                     &sync_tx,
@@ -310,6 +312,7 @@ fn main_loop(
                         None,
                         &mut activity,
                         &mut subscribers,
+                        &mut local,
                     );
                     open_files.track(&recent);
                     let _ = watch_refresh.send(());
@@ -327,11 +330,15 @@ fn main_loop(
                     json!({"ok":ok,"uploaded":result.uploaded,"error":error}),
                 );
                 if let Some(heartbeat) = result.heartbeat {
-                    let view = hero::hero_view(&heartbeat);
+                    let mut view = hero::hero_view(&heartbeat);
                     if let Err(error) = hero::save_cache(&config::home(&opts.env), &view) {
                         eprintln!("daemon hero cache: {error}");
                     }
                     cached = Some(view.clone());
+                    // The overlay adds this machine's activity since the heartbeat to its numbers.
+                    local.base = result.tokens_base;
+                    local.refresh(&store);
+                    view["localTokens"] = json!(local.pending);
                     broadcast(&mut subscribers, "heartbeat", view);
                 }
             }
@@ -376,6 +383,7 @@ fn main_loop(
                     Some(&paths),
                     &mut activity,
                     &mut subscribers,
+                    &mut local,
                 );
                 open_files.track(&recent);
             }
@@ -387,6 +395,7 @@ fn main_loop(
                 None,
                 &mut activity,
                 &mut subscribers,
+                &mut local,
             );
             open_files.track(&recent);
             let _ = watch_refresh.send(());
@@ -402,6 +411,7 @@ fn scan_and_broadcast(
     paths: Option<&[PathBuf]>,
     activity: &mut Value,
     subscribers: &mut Vec<Sender<Value>>,
+    local: &mut LocalTokens,
 ) -> Vec<PathBuf> {
     let recent = match engine.scan(store, paths, OffsetDateTime::now_utc()) {
         Ok(report) => {
@@ -411,6 +421,13 @@ fn scan_and_broadcast(
                     "observations",
                     json!({"changed": report.events_saved}),
                 );
+                if local.refresh(store) {
+                    broadcast(
+                        subscribers,
+                        "local_tokens",
+                        json!({"effective": local.pending}),
+                    );
+                }
             }
             report.recent
         }
@@ -426,6 +443,27 @@ fn scan_and_broadcast(
         broadcast(subscribers, "activity", next);
     }
     recent
+}
+
+/// This machine's effective tokens that the last heartbeat's numbers don't include yet, so the
+/// overlay's XP bar and token count move right away; each heartbeat starts over.
+#[derive(Default)]
+struct LocalTokens {
+    /// The last heartbeat's `tokens_base`: since when, and how much was acknowledged then.
+    base: Option<(String, u64)>,
+    pending: u64,
+}
+
+impl LocalTokens {
+    /// Recounts; true when the number changed.
+    fn refresh(&mut self, store: &Store) -> bool {
+        let pending = self.base.as_ref().map_or(0, |(since, synced)| {
+            store
+                .effective_tokens_since(since, false)
+                .map_or(0, |total| total.saturating_sub(*synced))
+        });
+        std::mem::replace(&mut self.pending, pending) != pending
+    }
 }
 
 /// Provider files written in the last six hours, with the size last seen. Codex keeps its
@@ -479,6 +517,7 @@ fn handle_request(
     opts: &RunOptions,
     store: &mut Store,
     activity: &Value,
+    local_tokens: u64,
     cached: Option<&Value>,
     pair_state: &Value,
     sync_tx: &Sender<SyncCommand>,
@@ -507,7 +546,7 @@ fn handle_request(
                 })
             })
         }
-        "snapshot" => Ok(json!({"activity":activity,"hero":cached})),
+        "snapshot" => Ok(json!({"activity":activity,"hero":cached,"localTokens":local_tokens})),
         "subscribe" => {
             if let Some(subscriber) = subscriber {
                 subscribers.push(subscriber);

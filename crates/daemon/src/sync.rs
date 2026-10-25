@@ -695,6 +695,9 @@ pub struct SyncResult {
     pub more: bool,
     /// The server's pace for the next sync, `nextSyncInSeconds`.
     pub next_sync: Option<Duration>,
+    /// What the heartbeat's numbers already include: effective tokens acknowledged since this
+    /// time. Local activity beyond them moves the overlay before the next sync.
+    pub tokens_base: Option<(String, u64)>,
 }
 
 impl SyncResult {
@@ -706,6 +709,7 @@ impl SyncResult {
             deferred: false,
             more: false,
             next_sync: None,
+            tokens_base: None,
         }
     }
 }
@@ -863,6 +867,14 @@ pub fn sync_once_with(
     }
     result.next_sync = crate::cadence::next_sync_hint(&heartbeat);
     result.heartbeat = Some(heartbeat);
+    // Measured before this sync's upload, which the heartbeat's numbers don't include yet.
+    result.tokens_base = (now - time::Duration::days(2))
+        .format(&Rfc3339)
+        .ok()
+        .and_then(|since| {
+            let synced = store.effective_tokens_since(&since, true).ok()?;
+            Some((since, synced))
+        });
     // One batch per sync; the sync thread drains a backlog at its own pace (`drain_once`).
     if let Err(error) = upload_batch(client, store, now, &mut result) {
         return fail(client, store, now, result, error);

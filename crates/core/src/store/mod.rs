@@ -162,6 +162,29 @@ mod tests {
     }
 
     #[test]
+    fn effective_tokens_count_a_tenth_of_cache_reads_and_skip_refused_rows() {
+        let mut store = Store::open_in_memory().unwrap();
+        let at = "2026-01-01T12:00:00Z";
+        let rows = [
+            event("r", "input_tokens", 100, at),
+            event("r", "cache_read_tokens", 1000, at),
+            event("r", "cache_write_tokens", 10, at),
+            event("s", "output_tokens", 5, at),
+            event("old", "output_tokens", 7, "2025-12-01T00:00:00Z"),
+            event("p", "prompt_count", 1, at),
+        ];
+        store.save_events("codex", &rows, None).unwrap();
+        let since = "2026-01-01T00:00:00Z";
+        assert_eq!(store.effective_tokens_since(since, false).unwrap(), 215);
+        assert_eq!(store.effective_tokens_since(since, true).unwrap(), 0);
+        let snapshot = |e: &Event| (e.id(), e.value, e.at.clone());
+        store.mark_synced(&[snapshot(&rows[0])]).unwrap();
+        store.reject(&[snapshot(&rows[3])]).unwrap();
+        assert_eq!(store.effective_tokens_since(since, true).unwrap(), 100);
+        assert_eq!(store.effective_tokens_since(since, false).unwrap(), 210);
+    }
+
+    #[test]
     fn upsert_follows_collector_conflict_rule() {
         let mut store = Store::open_in_memory().unwrap();
         let mut tokens = event("same", "input_tokens", 5, "2026-01-01T00:00:00Z");
@@ -550,6 +573,23 @@ impl Store {
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
             .map_err(Into::into)
+    }
+
+    /// Effective tokens of observations since `since`, counted as the server scores them: input,
+    /// output and cache writes in full, a tenth of cache reads. `synced_only` counts only what
+    /// the server acknowledged; otherwise everything except observations it refused.
+    pub fn effective_tokens_since(&self, since: &str, synced_only: bool) -> Result<u64> {
+        let total: f64 = self.conn.query_row(
+            "SELECT COALESCE(SUM(CASE key WHEN 'cache_read_tokens' THEN value / 10.0 ELSE value END), 0)
+             FROM events
+             WHERE kind='counter'
+               AND key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens')
+               AND julianday(at)>=julianday(?1)
+               AND (synced=1 OR (?2=0 AND synced=0))",
+            params![since, synced_only],
+            |row| row.get(0),
+        )?;
+        Ok(total as u64)
     }
 
     /// Acknowledges only observations whose value and timestamp still match the snapshot.
