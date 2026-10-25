@@ -161,18 +161,20 @@ It runs a whole release on this Mac without touching an installed Clash of Meat,
 1. Generates a throwaway updater key in a temp dir (never `~/.tauri/clashofmeat.key`).
 2. Builds 0.1.0 and 0.1.1 for both Mac targets with `package.sh --tauri-config`, under the identifier
    `com.clashofmeat.e2e` with `dangerousInsecureTransportProtocol` (the local server is plain http), and with
-   `CLASHOFMEAT_UPDATE_PUBKEY` set to the throwaway public key, so `tauri.conf.json` is not edited. Both are signed
-   and get `--mac-only` manifests.
+   `CLASHOFMEAT_UPDATE_PUBKEY` set to the throwaway public key and `CLASHOFMEAT_UPDATE_URL` set to
+   `desktop-v0.1.1/update-e2e.json`, so `tauri.conf.json` is not edited. Release builds read these two overrides only
+   at build time, never from the running app's environment, and they never send the installation token to an
+   overridden endpoint. Both are signed and get `--mac-only` manifests.
 3. Serves them at `http://localhost:<port>/releases/download/desktop-v<version>/`, the GitHub release layout.
 4. Installs 0.1.0 with `install/install.sh --no-launch-agent --no-connect`. `HOME`, `CLASHOFMEAT_HOME`,
    `CLASHOFMEAT_APPS_DIR`, `CLASHOFMEAT_BIN_DIR` and `CLASHOFMEAT_LAUNCH_AGENTS_DIR` point into the temp dir, so
    Cursor wiring, the LaunchAgent path, `~/Applications` and `~/.local/bin` are all the temp dir's.
 5. Starts the daemon itself and runs `clashofmeat connect --no-open` until the web app issues a pairing link.
    Confirming the link needs a signed-in browser, so the script stops there.
-6. Starts the app with `CLASHOFMEAT_UPDATE_URL` pointing at a copy of 0.1.1's `update.json` with `"minimum":
-   "0.1.1"`, which makes the app open Settings by itself. Once the app has downloaded and verified 0.1.1, it presses
+6. Copies 0.1.1's `update.json` with `"minimum": "0.1.1"` to `update-e2e.json` and starts the app, which then opens
+   Settings by itself. Once the app has downloaded and verified 0.1.1, it presses
    "Update and restart" through the accessibility API, then checks the bundle is now 0.1.1 and that the app relaunched.
-7. Offers a 0.1.2 whose signature belongs to the other archive and checks the app refuses it.
+7. Puts a 0.1.2 whose signature belongs to the other archive in `update-e2e.json` and checks the app refuses it.
 
 Requirements: the web app answers at `--app`, the port is free, and the terminal has Accessibility access (System
 Settings › Privacy & Security › Accessibility) for step 6. Everything is removed at the end, including WebKit's

@@ -39,11 +39,24 @@ fn public_key() -> Option<String> {
         .pointer("/plugins/updater/pubkey")?
         .as_str()?
         .to_owned();
-    let key = std::env::var("CLASHOFMEAT_UPDATE_PUBKEY")
-        .ok()
-        .or_else(|| option_env!("CLASHOFMEAT_UPDATE_PUBKEY").map(str::to_owned))
-        .unwrap_or(configured);
+    let key = override_var(
+        "CLASHOFMEAT_UPDATE_PUBKEY",
+        option_env!("CLASHOFMEAT_UPDATE_PUBKEY"),
+    )
+    .unwrap_or(configured);
     (!key.trim().is_empty() && key != PLACEHOLDER).then_some(key)
+}
+
+/// A test override of the signing key or endpoint: set when the app is built (the end-to-end
+/// script does this), or at run time in debug builds only. A release build never takes them from
+/// its environment, where any process of the user could plant them (`launchctl setenv`).
+fn override_var(name: &str, built: Option<&'static str>) -> Option<String> {
+    let runtime = if cfg!(debug_assertions) {
+        std::env::var(name).ok()
+    } else {
+        None
+    };
+    runtime.or_else(|| built.map(str::to_owned))
 }
 
 fn publish(app: &AppHandle) {
@@ -201,30 +214,36 @@ async fn fetch(app: &AppHandle) -> Result<(), String> {
         return Err("Update signing key is not configured".into());
     };
     let daemon_config = crate::daemon::send("updater_config").ok();
-    let endpoint = std::env::var("CLASHOFMEAT_UPDATE_URL")
-        .ok()
-        .or_else(|| option_env!("CLASHOFMEAT_UPDATE_URL").map(str::to_owned))
-        .or_else(|| {
-            daemon_config
-                .as_ref()?
-                .get("endpoint")?
+    // The installation token goes only to the paired app's own update endpoint, never to an
+    // overridden one.
+    let (endpoint, authorization) = match override_var(
+        "CLASHOFMEAT_UPDATE_URL",
+        option_env!("CLASHOFMEAT_UPDATE_URL"),
+    ) {
+        Some(endpoint) => (endpoint, None),
+        None => {
+            let config = daemon_config
+                .as_ref()
+                .ok_or("Update endpoint is unavailable")?;
+            let endpoint = config["endpoint"]
                 .as_str()
-                .map(str::to_owned)
-        })
-        .ok_or("Update endpoint is unavailable")?;
-    let url = endpoint
+                .ok_or("Update endpoint is unavailable")?;
+            (
+                endpoint.to_owned(),
+                config["authorization"].as_str().map(str::to_owned),
+            )
+        }
+    };
+    let url: tauri::Url = endpoint
         .parse()
         .map_err(|e| format!("invalid update endpoint: {e}"))?;
     let mut builder = app
         .updater_builder()
         .pubkey(key)
-        .endpoints(vec![url])
+        .endpoints(vec![url.clone()])
         .map_err(|e| e.to_string())?
         .timeout(Duration::from_secs(120));
-    if let Some(authorization) = daemon_config
-        .as_ref()
-        .and_then(|v| v["authorization"].as_str())
-    {
+    if let Some(authorization) = &authorization {
         builder = builder
             .header("Authorization", authorization)
             .map_err(|e| e.to_string())?;
@@ -239,7 +258,7 @@ async fn fetch(app: &AppHandle) -> Result<(), String> {
         .check()
         .await
         .map_err(|e| e.to_string())?;
-    let Some(update) = update else {
+    let Some(mut update) = update else {
         if app.state::<State>().ready.lock().unwrap().is_some() {
             edit(app, |status| status.phase = "ready");
         } else {
@@ -273,6 +292,11 @@ async fn fetch(app: &AppHandle) -> Result<(), String> {
     if held {
         return Ok(());
     }
+    // The builder's headers also go on the download, and the archive usually lives on
+    // github.com: keep the token only for a download from the app's own origin.
+    if !same_origin(&update.download_url, &url) {
+        update.headers.remove("authorization");
+    }
     let bytes = update
         .download(|_, _| {}, || {})
         .await
@@ -281,6 +305,10 @@ async fn fetch(app: &AppHandle) -> Result<(), String> {
     *app.state::<State>().ready.lock().unwrap() = Some((update, bytes));
     edit(app, |status| status.phase = "ready");
     Ok(())
+}
+
+fn same_origin(a: &tauri::Url, b: &tauri::Url) -> bool {
+    a.origin() == b.origin()
 }
 
 #[tauri::command]
@@ -321,6 +349,34 @@ pub async fn update_restart(app: AppHandle) -> Result<(), String> {
                 status.error = Some(format!("Could not install update: {error}"));
             });
             Err(error)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_origin;
+
+    #[test]
+    fn the_token_stays_on_the_app_origin() {
+        let endpoint = "https://app.clashofmeat.com/api/clients/desktop/update?target=x"
+            .parse()
+            .unwrap();
+        for (download, keep) in [
+            ("https://app.clashofmeat.com/media/app.tar.gz", true),
+            (
+                "https://github.com/ClashOfMeat/client/releases/download/x/app.tar.gz",
+                false,
+            ),
+            ("https://app.clashofmeat.com.evil.com/app.tar.gz", false),
+            ("http://app.clashofmeat.com/app.tar.gz", false),
+            ("https://app.clashofmeat.com:8443/app.tar.gz", false),
+        ] {
+            assert_eq!(
+                same_origin(&download.parse().unwrap(), &endpoint),
+                keep,
+                "{download}"
+            );
         }
     }
 }
