@@ -32,6 +32,19 @@ test('macOS desktop installer', { skip: process.platform !== 'darwin' }, async (
   const binPath = h => join(h, '.local', 'bin', 'clashofmeat')
   const logPath = h => join(h, 'started.log')
   const started = h => readFileSync(logPath(h), 'utf8').trim().split('\n')
+  // A stand-in minisign: it checks the key and the decoded signature it is given, and exits with
+  // FAKE_MINISIGN_STATUS. The real one is never on the test PATH.
+  const fakeBin = join(root, 'fake-bin')
+  mkdirSync(fakeBin)
+  const updaterKey = Buffer.from(readFileSync(new URL('../../apps/desktop/src-tauri/updater.pub', import.meta.url), 'utf8'), 'base64')
+    .toString('utf8').trim().split('\n')[1]
+  writeFileSync(join(fakeBin, 'minisign'), `#!/bin/sh
+key='' sig=''
+while [ $# -gt 0 ]; do case "$1" in -P) key=$2; shift ;; -x) sig=$2; shift ;; esac; shift; done
+[ "$key" = '${updaterKey}' ] || exit 9
+grep -q 'fake release signature' "$sig" || exit 8
+exit "\${FAKE_MINISIGN_STATUS:-0}"
+`, { mode: 0o755 })
 
   function publish(version, { manifestVersion = version, sha256, size } = {}) {
     const fixture = join(root, `fixture-${version}`)
@@ -52,6 +65,7 @@ test('macOS desktop installer', { skip: process.platform !== 'darwin' }, async (
       const file = `Clash.of.Meat_${version}_${arch}.app.tar.gz`
       assets[target] = { file, sha256: sha256 ?? hash, size: size ?? bytes.length }
       routes.set(`${base}/${file}`, bytes)
+      routes.set(`${base}/${file}.sig`, Buffer.from('untrusted comment: fake release signature\n').toString('base64'))
     }
     routes.set(`${base}/manifest.json`, JSON.stringify({ version: manifestVersion, assets }))
   }
@@ -60,7 +74,7 @@ test('macOS desktop installer', { skip: process.platform !== 'darwin' }, async (
     return new Promise((resolve, reject) => {
       const child = spawn('sh', [file, ...args], {
         env: {
-          PATH: process.env.PATH,
+          PATH: `${fakeBin}:${process.env.PATH}`,
           HOME: h,
           CLASHOFMEAT_RELEASES_URL: releases,
           CLASHOFMEAT_APPS_DIR: join(h, 'Applications'),
@@ -86,6 +100,7 @@ test('macOS desktop installer', { skip: process.platform !== 'darwin' }, async (
     assert.equal(readlinkSync(binPath(installedHome)), join(appPath(installedHome), 'Contents', 'MacOS', 'clashofmeat'))
     assert.deepEqual(started(installedHome), ['1.2.3', 'install', '--app', localUrl, '--no-browser', 'two words'])
     assert.match(installed.stdout, /not on PATH/)
+    assert.match(installed.stdout, /release signature/)
     for (const rc of ['.zshrc', '.bashrc', '.profile']) assert(!existsSync(join(installedHome, rc)))
 
     publish('1.2.4')
@@ -106,6 +121,20 @@ test('macOS desktop installer', { skip: process.platform !== 'darwin' }, async (
     await refused('bad-sha', '1.3.0', { sha256: '0'.repeat(64) }, /sha256/)
     await refused('bad-size', '1.3.1', { size: 1 }, /size/)
     await refused('bad-version', '1.3.2', { manifestVersion: '9.9.9' }, /version.*does not match/)
+
+    const unsignedHome = home('bad-signature')
+    const unsigned = await run(unsignedHome, ['--app', localUrl, '--version', '1.2.3'], { env: { FAKE_MINISIGN_STATUS: '1' } })
+    assert.notEqual(unsigned.status, 0)
+    assert.match(unsigned.stderr, /not signed with the Clash of Meat release key/)
+    assert(!existsSync(appPath(unsignedHome)))
+    assert(!existsSync(logPath(unsignedHome)))
+
+    // Without minisign, the checksum still guards the download and the installer says how to add the signature check.
+    const noVerifierHome = home('no-minisign')
+    const noVerifier = await run(noVerifierHome, ['--app', localUrl, '--version', '1.2.3'], { env: { PATH: '/usr/bin:/bin' } })
+    assert.equal(noVerifier.status, 0, noVerifier.stderr)
+    assert.match(noVerifier.stdout, /install minisign/)
+    assert.deepEqual(started(noVerifierHome), ['1.2.3', 'install', '--app', localUrl])
 
     const insecureHome = home('insecure-app')
     const insecure = await run(insecureHome, ['--app', 'http://example.com', '--version', '1.2.3'])
