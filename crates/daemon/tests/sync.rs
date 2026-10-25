@@ -1110,3 +1110,131 @@ fn a_sync_sends_one_batch_and_drains_the_rest_separately() {
         ]
     );
 }
+
+/// Answers observation uploads like the server: refused (400) when the batch holds `bad`.
+fn refusing(bad: Vec<String>) -> impl FnMut(&Request) -> Reply {
+    move |request| {
+        let ids: Vec<&str> = ["observations", "readings"]
+            .iter()
+            .flat_map(|key| request.body[key].as_array().unwrap())
+            .map(|item| item["id"].as_str().unwrap())
+            .collect();
+        if ids.iter().any(|id| bad.iter().any(|bad| bad == id)) {
+            Reply::error(400, json!({"error": "invalid observation"}))
+        } else {
+            Reply::ok(json!({"accepted": ids.len(), "duplicates": 0}))
+        }
+    }
+}
+
+#[test]
+fn a_refused_batch_is_split_until_the_bad_observation_is_set_aside() {
+    let mut store = Store::open_in_memory().unwrap();
+    let events: Vec<_> = (0..8)
+        .map(|i| event(&format!("split-{i}"), EventKind::Counter, NOW, 1))
+        .collect();
+    let bad = events[5].id();
+    store.save_events("codex", &events, None).unwrap();
+    // 8 → 4+4 → (2+2) → (1+1): one bad row among eight takes seven requests.
+    let server = Server::with_handler(7, {
+        let bad = vec![bad.clone()];
+        move || refusing(bad)
+    });
+    let outcome = client(&server)
+        .upload_observations(&mut store, now())
+        .unwrap();
+    assert_eq!(outcome.sent, 7);
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    let requests = server.finish();
+    assert_eq!(requests.len(), 7);
+    let sent_alone = requests
+        .iter()
+        .filter(|request| request.body["observations"].as_array().unwrap().len() == 1)
+        .count();
+    assert_eq!(sent_alone, 2);
+    // A larger value of the set-aside observation queues it again.
+    let mut grown = events[5].clone();
+    grown.value = 2;
+    store.save_events("codex", &[grown], None).unwrap();
+    assert_eq!(store.pending(EventKind::Counter, 10).unwrap()[0].id, bad);
+}
+
+#[test]
+fn a_batch_refused_whole_stays_queued() {
+    let mut store = Store::open_in_memory().unwrap();
+    let events: Vec<_> = (0..2)
+        .map(|i| event(&format!("refused-{i}"), EventKind::Counter, NOW, 1))
+        .collect();
+    let bad: Vec<_> = events.iter().map(Event::id).collect();
+    store.save_events("codex", &events, None).unwrap();
+    let server = Server::with_handler(3, move || refusing(bad));
+    assert!(matches!(
+        client(&server).upload_observations(&mut store, now()),
+        Err(ApiError::Status { status: 400, .. })
+    ));
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 2);
+    assert_eq!(server.finish().len(), 3);
+}
+
+#[test]
+fn a_task_batch_too_large_for_the_server_is_sent_one_by_one() {
+    let mut store = Store::open_in_memory().unwrap();
+    completed_task(&mut store, "large-a", "first");
+    completed_task(&mut store, "large-b", "first");
+    let server = Server::start(vec![
+        Reply::error(413, json!({"error": "too large"})),
+        Reply::ok(json!({"accepted": 1, "duplicates": 0})),
+        Reply::ok(json!({"accepted": 1, "duplicates": 0})),
+    ]);
+    assert_eq!(
+        client(&server).upload_observer_tasks(&mut store).unwrap(),
+        2
+    );
+    assert_eq!(server.finish().len(), 3);
+}
+
+#[test]
+fn timestamps_ahead_of_the_server_clock_go_up_as_its_now() {
+    // The server's clock is an hour behind ours.
+    let wall = OffsetDateTime::now_utc();
+    let date = (wall - time::Duration::hours(1))
+        .format(time::macros::format_description!(
+            "[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT"
+        ))
+        .unwrap();
+    let date: &'static str = Box::leak(date.into_boxed_str());
+    let mut heartbeat = Reply::ok(json!({"connected": true}));
+    heartbeat.headers.push(("Date", date));
+    let server = Server::start(vec![
+        heartbeat,
+        Reply::ok(json!({"accepted": 2, "duplicates": 0})),
+    ]);
+    let mut store = Store::open_in_memory().unwrap();
+    let ahead = wall.format(&Rfc3339).unwrap();
+    let past = (wall - time::Duration::hours(2)).format(&Rfc3339).unwrap();
+    store
+        .save_events(
+            "codex",
+            &[
+                event("ahead", EventKind::Counter, &ahead, 1),
+                event("past", EventKind::Counter, &past, 1),
+            ],
+            None,
+        )
+        .unwrap();
+    let result = sync_once(&client(&server), &mut store, wall);
+    assert!(result.error.is_none(), "{:?}", result.error);
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    let requests = server.finish();
+    let sent: Vec<OffsetDateTime> = requests[1].body["observations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| OffsetDateTime::parse(item["at"].as_str().unwrap(), &Rfc3339).unwrap())
+        .collect();
+    let server_now = wall - time::Duration::hours(1);
+    assert!(sent.contains(&OffsetDateTime::parse(&past, &Rfc3339).unwrap()));
+    assert!(sent
+        .iter()
+        .any(|at| (*at - server_now).abs() < time::Duration::seconds(3)));
+}

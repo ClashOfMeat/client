@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::fmt;
 use std::time::Duration;
 
@@ -6,7 +7,7 @@ use clashofmeat_core::observer;
 use clashofmeat_core::signal::EventKind;
 use clashofmeat_core::store::{Store, StoredEvent};
 use serde_json::{json, Map, Value};
-use time::format_description::well_known::Rfc3339;
+use time::format_description::well_known::{Rfc2822, Rfc3339};
 use time::OffsetDateTime;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,7 +42,13 @@ pub struct Client {
     pub token: Option<String>,
     pub version: String,
     agent: ureq::Agent,
+    /// The server's clock minus ours, in seconds, from the last answer's `Date` header.
+    clock_skew: Cell<Option<i64>>,
 }
+
+/// A refused batch is halved until the refused observations stand alone; this caps the requests
+/// one upload may make doing so (enough to isolate one or two bad rows among 150).
+const MAX_SPLIT_REQUESTS: usize = 24;
 
 impl Client {
     pub fn new(origin: &str, token: Option<String>, version: &str) -> Result<Self, ApiError> {
@@ -54,7 +61,27 @@ impl Client {
                 .timeout(Duration::from_secs(15))
                 .redirects(0)
                 .build(),
+            clock_skew: Cell::new(None),
         })
+    }
+
+    /// How far the server's clock is ahead of ours, from its last `Date` header.
+    pub fn clock_skew(&self) -> Option<i64> {
+        self.clock_skew.get()
+    }
+
+    fn note_date(&self, result: &Result<ureq::Response, ureq::Error>) {
+        let response = match result {
+            Ok(response) | Err(ureq::Error::Status(_, response)) => response,
+            Err(_) => return,
+        };
+        if let Some(date) = response
+            .header("Date")
+            .and_then(|date| OffsetDateTime::parse(date, &Rfc2822).ok())
+        {
+            self.clock_skew
+                .set(Some((date - OffsetDateTime::now_utc()).whole_seconds()));
+        }
     }
 
     /// Opens the player's live channel (server-sent events) on its own long-lived
@@ -90,14 +117,17 @@ impl Client {
         let request = self
             .authorized(self.agent.post(&format!("{}{path}", self.origin)))
             .set("content-type", "application/json");
-        answer(request.send_json(body))
+        let result = request.send_json(body);
+        self.note_date(&result);
+        answer(result)
     }
 
     fn get(&self, path: &str) -> Result<Value, ApiError> {
-        answer(
-            self.authorized(self.agent.get(&format!("{}{path}", self.origin)))
-                .call(),
-        )
+        let result = self
+            .authorized(self.agent.get(&format!("{}{path}", self.origin)))
+            .call();
+        self.note_date(&result);
+        answer(result)
     }
 
     fn authorized(&self, request: ureq::Request) -> ureq::Request {
@@ -226,6 +256,11 @@ impl Client {
         )
     }
 
+    /// Uploads the oldest queued observations: up to 100 counters and 50 readings. A batch the
+    /// server refuses (400 or 413) is halved until the refused observations stand alone; those
+    /// are set aside locally (`Store::reject`, logged) so they no longer hold up the queue. When
+    /// nothing at all is accepted, the refusal is more likely about the request than the data (a
+    /// server older than this client, say), so everything stays queued.
     pub fn upload_observations(
         &self,
         store: &mut Store,
@@ -249,25 +284,100 @@ impl Client {
             OffsetDateTime::parse(&event.at, &Rfc3339)
                 .is_ok_and(|at| at >= now - time::Duration::days(7))
         });
+        let mut outcome = UploadOutcome {
+            response: None,
+            sent: 0,
+            counters: counters.len(),
+            readings: readings.len(),
+        };
         if counters.is_empty() && readings.is_empty() {
-            return Ok(UploadOutcome {
-                response: None,
-                sent: 0,
-                counters: 0,
-                readings: 0,
-            });
+            return Ok(outcome);
         }
+        let batch = Batch {
+            now,
+            server_now: server_now(store, now),
+        };
+        let events: Vec<&StoredEvent> = counters.iter().chain(readings.iter()).collect();
+        let mut refused = Vec::new();
+        let mut requests = 0;
+        self.send_split(
+            store,
+            &batch,
+            &events,
+            &mut outcome,
+            &mut refused,
+            &mut requests,
+        )?;
+        if let Some((_, error)) = refused.first() {
+            if outcome.sent == 0 {
+                return Err(error.clone());
+            }
+            for (event, error) in &refused {
+                eprintln!(
+                    "daemon upload: set aside observation {} ({} at {}), refused by the server: {error}",
+                    event.id, event.key, event.at
+                );
+            }
+            let snapshots: Vec<_> = refused.iter().map(|(event, _)| snapshot(event)).collect();
+            store.reject(&snapshots).map_err(store_error)?;
+        }
+        Ok(outcome)
+    }
+
+    fn send_split<'a>(
+        &self,
+        store: &mut Store,
+        batch: &Batch,
+        events: &[&'a StoredEvent],
+        outcome: &mut UploadOutcome,
+        refused: &mut Vec<(&'a StoredEvent, ApiError)>,
+        requests: &mut usize,
+    ) -> Result<(), ApiError> {
+        *requests += 1;
+        match self.send_observations(store, batch, events) {
+            Ok(response) => {
+                outcome.sent += events.len();
+                outcome.response = Some(response);
+                Ok(())
+            }
+            Err(
+                error @ ApiError::Status {
+                    status: 400 | 413, ..
+                },
+            ) if *requests < MAX_SPLIT_REQUESTS => {
+                if let [event] = events {
+                    refused.push((event, error));
+                    return Ok(());
+                }
+                let (first, second) = events.split_at(events.len() / 2);
+                self.send_split(store, batch, first, outcome, refused, requests)?;
+                self.send_split(store, batch, second, outcome, refused, requests)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Posts one batch and marks it synced once the server acknowledged every observation.
+    fn send_observations(
+        &self,
+        store: &mut Store,
+        batch: &Batch,
+        events: &[&StoredEvent],
+    ) -> Result<Value, ApiError> {
+        let (counters, readings): (Vec<&StoredEvent>, Vec<&StoredEvent>) = events
+            .iter()
+            .partition(|event| event.kind == EventKind::Counter);
         let observations: Vec<Value> = counters
             .iter()
             .map(|event| {
                 let mut item = Map::new();
                 item.insert("id".into(), json!(event.id));
                 item.insert("sessionId".into(), json!(event.session_id));
-                item.insert("at".into(), json!(event.at));
+                item.insert("at".into(), json!(batch.at(&event.at)));
                 item.insert("key".into(), json!(event.key));
                 item.insert("value".into(), json!(event.value));
                 let history = OffsetDateTime::parse(&event.at, &Rfc3339)
-                    .is_ok_and(|at| at < now - time::Duration::days(7));
+                    .is_ok_and(|at| at < batch.now - time::Duration::days(7));
                 item.insert(
                     "source".into(),
                     json!(if history { "history" } else { "live" }),
@@ -285,7 +395,7 @@ impl Client {
             .iter()
             .map(|event| {
                 json!({
-                    "id": event.id, "at": event.at, "key": event.key, "value": event.value,
+                    "id": event.id, "at": batch.at(&event.at), "key": event.key, "value": event.value,
                     "resetsAt": event.resets_at,
                 })
             })
@@ -298,25 +408,16 @@ impl Client {
         )?;
         let accepted = response["accepted"].as_u64();
         let duplicates = response["duplicates"].as_u64();
-        if accepted.zip(duplicates).and_then(|(a, b)| a.checked_add(b))
-            != Some((counters.len() + readings.len()) as u64)
+        if accepted.zip(duplicates).and_then(|(a, b)| a.checked_add(b)) != Some(events.len() as u64)
         {
             return Err(ApiError::Invalid(
                 "Clash of Meat returned an invalid observation acknowledgement.".into(),
             ));
         }
-        let snapshots: Vec<(String, u64, String)> = counters
-            .iter()
-            .chain(readings.iter())
-            .map(snapshot)
-            .collect();
+        let snapshots: Vec<(String, u64, String)> =
+            events.iter().map(|event| snapshot(event)).collect();
         store.mark_synced(&snapshots).map_err(store_error)?;
-        Ok(UploadOutcome {
-            response: Some(response),
-            sent: snapshots.len(),
-            counters: counters.len(),
-            readings: readings.len(),
-        })
+        Ok(response)
     }
 
     /// Uploads only the completed payloads assembled by the private observer.
@@ -337,7 +438,9 @@ impl Client {
             for tasks in tasks.chunks(50) {
                 match self.send_observer_tasks(store, &source, tasks) {
                     Ok(()) => uploaded += tasks.len(),
-                    Err(ApiError::Status { status: 400, .. }) => {
+                    Err(ApiError::Status {
+                        status: 400 | 413, ..
+                    }) => {
                         for task in tasks {
                             match self.send_observer_tasks(
                                 store,
@@ -345,7 +448,9 @@ impl Client {
                                 std::slice::from_ref(task),
                             ) {
                                 Ok(()) => uploaded += 1,
-                                Err(ApiError::Status { status: 400, .. }) => {
+                                Err(ApiError::Status {
+                                    status: 400 | 413, ..
+                                }) => {
                                     observer::reject(
                                         store,
                                         task["id"].as_str().unwrap_or_default(),
@@ -449,6 +554,53 @@ fn answer(result: Result<ureq::Response, ureq::Error>) -> Result<Value, ApiError
         }
         Err(ureq::Error::Transport(error)) => Err(ApiError::Transport(error.to_string())),
     }
+}
+
+/// One upload's view of time.
+struct Batch {
+    now: OffsetDateTime,
+    /// Our clock corrected by the server's `Date`, when they disagree.
+    server_now: OffsetDateTime,
+}
+
+impl Batch {
+    /// A timestamp ahead of the server's clock (our clock runs fast) would be refused as in the
+    /// future; it goes up as the server's "now" instead. The stored row keeps its own time.
+    fn at(&self, at: &str) -> String {
+        match OffsetDateTime::parse(at, &Rfc3339) {
+            Ok(parsed) if parsed > self.server_now => {
+                let ms = self.server_now.nanosecond() / 1_000_000 * 1_000_000;
+                self.server_now
+                    .replace_nanosecond(ms)
+                    .unwrap_or(self.server_now)
+                    .format(&Rfc3339)
+                    .unwrap_or_else(|_| at.to_owned())
+            }
+            _ => at.to_owned(),
+        }
+    }
+}
+
+/// `now` on the server's clock, from the skew the last heartbeat measured.
+fn server_now(store: &Store, now: OffsetDateTime) -> OffsetDateTime {
+    let skew = store
+        .meta("clock_skew_s")
+        .ok()
+        .flatten()
+        .and_then(|raw| raw.parse::<i64>().ok())
+        .unwrap_or(0);
+    now + time::Duration::seconds(skew)
+}
+
+/// Remembers the server's clock offset for uploads. A few seconds is the `Date` header's own
+/// resolution and network delay, not a wrong clock.
+fn save_clock_skew(store: &mut Store, skew: Option<i64>) -> Result<(), ApiError> {
+    match skew {
+        Some(skew) if skew.abs() >= 5 => store.set_meta("clock_skew_s", &skew.to_string()),
+        Some(_) => store.delete_meta("clock_skew_s"),
+        None => Ok(()),
+    }
+    .map_err(store_error)
 }
 
 fn snapshot(event: &StoredEvent) -> (String, u64, String) {
@@ -681,8 +833,10 @@ pub fn sync_once_with(
     if let Err(error) = store
         .set_meta("heartbeat", &without_art(&heartbeat).to_string())
         .and_then(|()| store.set_meta("heartbeat_at", &timestamp))
+        .map_err(store_error)
+        .and_then(|()| save_clock_skew(store, client.clock_skew()))
     {
-        return fail(client, store, now, result, store_error(error));
+        return fail(client, store, now, result, error);
     }
     result.next_sync = crate::cadence::next_sync_hint(&heartbeat);
     result.heartbeat = Some(heartbeat);

@@ -560,6 +560,21 @@ impl Store {
         Ok(())
     }
 
+    /// Sets aside observations the server refused, so they leave the upload queue but still count
+    /// locally. A later, larger value of the same observation queues it again.
+    pub fn reject(&mut self, snapshots: &[(String, u64, String)]) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        {
+            let mut statement =
+                tx.prepare_cached("UPDATE events SET synced=2 WHERE id=?1 AND value=?2 AND at=?3")?;
+            for (id, value, at) in snapshots {
+                statement.execute(params![id, value, at])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// Returns the persisted reader cursor for one source file.
     pub fn cursor(
         &self,
