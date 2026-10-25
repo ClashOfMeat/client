@@ -1103,7 +1103,8 @@ fn sync_loop(
                 queued.1.elapsed(),
             )
         };
-        if due == Due::Wait {
+        // Unpaired: nothing to do, and no need to read the config every second.
+        if due == Due::Wait || !matches!(store.meta("installation.token"), Ok(Some(_))) {
             continue;
         }
         let client = match make_client(&env, &version, Some(&mut store)) {
