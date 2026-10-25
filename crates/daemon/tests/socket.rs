@@ -360,3 +360,26 @@ fn subscription_reports_activity_in_a_file_held_open() {
     drop(open);
     handle.stop().unwrap();
 }
+
+#[test]
+fn a_request_line_over_the_cap_closes_the_connection() {
+    let dir = tempdir().unwrap();
+    let handle = start(dir.path());
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    // Eight MiB with no newline and no pause: the daemon stops reading at 1 MiB and hangs up,
+    // so the writes fail long before the end.
+    stream
+        .set_write_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    let chunk = vec![b'x'; 64 * 1024];
+    let refused = (0..128).any(|_| stream.write_all(&chunk).is_err());
+    assert!(refused);
+    // A well-behaved client still gets answers.
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    let status = request(&mut stream, &json!({"id":1,"method":"snapshot"}));
+    assert!(status["result"].is_object());
+    handle.stop().unwrap();
+}

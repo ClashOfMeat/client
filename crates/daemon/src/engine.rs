@@ -563,7 +563,8 @@ fn changed_files(root: &Path, glob: &str, paths: &HashSet<PathBuf>) -> Vec<FileE
         if !reader::depth_ok(relative, 4) || !reader::glob_matches(glob, relative) {
             continue;
         }
-        let Ok(metadata) = fs::metadata(path) else {
+        // Like the full scan (`reader::list_files`), never through a symlink.
+        let Ok(metadata) = fs::symlink_metadata(path) else {
             continue;
         };
         if !metadata.is_file() {

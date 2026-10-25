@@ -169,7 +169,7 @@ fn restart_daemon() {
     {
         return;
     }
-    let uid = Command::new("id").arg("-u").output();
+    let uid = Command::new("/usr/bin/id").arg("-u").output();
     let Ok(uid) = uid else {
         eprintln!("updater: could not read uid");
         return;
@@ -180,7 +180,7 @@ fn restart_daemon() {
     }
     let uid = String::from_utf8_lossy(&uid.stdout);
     let job = format!("gui/{}/com.clashofmeat.daemon", uid.trim());
-    match Command::new("launchctl")
+    match Command::new("/bin/launchctl")
         .args(["kickstart", "-k", &job])
         .stdin(Stdio::null())
         .stdout(Stdio::null())

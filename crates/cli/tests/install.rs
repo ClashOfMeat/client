@@ -46,8 +46,13 @@ impl Fixture {
     }
 
     fn run(&self, args: &[&str]) -> Output {
+        self.run_with(args, &[])
+    }
+
+    fn run_with(&self, args: &[&str], vars: &[(&str, &str)]) -> Output {
         Command::new(env!("CARGO_BIN_EXE_clashofmeat"))
             .args(args)
+            .envs(vars.iter().copied())
             .env("HOME", self.home())
             .env("CLASHOFMEAT_LAUNCHCTL", &self.launchctl)
             .env("CLASHOFMEAT_LAUNCHCTL_LOG", &self.log)
@@ -80,9 +85,17 @@ fn install_is_idempotent_and_uninstall_restores_cursor_hooks() {
     let original_bytes = serde_json::to_vec_pretty(&original).unwrap();
     fs::write(&hooks, &original_bytes).unwrap();
     let args = ["install", "--app", "https://example.com", "--no-connect"];
-    assert_success(&fixture.run(&args));
+    assert_success(&fixture.run_with(
+        &args,
+        &[
+            ("CODEX_HOME", "/Users/me/work & codex"),
+            ("GEMINI_CLI_HOME", ""),
+        ],
+    ));
     let plist = fs::read_to_string(fixture.plist()).unwrap();
+    assert!(!plist.contains("GEMINI_CLI_HOME"));
     for expected in [
+        "<key>CODEX_HOME</key><string>/Users/me/work &amp; codex</string>",
         "<string>com.clashofmeat.daemon</string>",
         "<string>daemon</string>",
         "<key>KeepAlive</key><true/>",
