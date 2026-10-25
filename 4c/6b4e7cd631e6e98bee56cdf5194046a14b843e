@@ -1,0 +1,31 @@
+crates/cli/src/install.rs
+  s_3c65b42bf834d6::t_252e3844fd8f76 86-89
+crates/cli/src/main.rs
+  s_3c65b42bf834d6::t_72bb00d27a6fa2 180-183
+crates/cli/src/migrate.rs
+  s_3c65b42bf834d6::t_b90b1e1a683ce3 52-54,78
+crates/daemon/src/live.rs
+  s_3c65b42bf834d6::t_ed2e2e022585e5 17,30-32
+crates/daemon/src/run.rs
+  s_3c65b42bf834d6::t_2f74fcc909f9f7 544-545,786,790-792,892,909-912,942,990,1004,1109-1110,1171-1172,1176,1182-1185
+crates/daemon/src/sync.rs
+  s_3c65b42bf834d6::t_ec7948faedc573 5,189,203-216,677-678,692-694,703-767,1047
+crates/daemon/tests/sync.rs
+  s_3c65b42bf834d6::t_fc3cb7dd15cbda 1280-1380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c6b4e7cd631e6e98bee56cdf5194046a14b843e",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
