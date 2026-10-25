@@ -260,6 +260,7 @@ impl Provider for Codex {
                             resets_at: Some(reset.clone()),
                             model: None,
                             provider: Some("codex".into()),
+                            agent_id: None,
                         }));
                         if percent >= 100.0 {
                             signals.push(Signal::Event(Event {
@@ -272,6 +273,7 @@ impl Provider for Codex {
                                 resets_at: None,
                                 model: None,
                                 provider: Some("codex".into()),
+                                agent_id: None,
                             }));
                         }
                     }
@@ -315,6 +317,7 @@ impl Provider for Codex {
                         resets_at: None,
                         model: None,
                         provider: Some("codex".into()),
+                        agent_id: None,
                     }));
                 }
             }
@@ -420,6 +423,7 @@ impl Provider for Codex {
                 resets_at: None,
                 model: None,
                 provider: Some("codex".into()),
+                agent_id: None,
             }));
         }
         signals.push(turn(session_id, TurnPhase::Step, at));

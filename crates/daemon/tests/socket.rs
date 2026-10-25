@@ -71,6 +71,7 @@ fn token_event(identity: &str, provider: &str, key: &str, value: u64, at: Offset
         resets_at: None,
         model: None,
         provider: Some(provider.into()),
+        agent_id: None,
     }
 }
 

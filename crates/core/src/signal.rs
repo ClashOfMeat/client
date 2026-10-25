@@ -34,6 +34,9 @@ pub struct Event {
     pub model: Option<String>,
     /// Provider identifier, when present.
     pub provider: Option<String>,
+    /// The subagent that produced it (Claude Code sidechains), when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
 }
 
 impl Event {

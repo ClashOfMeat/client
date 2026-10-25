@@ -216,6 +216,13 @@ impl Provider for ClaudeCode {
             }
         }
 
+        // A subagent's records (sidechains) name it, so the server can tell parallel
+        // subagents of one session apart. Only short printable IDs are kept.
+        let agent_id = truthy(value.get("isSidechain"))
+            .then(|| truthy_string(value.get("agentId")))
+            .flatten()
+            .filter(|id| id.len() <= 64 && id.bytes().all(|b| b.is_ascii_graphic()))
+            .map(str::to_owned);
         let mut put = |identity: String, key: &str, amount: u64, model: Option<&str>| {
             signals.push(Signal::Event(Event {
                 identity,
@@ -227,6 +234,7 @@ impl Provider for ClaudeCode {
                 resets_at: None,
                 model: model.map(str::to_owned),
                 provider: Some("claude".to_owned()),
+                agent_id: agent_id.clone(),
             }));
         };
 
@@ -360,6 +368,40 @@ mod tests {
             "uuid": "prompt-1",
             "message": message,
         })
+    }
+
+    #[test]
+    fn subagent_records_carry_their_agent_id() {
+        let agent = |record: Value| -> Vec<Option<String>> {
+            signals(record)
+                .into_iter()
+                .filter_map(|signal| match signal {
+                    Signal::Event(event) => Some(event.agent_id),
+                    _ => None,
+                })
+                .collect()
+        };
+        let usage = json!({"id": "msg-1", "usage": {"input_tokens": 3, "output_tokens": 2}});
+        let mut sidechain = base("assistant", usage.clone());
+        sidechain["isSidechain"] = json!(true);
+        sidechain["agentId"] = json!("a1b2c3d4");
+        let ids = agent(sidechain.clone());
+        assert!(!ids.is_empty());
+        assert!(ids.iter().all(|id| id.as_deref() == Some("a1b2c3d4")));
+        // Not a sidechain, or an ID that is too long or not printable: no agent ID.
+        let mut main = sidechain.clone();
+        main["isSidechain"] = json!(false);
+        assert!(agent(main).iter().all(Option::is_none));
+        for bad in [
+            json!("x".repeat(65)),
+            json!("has space"),
+            json!(""),
+            json!(7),
+        ] {
+            let mut record = sidechain.clone();
+            record["agentId"] = bad;
+            assert!(agent(record).iter().all(Option::is_none));
+        }
     }
 
     #[test]

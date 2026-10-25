@@ -53,6 +53,7 @@ impl Provider for JsonProvider {
             resets_at: None,
             model: None,
             provider: Some("json-test".into()),
+            agent_id: None,
         })];
         if let Some(phase) = record.value["phase"].as_str() {
             signals.push(Signal::Turn(Turn {

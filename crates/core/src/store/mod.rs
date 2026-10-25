@@ -56,6 +56,8 @@ pub struct StoredEvent {
     pub model: Option<String>,
     /// Originating provider, if present.
     pub provider: Option<String>,
+    /// The subagent that produced it, if known.
+    pub agent_id: Option<String>,
 }
 
 #[cfg(test)]
@@ -75,6 +77,7 @@ mod tests {
             resets_at: None,
             model: None,
             provider: Some("codex".into()),
+            agent_id: None,
         }
     }
 
@@ -428,11 +431,12 @@ impl Store {
         let mut changed = 0;
         {
             let mut statement = tx.prepare_cached(
-                "INSERT INTO events (id, session_id, at, key, value, resets_at, kind, source, model, provider)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'live', ?8, ?9)
+                "INSERT INTO events (id, session_id, at, key, value, resets_at, kind, source, model, provider, agent_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'live', ?8, ?9, ?10)
                  ON CONFLICT(id) DO UPDATE SET
                    value=MAX(events.value, excluded.value),
                    model=COALESCE(excluded.model, events.model),
+                   agent_id=COALESCE(excluded.agent_id, events.agent_id),
                    at=CASE WHEN events.key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens','model_step_count')
                      THEN MAX(events.at, excluded.at) ELSE events.at END,
                    synced=0
@@ -460,6 +464,7 @@ impl Store {
                     kind,
                     event.model,
                     event.provider,
+                    event.agent_id,
                 ])?;
             }
         }
@@ -488,7 +493,7 @@ impl Store {
         };
         let limit = i64::try_from(limit).unwrap_or(i64::MAX);
         let mut statement = self.conn.prepare(
-            "SELECT id, session_id, at, key, value, resets_at, kind, model, provider
+            "SELECT id, session_id, at, key, value, resets_at, kind, model, provider, agent_id
              FROM events WHERE synced=0 AND kind=?1 ORDER BY at, id LIMIT ?2",
         )?;
         let rows = statement.query_map(params![kind, limit], |row| {
@@ -507,6 +512,7 @@ impl Store {
                 },
                 model: row.get(7)?,
                 provider: row.get(8)?,
+                agent_id: row.get(9)?,
             })
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()

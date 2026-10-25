@@ -296,6 +296,7 @@ impl Client {
         let batch = Batch {
             now,
             server_now: server_now(store, now),
+            agent_ids: server_feature(store, "agentId"),
         };
         let events: Vec<&StoredEvent> = counters.iter().chain(readings.iter()).collect();
         let mut refused = Vec::new();
@@ -387,6 +388,10 @@ impl Client {
                 }
                 if let Some(provider) = &event.provider {
                     item.insert("provider".into(), json!(provider));
+                }
+                // Older servers refuse unknown fields, so only one that lists the feature gets it.
+                if let Some(agent_id) = event.agent_id.as_ref().filter(|_| batch.agent_ids) {
+                    item.insert("agentId".into(), json!(agent_id));
                 }
                 Value::Object(item)
             })
@@ -561,6 +566,8 @@ struct Batch {
     now: OffsetDateTime,
     /// Our clock corrected by the server's `Date`, when they disagree.
     server_now: OffsetDateTime,
+    /// The server accepts `agentId` on observations.
+    agent_ids: bool,
 }
 
 impl Batch {
@@ -579,6 +586,22 @@ impl Batch {
             _ => at.to_owned(),
         }
     }
+}
+
+/// Whether the last heartbeat listed this optional upload field in its `features`. A server
+/// without the list gets none of them.
+fn server_feature(store: &Store, feature: &str) -> bool {
+    store
+        .meta("heartbeat")
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        .and_then(|heartbeat| {
+            heartbeat["features"]
+                .as_array()
+                .map(|features| features.iter().any(|f| f.as_str() == Some(feature)))
+        })
+        .unwrap_or(false)
 }
 
 /// `now` on the server's clock, from the skew the last heartbeat measured.

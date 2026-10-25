@@ -415,6 +415,7 @@ fn collect_signals(
                             resets_at: None,
                             model: None,
                             provider: Some(provider.manifest().id.into()),
+                            agent_id: None,
                         });
                     }
                 }

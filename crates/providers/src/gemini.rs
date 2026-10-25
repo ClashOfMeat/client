@@ -149,6 +149,7 @@ fn observe(message: &Value, cx: &Cx, record: &Record) -> Vec<Signal> {
                 resets_at: None,
                 model: None,
                 provider: Some("gemini".into()),
+                agent_id: None,
             }));
         }
         signals.push(Signal::Observer(Observation::Start {
@@ -248,6 +249,7 @@ fn observe(message: &Value, cx: &Cx, record: &Record) -> Vec<Signal> {
             resets_at: None,
             model: None,
             provider: Some("gemini".into()),
+            agent_id: None,
         }));
     }
     signals

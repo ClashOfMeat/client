@@ -1,5 +1,6 @@
 /// SQL migrations applied in order, one transaction per entry.
-pub const MIGRATIONS: &[&str] = &[r#"
+pub const MIGRATIONS: &[&str] = &[
+    r#"
 CREATE TABLE events (
     id TEXT PRIMARY KEY,
     session_id TEXT,
@@ -77,4 +78,8 @@ CREATE TABLE observer_active (
     PRIMARY KEY(provider, context_key)
 );
 CREATE INDEX observer_tasks_pending ON observer_tasks(synced, completed_at);
-"#];
+"#,
+    r#"
+ALTER TABLE events ADD COLUMN agent_id TEXT;
+"#,
+];

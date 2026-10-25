@@ -188,6 +188,7 @@ fn event(identity: &str, kind: EventKind, at: &str, value: u64) -> Event {
         resets_at: None,
         model: None,
         provider: None,
+        agent_id: None,
     }
 }
 
@@ -1237,4 +1238,42 @@ fn timestamps_ahead_of_the_server_clock_go_up_as_its_now() {
     assert!(sent
         .iter()
         .any(|at| (*at - server_now).abs() < time::Duration::seconds(3)));
+}
+
+#[test]
+fn agent_ids_go_up_only_to_a_server_that_lists_the_feature() {
+    for (heartbeat, sent) in [
+        (json!({"connected": true}), false),
+        (json!({"connected": true, "features": ["somethingElse"]}), false),
+        (json!({"connected": true, "features": ["agentId"]}), true),
+    ] {
+        let mut store = Store::open_in_memory().unwrap();
+        let mut subagent = event("subagent", EventKind::Counter, NOW, 4);
+        subagent.agent_id = Some("a1b2c3d4".into());
+        let main = event("main", EventKind::Counter, NOW, 5);
+        store
+            .save_events("claude", &[subagent.clone(), main], None)
+            .unwrap();
+        let server = Server::start(vec![
+            Reply::ok(heartbeat),
+            Reply::ok(json!({"accepted": 2, "duplicates": 0})),
+        ]);
+        assert!(sync_once(&client(&server), &mut store, now()).error.is_none());
+        let requests = server.finish();
+        let observations = requests[1].body["observations"].as_array().unwrap();
+        let agent_ids: Vec<_> = observations
+            .iter()
+            .filter_map(|item| item.get("agentId"))
+            .collect();
+        if sent {
+            assert_eq!(agent_ids, [&json!("a1b2c3d4")]);
+            let tagged = observations
+                .iter()
+                .find(|item| item.get("agentId").is_some())
+                .unwrap();
+            assert_eq!(tagged["id"], subagent.id());
+        } else {
+            assert!(agent_ids.is_empty());
+        }
+    }
 }

@@ -96,6 +96,7 @@ fn event(identity: &str, session_id: &str, at: &str, key: &str, value: u64) -> S
         resets_at: None,
         model: None,
         provider: Some("cursor".to_owned()),
+        agent_id: None,
     })
 }
 
