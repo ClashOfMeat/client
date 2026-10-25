@@ -45,7 +45,8 @@ pub fn follow(env: Env, version: String, stopping: Arc<AtomicBool>, changed: imp
         if started.elapsed() > Duration::from_secs(60) {
             backoff = Duration::from_secs(5);
         }
-        let until = Instant::now() + backoff;
+        // Jittered, so a server restart doesn't bring every client back in the same second.
+        let until = Instant::now() + crate::cadence::jitter(backoff);
         while Instant::now() < until && !stopping.load(Ordering::Relaxed) {
             thread::sleep(Duration::from_secs(1));
         }
@@ -53,7 +54,8 @@ pub fn follow(env: Env, version: String, stopping: Arc<AtomicBool>, changed: imp
     }
 }
 
-/// Reads one event stream until it ends. False when the daemon no longer listens.
+/// Reads one event stream until it ends. False when the daemon no longer listens. Every
+/// revision counts, whatever its topic: `player:<id>`, or `companion:<id>` on newer servers.
 fn read_events(
     reader: Box<dyn std::io::Read + Send + Sync>,
     stopping: &AtomicBool,
@@ -82,8 +84,8 @@ mod tests {
     use std::cell::Cell;
 
     #[test]
-    fn only_revision_events_count() {
-        let stream = "retry: 3000\nevent: snapshot\ndata: [{\"topic\":\"player:x\",\"revision\":\"1\"}]\n\n: heartbeat\n\nevent: revision\ndata: [{\"topic\":\"player:x\",\"revision\":\"2\"}]\n\n";
+    fn only_revision_events_count_whatever_their_topic() {
+        let stream = "retry: 3000\nevent: snapshot\ndata: [{\"topic\":\"player:x\",\"revision\":\"1\"}]\n\n: heartbeat\n\nevent: revision\ndata: [{\"topic\":\"player:x\",\"revision\":\"2\"}]\n\nevent: revision\ndata: [{\"topic\":\"companion:x\",\"revision\":\"3\"}]\n\n";
         let seen = Cell::new(0);
         let reader: Box<dyn std::io::Read + Send + Sync> =
             Box::new(std::io::Cursor::new(stream.as_bytes().to_vec()));
@@ -91,6 +93,6 @@ mod tests {
             seen.set(seen.get() + 1);
             true
         }));
-        assert_eq!(seen.get(), 1);
+        assert_eq!(seen.get(), 2);
     }
 }

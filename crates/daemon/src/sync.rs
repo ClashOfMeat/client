@@ -421,20 +421,16 @@ fn answer(result: Result<ureq::Response, ureq::Error>) -> Result<Value, ApiError
                         && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
                 })
                 .map(str::to_owned);
-            let retry_after_s = if status == 429 {
-                let body_retry = body
-                    .as_ref()
-                    .and_then(|v| v.get("retryAfter"))
-                    .and_then(Value::as_u64);
-                Some(
-                    retry_header
-                        .or(body_retry)
-                        .filter(|s| *s > 0)
-                        .unwrap_or(60)
-                        .min(3600),
-                )
-            } else {
-                None
+            let body_retry = body
+                .as_ref()
+                .and_then(|v| v.get("retryAfter"))
+                .and_then(Value::as_u64);
+            let retry = retry_header.or(body_retry).filter(|s| *s > 0);
+            // A 429 always waits (a minute when unsaid); a 503 only when the server says how long.
+            let retry_after_s = match status {
+                429 => Some(retry.unwrap_or(60).min(3600)),
+                503 => retry.map(|s| s.min(3600)),
+                _ => None,
             };
             let setup_url = body
                 .as_ref()
@@ -520,6 +516,23 @@ pub struct SyncResult {
     pub uploaded: usize,
     pub error: Option<ApiError>,
     pub deferred: bool,
+    /// The last batch was full: more observations are queued.
+    pub more: bool,
+    /// The server's pace for the next sync, `nextSyncInSeconds`.
+    pub next_sync: Option<Duration>,
+}
+
+impl SyncResult {
+    fn new() -> Self {
+        Self {
+            heartbeat: None,
+            uploaded: 0,
+            error: None,
+            deferred: false,
+            more: false,
+            next_sync: None,
+        }
+    }
 }
 
 /// The last full hero art. Heartbeats send its revision so the server can leave the frames out.
@@ -637,21 +650,9 @@ pub fn sync_once_with(
         }
         body
     };
-    let mut result = SyncResult {
-        heartbeat: None,
-        uploaded: 0,
-        error: None,
-        deferred: false,
-    };
-    match store.meta("retry_after_until") {
-        Ok(Some(until))
-            if OffsetDateTime::parse(&until, &Rfc3339).is_ok_and(|until| now < until) =>
-        {
-            result.deferred = true;
-            return result;
-        }
-        Err(error) => return fail(client, store, now, result, store_error(error)),
-        _ => {}
+    let mut result = SyncResult::new();
+    if let Some(deferred) = deferred(client, store, now) {
+        return deferred;
     }
     let mut heartbeat = match client.heartbeat(with_presence(art.request())) {
         Ok(value) => value,
@@ -683,17 +684,11 @@ pub fn sync_once_with(
     {
         return fail(client, store, now, result, store_error(error));
     }
+    result.next_sync = crate::cadence::next_sync_hint(&heartbeat);
     result.heartbeat = Some(heartbeat);
-    loop {
-        match client.upload_observations(store, now) {
-            Ok(outcome) => {
-                result.uploaded += outcome.sent;
-                if outcome.counters < 100 && outcome.readings < 50 {
-                    break;
-                }
-            }
-            Err(error) => return fail(client, store, now, result, error),
-        }
+    // One batch per sync; the sync thread drains a backlog at its own pace (`drain_once`).
+    if let Err(error) = upload_batch(client, store, now, &mut result) {
+        return fail(client, store, now, result, error);
     }
     match client.upload_observer_tasks(store) {
         Ok(uploaded) => result.uploaded += uploaded,
@@ -704,6 +699,58 @@ pub fn sync_once_with(
         Err(_) => {}
     }
     result
+}
+
+/// Uploads one more batch of a backlog, without a heartbeat.
+pub fn drain_once(client: &Client, store: &mut Store, now: OffsetDateTime) -> SyncResult {
+    let mut result = SyncResult::new();
+    if let Some(deferred) = deferred(client, store, now) {
+        return deferred;
+    }
+    match upload_batch(client, store, now, &mut result) {
+        Ok(()) => result,
+        Err(error) => fail(client, store, now, result, error),
+    }
+}
+
+fn upload_batch(
+    client: &Client,
+    store: &mut Store,
+    now: OffsetDateTime,
+    result: &mut SyncResult,
+) -> Result<(), ApiError> {
+    let outcome = client.upload_observations(store, now)?;
+    result.uploaded += outcome.sent;
+    result.more = outcome.counters >= 100 || outcome.readings >= 50;
+    if let Some(hint) = outcome
+        .response
+        .as_ref()
+        .and_then(crate::cadence::next_sync_hint)
+    {
+        result.next_sync = Some(hint);
+    }
+    Ok(())
+}
+
+/// A deferred result while the server's Retry-After lasts.
+fn deferred(client: &Client, store: &mut Store, now: OffsetDateTime) -> Option<SyncResult> {
+    match store.meta("retry_after_until") {
+        Ok(Some(until))
+            if OffsetDateTime::parse(&until, &Rfc3339).is_ok_and(|until| now < until) =>
+        {
+            let mut result = SyncResult::new();
+            result.deferred = true;
+            Some(result)
+        }
+        Err(error) => Some(fail(
+            client,
+            store,
+            now,
+            SyncResult::new(),
+            store_error(error),
+        )),
+        _ => None,
+    }
 }
 
 fn fail(
@@ -732,13 +779,14 @@ fn fail(
                     &json!({"version":client.version,"message":message}).to_string(),
                 );
             }
-            429 => {
-                let until = now
-                    + time::Duration::seconds(
-                        i64::try_from(retry_after_s.unwrap_or(60)).unwrap_or(60),
-                    );
-                if let Ok(text) = until.format(&Rfc3339) {
-                    let _ = store.set_meta("retry_after_until", &text);
+            429 | 503 => {
+                if let Some(seconds) = retry_after_s {
+                    // Spread out, so throttled clients don't all return at the same second.
+                    let wait = crate::cadence::spread(Duration::from_secs(*seconds));
+                    let until = now + time::Duration::milliseconds(wait.as_millis() as i64);
+                    if let Ok(text) = until.format(&Rfc3339) {
+                        let _ = store.set_meta("retry_after_until", &text);
+                    }
                 }
             }
             _ => {}

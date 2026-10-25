@@ -15,6 +15,7 @@ use serde_json::{json, Map, Value};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime, UtcOffset};
 
 use crate::{
+    cadence::{Cadence, Due, Outcome},
     config, detect,
     engine::Engine,
     hero,
@@ -80,6 +81,15 @@ impl Drop for DaemonHandle {
     fn drop(&mut self) {
         self.stop_inner();
     }
+}
+
+/// Agent activity, as the main loop last saw it, for the sync thread's pace.
+#[derive(Default)]
+struct Busy {
+    /// An agent is working right now.
+    now: AtomicBool,
+    /// An agent worked in the last five minutes.
+    recent: AtomicBool,
 }
 
 pub(crate) enum Message {
@@ -161,13 +171,13 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
             }
         })
     };
-    let busy_recent = Arc::new(AtomicBool::new(false));
+    let busy = Arc::new(Busy::default());
     let sync = {
         let env = opts.env.clone();
         let version = opts.version.clone();
         let sender = sender.clone();
-        let busy_recent = busy_recent.clone();
-        thread::spawn(move || sync_loop(env, version, sync_rx, sender, busy_recent))
+        let busy = busy.clone();
+        thread::spawn(move || sync_loop(env, version, sync_rx, sender, busy))
     };
     {
         // Not joined on stop: a blocked read ends within the 60 s read timeout.
@@ -191,7 +201,7 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
             inbox,
             watch_refresh,
             main_sync,
-            busy_recent,
+            busy,
             first.recent,
         )
     });
@@ -227,7 +237,7 @@ fn main_loop(
     inbox: Receiver<Message>,
     watch_refresh: Sender<()>,
     sync_tx: Sender<SyncCommand>,
-    busy_recent: Arc<AtomicBool>,
+    busy: Arc<Busy>,
     recent: Vec<PathBuf>,
 ) {
     let mut subscribers: Vec<Sender<Value>> = Vec::new();
@@ -260,10 +270,12 @@ fn main_loop(
                     activity = next.clone();
                     broadcast(&mut subscribers, "activity", next);
                 }
-                if activity["busy"] == true {
+                let working = activity["busy"] == true;
+                if working {
                     recent_busy = Some(Instant::now());
                 }
-                busy_recent.store(
+                busy.now.store(working, Ordering::Relaxed);
+                busy.recent.store(
                     recent_busy.is_some_and(|at| at.elapsed() < Duration::from_secs(300)),
                     Ordering::Relaxed,
                 );
@@ -901,7 +913,7 @@ fn sync_loop(
     version: String,
     commands: Receiver<SyncCommand>,
     main: Sender<Message>,
-    busy_recent: Arc<AtomicBool>,
+    busy: Arc<Busy>,
 ) {
     let mut store = match Store::open(config::store_path(&env)) {
         Ok(store) => store,
@@ -910,16 +922,14 @@ fn sync_loop(
             return;
         }
     };
-    let mut last_heartbeat = Instant::now();
-    let mut last_upload = Instant::now();
+    let mut cadence = Cadence::new(Instant::now());
+    // The queue size, and when it last changed: the final flush waits for it to settle.
+    let mut queued = (0, Instant::now());
     let mut art = hero::load_cache(&config::home(&env))
         .ok()
         .flatten()
         .map(|view| sync::HeroArt::from_view(&view))
         .unwrap_or_default();
-    // Our own uploads also announce a revision, so a live change waits until
-    // 10 s after the last heartbeat: one extra light heartbeat at most, never a loop.
-    let mut live_due: Option<Instant> = None;
     let mut pairing: Option<sync::Pairing> = None;
     let mut next_poll = Instant::now();
     let session = sync::companion_session(&mut store)
@@ -962,8 +972,7 @@ fn sync_loop(
                 let _ = reply.send(result);
             }
             Ok(SyncCommand::Live) => {
-                let earliest = last_heartbeat + Duration::from_secs(10);
-                live_due.get_or_insert(earliest.max(Instant::now()));
+                cadence.on_live(Instant::now());
             }
             Ok(SyncCommand::VisitDone { id }) => {
                 if !played.contains(&id) {
@@ -972,8 +981,7 @@ fn sync_loop(
                     }
                     played.push(id);
                 }
-                let earliest = last_heartbeat + Duration::from_secs(10);
-                live_due.get_or_insert(earliest.max(Instant::now()));
+                cadence.nudge(Instant::now());
             }
             Ok(SyncCommand::PairStart {
                 device,
@@ -1043,24 +1051,22 @@ fn sync_loop(
                 }
             }
         }
-        // Even when idle, a heartbeat a minute keeps this app "online" for friends' visits.
-        let interval = if busy_recent.load(Ordering::Relaxed) {
-            Duration::from_secs(30)
-        } else {
-            Duration::from_secs(60)
-        };
-        let pending = last_upload.elapsed() >= Duration::from_secs(30)
-            && (store
-                .pending(EventKind::Counter, 1)
-                .is_ok_and(|v| !v.is_empty())
-                || store
-                    .pending(EventKind::Reading, 1)
-                    .is_ok_and(|v| !v.is_empty()));
-        if live_due.is_some_and(|at| Instant::now() >= at) {
-            live_due = None;
-            forced = true;
+        let pending = store.pending_count(EventKind::Counter).unwrap_or(0)
+            + store.pending_count(EventKind::Reading).unwrap_or(0);
+        if pending != queued.0 {
+            queued = (pending, Instant::now());
         }
-        if !forced && last_heartbeat.elapsed() < interval && !pending {
+        let due = if forced {
+            Due::Sync
+        } else {
+            cadence.due(
+                Instant::now(),
+                busy.now.load(Ordering::Relaxed),
+                pending > 0,
+                queued.1.elapsed(),
+            )
+        };
+        if due == Due::Wait {
             continue;
         }
         let token = match store.meta("installation.token") {
@@ -1093,18 +1099,31 @@ fn sync_loop(
         if !played.is_empty() {
             presence.insert("acknowledgedVisits".into(), json!(played));
         }
-        let result = sync::sync_once_with(
-            &client,
-            &mut store,
-            OffsetDateTime::now_utc(),
-            &mut art,
-            &presence,
-        );
+        let result = if due == Due::Drain {
+            sync::drain_once(&client, &mut store, OffsetDateTime::now_utc())
+        } else {
+            sync::sync_once_with(
+                &client,
+                &mut store,
+                OffsetDateTime::now_utc(),
+                &mut art,
+                &presence,
+            )
+        };
         if result.heartbeat.is_some() {
             played.clear();
         }
-        last_heartbeat = Instant::now();
-        last_upload = Instant::now();
+        cadence.after(
+            Instant::now(),
+            Outcome {
+                due,
+                uploaded: result.uploaded,
+                more: result.more,
+                error: result.error.as_ref(),
+                next_sync: result.next_sync,
+                busy: busy.recent.load(Ordering::Relaxed),
+            },
+        );
         if result.error.is_none() && !result.deferred {
             let _ = store.delete_meta("blocked");
             let _ = store.set_meta("reauth", "false");

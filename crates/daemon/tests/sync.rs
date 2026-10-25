@@ -585,10 +585,14 @@ fn sync_handles_auth_block_and_rate_limit() {
                 json!({"version":"0.1.0","message":"Clash of Meat: update required"})
             ),
             429 => {
-                assert_eq!(
-                    store.meta("retry_after_until").unwrap().as_deref(),
-                    Some("2026-10-20T12:02:00Z")
-                );
+                // Retry-After plus up to a fifth more, so throttled clients spread out.
+                let until = OffsetDateTime::parse(
+                    &store.meta("retry_after_until").unwrap().unwrap(),
+                    &Rfc3339,
+                )
+                .unwrap();
+                assert!(until >= now() + time::Duration::seconds(120));
+                assert!(until <= now() + time::Duration::seconds(144));
                 assert!(
                     sync_once(&client, &mut store, now() + time::Duration::seconds(30)).deferred
                 );
@@ -1046,5 +1050,63 @@ fn expired_readings_do_not_block_live_counters() {
             .unwrap()
             .len(),
         0
+    );
+}
+
+#[test]
+fn a_503_with_retry_after_defers_and_one_without_does_not() {
+    for (header, deferred) in [(Some("30"), true), (None, false)] {
+        let mut reply = Reply::error(503, json!({"error": "busy"}));
+        if let Some(seconds) = header {
+            reply.headers.push(("Retry-After", seconds));
+        }
+        let server = Server::start(vec![reply]);
+        let mut store = Store::open_in_memory().unwrap();
+        let client = client(&server);
+        let result = sync_once(&client, &mut store, now());
+        assert!(matches!(
+            result.error,
+            Some(ApiError::Status { status: 503, .. })
+        ));
+        assert_eq!(store.meta("retry_after_until").unwrap().is_some(), deferred);
+        assert_eq!(
+            sync_once(&client, &mut store, now() + time::Duration::seconds(5)).deferred,
+            deferred
+        );
+        server.finish();
+    }
+}
+
+#[test]
+fn a_sync_sends_one_batch_and_drains_the_rest_separately() {
+    let mut store = Store::open_in_memory().unwrap();
+    let events: Vec<_> = (0..150)
+        .map(|i| event(&format!("backlog-{i:03}"), EventKind::Counter, NOW, 1))
+        .collect();
+    store.save_events("codex", &events, None).unwrap();
+    let server = Server::start(vec![
+        Reply::ok(json!({"connected": true, "nextSyncInSeconds": 90})),
+        Reply::ok(json!({"accepted": 100, "duplicates": 0})),
+        Reply::ok(json!({"accepted": 50, "duplicates": 0, "nextSyncInSeconds": 3})),
+    ]);
+    let client = client(&server);
+    let first = sync_once(&client, &mut store, now());
+    assert!(first.error.is_none());
+    assert_eq!((first.uploaded, first.more), (100, true));
+    assert_eq!(first.next_sync, Some(Duration::from_secs(90)));
+    let rest = clashofmeat_daemon::sync::drain_once(&client, &mut store, now());
+    assert!(rest.heartbeat.is_none());
+    assert_eq!((rest.uploaded, rest.more), (50, false));
+    // Clamped to the 10 s floor.
+    assert_eq!(rest.next_sync, Some(Duration::from_secs(10)));
+    assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 0);
+    let paths: Vec<_> = server.finish().into_iter().map(|r| r.path).collect();
+    assert_eq!(
+        paths,
+        [
+            "/api/installations/heartbeat",
+            "/api/observations",
+            "/api/observations"
+        ]
     );
 }
