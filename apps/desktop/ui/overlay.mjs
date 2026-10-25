@@ -5,6 +5,7 @@ import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES, leagueOrBronze } from './hero/validate.mjs'
 import { flexPhase, flexDelay, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT, FLEX_WIDTH } from './hero/flex.mjs'
+import { kissHeartPlace } from './hero/kiss.mjs'
 import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
 import { friendRows, errorText } from './overlay/friends.mjs'
@@ -360,12 +361,9 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
   } else if (state === 'kiss' && frame === 8) {
     const heart = effectImage('./assets/emote-kiss.png')
     if (!heart) return
-    // The large heart covers the small kiss cue on older sprite sheets.
-    const rise = Math.min(1, Math.max(0, (elapsed - 520) / 450))
-    const size = 58 + Math.round(6 * Math.sin(Math.PI * rise))
-    const wantedX = facing === 'left' ? spriteX + 4 : spriteX + 83
-    const x = Math.max(0, Math.min(rect.width - size, wantedX))
-    ctx.drawImage(heart, x, spriteY + 8 - rise * 12, size, size)
+    const place = kissHeartPlace(spriteX, spriteY, rect.width, facing, elapsed)
+    if (!place) return
+    ctx.drawImage(heart, place.x, place.y, place.size, place.size)
   } else if (state === 'angry' && frame === 12) {
     const mark = effectImage('./assets/angry-mark.png')
     if (!mark) return
@@ -456,7 +454,8 @@ async function draw() {
     const visitElapsed = now - visitorStarted - 1500
     const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
     drawImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
-    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league)
+    // The visitor's sprite keeps its baked side heart. A second large heart would cover the host.
+    if (v.state !== 'kiss') drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league)
     const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null
     visitLabel.style.left = `${left ?? 0}px`
