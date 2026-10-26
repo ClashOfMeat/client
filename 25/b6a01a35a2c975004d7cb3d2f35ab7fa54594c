@@ -1,0 +1,39 @@
+crates/daemon/src/sync.rs
+  s_c6fb21e5153431::t_18a053a59d3c7a 275-279
+crates/daemon/tests/sync.rs
+  s_c6fb21e5153431::t_e263e96e48782a 805,820-823,830-838,898,910-912,965-972,1272-1275,1289-1291,1373-1376
+apps/desktop/src-tauri/src/settings.rs
+  s_c6fb21e5153431::t_c7af198ee5a3fe 139
+apps/desktop/ui/hero/README.md
+  s_c6fb21e5153431::t_8ce121ced0dc1f 12,17-20
+apps/desktop/ui/hero/kiss.mjs
+  s_c6fb21e5153431::t_bc8b4f88a9c044 1-21
+apps/desktop/ui/hero/outgoing.mjs
+  s_c6fb21e5153431::t_dcc36ea3c9f2f7 1-64
+apps/desktop/ui/hero/tests/kiss.test.mjs
+  s_c6fb21e5153431::t_f7f5116fa941ff 1-35
+apps/desktop/ui/hero/tests/outgoing.test.mjs
+  s_c6fb21e5153431::t_6eddd3f6727860 1-59
+apps/desktop/ui/overlay.mjs
+  s_c6fb21e5153431::t_4d9be2670cbe53 8,10,41-54,275-282,307-310,383-385,429-434,444-453,455-461,473,478,494-495,501,508-510,518,542,586,641-659,698-701,713
+crates/daemon/src/hero.rs
+  s_c6fb21e5153431::t_d81355cb39b97b 22,75-102
+crates/daemon/src/run.rs
+  s_c6fb21e5153431::t_98653946c16fea 674-680
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "25b6a01a35a2c975004d7cb3d2f35ab7fa54594c",
+  "prompts": {},
+  "sessions": {
+    "s_c6fb21e5153431": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16003-b24f-7a40-ba29-f242b8e4691d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
