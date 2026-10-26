@@ -1,5 +1,6 @@
 export const VISIT_EMOTES = ['flex', 'kiss', 'angry']
 export const COMPANION_STATES = ['idle', 'walk', 'sit', 'talk', 'kiss', 'angry', 'flex', 'grab', 'sleep']
+const OPTIONAL_COMPANION_STATES = new Set(['flex', 'grab'])
 export const LEAGUES = ['bronze', 'silver', 'gold', 'crystal', 'mythic', 'legend', 'goose']
 export const leagueOrBronze = value => LEAGUES.includes(value) ? value : 'bronze'
 
@@ -20,6 +21,7 @@ export function validateAnimation(value) {
   const clips = {}
   for (const state of COMPANION_STATES) {
     const clip = value.clips[state]
+    if (!clip && OPTIONAL_COMPANION_STATES.has(state) && !Object.hasOwn(value.clips, state)) continue
     if (!clip || !Array.isArray(clip.frames) || !Array.isArray(clip.durations) || !clip.frames.length || clip.frames.length > 24 ||
         clip.frames.length !== clip.durations.length || clip.frames.some(i => !Number.isInteger(i) || i < 0 || i >= value.frames.length) ||
         clip.durations.some(ms => !Number.isFinite(ms) || ms < 60 || ms > 10000)) return null
