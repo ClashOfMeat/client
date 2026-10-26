@@ -272,11 +272,6 @@ impl Client {
         )
     }
 
-    /// Checks whether an outbound visit is still awaiting its recipient's playback.
-    pub fn visit_status(&self, id: &str) -> Result<Value, ApiError> {
-        self.get(&format!("/api/companion/visit-status?visitId={id}"))
-    }
-
     /// Uploads the oldest queued observations: up to 100 counters and 50 readings. A batch the
     /// server refuses (400 or 413) is halved until the refused observations stand alone; those
     /// are set aside locally (`Store::reject`, logged) so they no longer hold up the queue. When

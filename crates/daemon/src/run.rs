@@ -671,13 +671,6 @@ fn handle_request(
                     .map_err(visit_wording)
             });
         }
-        "visit_status" => match params.get("id").and_then(Value::as_str) {
-            Some(id) if clashofmeat_core::ids::is_uuid(id) => {
-                let id = id.to_owned();
-                return friend_request(opts, store, reply, move |client| client.visit_status(&id));
-            }
-            _ => Err(SocketError::new("bad_request", "id must be a visit ID")),
-        },
         "visit_done" => match params.get("id").and_then(Value::as_str) {
             Some(id) if clashofmeat_core::ids::is_uuid(id) => sync_tx
                 .send(SyncCommand::VisitDone { id: id.to_owned() })
