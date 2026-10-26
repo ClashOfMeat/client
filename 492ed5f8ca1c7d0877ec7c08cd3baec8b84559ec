@@ -1,0 +1,21 @@
+README.md
+  s_3c65b42bf834d6::t_8c0f4c841572d6 33-35,42-84
+scripts/check.sh
+  s_3c65b42bf834d6::t_ac33fe252d8916 17-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "492ed5f8ca1c7d0877ec7c08cd3baec8b84559ec",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}

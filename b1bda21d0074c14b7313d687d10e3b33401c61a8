@@ -1,0 +1,33 @@
+apps/desktop/src-tauri/src/settings.rs
+  s_3c65b42bf834d6::t_d93d33abde98b7 105,181-193,196,205,221-246
+apps/desktop/src-tauri/src/updater.rs
+  s_3c65b42bf834d6::t_4cba75e690c91d 172,183
+crates/cli/src/install.rs
+  s_3c65b42bf834d6::t_e0d660e3230ef2 163,192-201
+crates/cli/tests/install.rs
+  s_3c65b42bf834d6::t_2373707e5f5341 49-52,55,88-94,96,98
+crates/daemon/src/detect.rs
+  s_3c65b42bf834d6::t_bbdd5bde03869e 51,62-74
+crates/daemon/src/engine.rs
+  s_3c65b42bf834d6::t_7238091073652f 566-567
+crates/daemon/src/socket.rs
+  s_3c65b42bf834d6::t_b9aa87e5c0ff2d 5,118-120,133-136,138
+crates/daemon/tests/socket.rs
+  s_3c65b42bf834d6::t_ebe0814d219ca4 363-385
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b1bda21d0074c14b7313d687d10e3b33401c61a8",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
