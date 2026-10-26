@@ -5,7 +5,9 @@ import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES, leagueOrBronze } from './hero/validate.mjs'
 import { flexPhase, flexDelay, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT, FLEX_WIDTH } from './hero/flex.mjs'
+import { kissHeartPlace } from './hero/kiss.mjs'
 import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
+import { outgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
 import { friendRows, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
@@ -36,6 +38,20 @@ let workArea, animation, character, progression, player, sessions = []
 let localTokens = 0
 let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
 const visits = visitTracker()
+const outgoing = outgoingVisits()
+const OUTGOING_STORAGE = 'clashofmeat.outgoingVisits.v1'
+try {
+  const saved = JSON.parse(localStorage.getItem(OUTGOING_STORAGE) ?? '[]')
+  if (Array.isArray(saved)) for (const visit of saved) outgoing.observe(visit)
+} catch { /* The server heartbeat also recovers an away hero when storage is unavailable. */ }
+function saveOutgoing() {
+  try {
+    const records = outgoing.snapshot()
+    if (records.length) localStorage.setItem(OUTGOING_STORAGE, JSON.stringify(records))
+    else localStorage.removeItem(OUTGOING_STORAGE)
+  } catch { /* The daemon's cached heartbeat is the other restart path. */ }
+}
+saveOutgoing()
 let friendsRequest = 0, sending = false, noteTimer
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = false
 let timer, rect, lastPlaced, drag, visible = false
@@ -256,9 +272,14 @@ async function sendVisit(friend, emote) {
   const buttons = friendsList.querySelectorAll('button')
   for (const button of buttons) button.disabled = true
   try {
-    await invoke('daemon_request', { method: 'send_visit', params: { target: friend.handle, emote } })
-    note(`sent to ${friend.name}`, { emote })
-    noteTimer = setTimeout(() => { note(null); wake() }, 2000)
+    const result = await invoke('daemon_request', { method: 'send_visit', params: { target: friend.handle, emote } })
+    if (!parseOutgoingVisit(result)) throw new Error('The visit was sent without a valid visit ID.')
+    outgoing.observe(result)
+    saveOutgoing()
+    note(null)
+    statsOpen = false
+    menuOpen = false
+    showFriends(false)
   } catch (error) { note(errorText(error), { error: true }) }
   for (const button of buttons) button.disabled = false
   sending = false
@@ -283,6 +304,10 @@ function setStayStill(next) {
 
 async function setHero(data, heartbeat = false) {
   const now = Date.now()
+  if (data?.outgoingVisit) {
+    outgoing.observe(data.outgoingVisit, now)
+    saveOutgoing()
+  }
   const candidate = validateCharacter(data?.character)
   const nextAnimation = validateAnimation(data?.animation ?? candidate?.animation)
   const previous = character
@@ -355,12 +380,9 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
   } else if (state === 'kiss' && frame === 8) {
     const heart = effectImage('./assets/emote-kiss.png')
     if (!heart) return
-    // The large heart covers the small kiss cue on older sprite sheets.
-    const rise = Math.min(1, Math.max(0, (elapsed - 520) / 450))
-    const size = 58 + Math.round(6 * Math.sin(Math.PI * rise))
-    const wantedX = facing === 'left' ? spriteX + 4 : spriteX + 83
-    const x = Math.max(0, Math.min(rect.width - size, wantedX))
-    ctx.drawImage(heart, x, spriteY + 8 - rise * 12, size, size)
+    const place = kissHeartPlace(spriteX, spriteY, rect.width, facing, elapsed)
+    if (!place) return
+    ctx.drawImage(heart, place.x, place.y, place.size, place.size)
   } else if (state === 'angry' && frame === 12) {
     const mark = effectImage('./assets/angry-mark.png')
     if (!mark) return
@@ -404,7 +426,12 @@ async function draw() {
       play('sit', now, 3000)
     }
   }
-  const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: stayStill || statsOpen || menuOpen })
+  if (visitor && now - visitorStarted >= 8000) {
+    visitDone(visitor.id)
+    visitor = null
+  }
+  let away = outgoing.away(now)
+  const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: stayStill || statsOpen || menuOpen || away })
   // One fixed size: the window only moves, so opening the card never resizes it (no flash).
   const nextRect = windowRect(pose.x, { workArea, bubble: true, lift })
   const changed = !lastPlaced || Math.abs(nextRect.x - lastPlaced.x) >= 1 || nextRect.y !== lastPlaced.y || nextRect.width !== lastPlaced.width || nextRect.height !== lastPlaced.height
@@ -414,7 +441,24 @@ async function draw() {
     try { await invoke('hero_place', { x: rect.x, y: rect.y, width: rect.width, height: rect.height }) }
     catch (error) { console.error('hero placement:', error); return }
   }
+  away = outgoing.away(Date.now())
+  if (away && !visitor) {
+    stats.hidden = true
+    menu.hidden = true
+    visitLabel.hidden = true
+    updateHitRegions()
+    if (visible) { await nativeWindow.hide(); visible = false }
+    if (!outgoing.away() || visitor) wake()
+    return
+  }
   if (!visible) { await nativeWindow.show(); visible = true }
+  away = outgoing.away(Date.now())
+  if (away && !visitor) {
+    await nativeWindow.hide()
+    visible = false
+    if (!outgoing.away() || visitor) wake()
+    return
+  }
   const ratio = window.devicePixelRatio || 1
   const pixelWidth = Math.round(rect.width * ratio)
   const pixelHeight = Math.round(rect.height * ratio)
@@ -426,21 +470,17 @@ async function draw() {
   ctx.clearRect(0, 0, rect.width, rect.height)
   ctx.imageSmoothingEnabled = false
   const auraPlaying = Boolean(aura && now - auraStarted < aura.durationMs)
-  if (auraPlaying) {
+  if (!away && auraPlaying) {
     // The effect frames contain the hero turning into its next skin, drawn larger than the sprite
     // (renderScale) with the feet at the bottom, so they replace the sprite while they play.
     const size = 128 * (aura.renderScale ?? 1)
     drawImage(aura.frames[levelUpFrame(aura, now - auraStarted)], rect.spriteX + 64 - size / 2, rect.spriteY + 128 - size, size, pose.facing === 'left')
-  } else {
+  } else if (!away) {
     const frame = companionFrame(animation, pose.state, pose.elapsed)
     const chosen = frameImage(animation, frame, pose.facing)
     const motion = pose.state === 'flex' ? flexMotion(pose.elapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
     drawImage(chosen.png ?? character.png, rect.spriteX + motion.dx, rect.spriteY + motion.dy, motion.width, chosen.flip, 1, motion.height)
     drawEmoteEffect(pose.state, pose.elapsed, frame, rect.spriteX, rect.spriteY, pose.facing, player?.league)
-  }
-  if (visitor && now - visitorStarted >= 8000) {
-    visitDone(visitor.id)
-    visitor = null
   }
   visitLabel.hidden = !visitor
   if (visitor) {
@@ -451,22 +491,23 @@ async function draw() {
     const visitElapsed = now - visitorStarted - 1500
     const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
     drawImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
-    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league)
+    // The visitor's sprite keeps its baked side heart. A second large heart would cover the host.
+    if (v.state !== 'kiss') drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league)
     const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null
     visitLabel.style.left = `${left ?? 0}px`
     visitLabel.style.top = `${rect.spriteY - 4}px`
   }
-  if (gained) {
+  if (!away && gained) {
     // Rises 32 px above the head, as in the terminal.
     ctx.save()
     ctx.translate(0, rect.spriteY - 30)
     drawXpText(ctx, xpTextFrame(gained.amount, now - gained.startedAt, { centerX: rect.spriteX + 64, areaHeight: 46, scale: 2, maxWidth: rect.width }))
     ctx.restore()
   }
-  if (character.canLevelUp === true && !evolving && !auraPlaying) void evolve()
-  stats.hidden = !statsOpen || menuOpen
-  menu.hidden = !menuOpen
+  if (!away && character.canLevelUp === true && !evolving && !auraPlaying) void evolve()
+  stats.hidden = away || !statsOpen || menuOpen
+  menu.hidden = away || !menuOpen
   updateHitRegions()
   const next = deadline(now, pose)
   if (Number.isFinite(next)) timer = setTimeout(draw, next)
@@ -474,7 +515,7 @@ async function draw() {
 
 // Only these rectangles take clicks; the rest of the window lets them through (overlay.rs).
 function updateHitRegions() {
-  const regions = drag ? [[0, 0, rect.width, rect.height]] : [[rect.spriteX + 8, rect.spriteY + 8, 112, 120]]
+  const regions = outgoing.away() ? [] : drag ? [[0, 0, rect.width, rect.height]] : [[rect.spriteX + 8, rect.spriteY + 8, 112, 120]]
   for (const element of [stats, menu]) {
     if (element.hidden) continue
     const box = element.getBoundingClientRect()
@@ -498,7 +539,7 @@ function wake() {
 }
 
 canvas.addEventListener('pointerdown', event => {
-  if (!rect || !character || event.button !== 0) return
+  if (!rect || !character || outgoing.away() || event.button !== 0) return
   const x = event.clientX, y = event.clientY
   if (x < rect.spriteX || x > rect.spriteX + 128 || y < rect.spriteY || y > rect.spriteY + 128) return
   // Grabbing a falling hero catches it where it is.
@@ -542,6 +583,7 @@ canvas.addEventListener('pointerup', release)
 canvas.addEventListener('pointercancel', release)
 canvas.addEventListener('contextmenu', event => {
   event.preventDefault()
+  if (outgoing.away()) return
   if (!rect || event.clientX < rect.spriteX || event.clientX > rect.spriteX + 128 || event.clientY < rect.spriteY || event.clientY > rect.spriteY + 128) return
   menuOpen = !menuOpen
   statsOpen = false
@@ -596,6 +638,25 @@ function setPaused(next) {
   paused = next
 }
 window.addEventListener('resize', wake)
+let checkingOutgoing = false
+setInterval(async () => {
+  const now = Date.now()
+  if (outgoing.expire(now)) { saveOutgoing(); wake() }
+  if (checkingOutgoing) return
+  const ids = outgoing.ids(now)
+  if (!ids.length) return
+  checkingOutgoing = true
+  try {
+    for (const id of ids) {
+      try {
+        const result = await invoke('daemon_request', { method: 'visit_status', params: { id } })
+        const changed = outgoing.observe(result?.visit)
+        if (result?.visit) saveOutgoing()
+        if (changed) wake()
+      } catch { /* An offline sender stays away until the visit expires locally. */ }
+    }
+  } finally { checkingOutgoing = false }
+}, 3000)
 setInterval(async () => {
   if (screen !== 'cursor' || paused) return
   try {
@@ -634,7 +695,10 @@ setPaused(initial.hero?.show === false)
 const snapshot = initial.daemon?.snapshot
 if (snapshot) localTokens = snapshot.localTokens ?? 0
 if (snapshot) normaliseActivity(snapshot.activity)
-if (snapshot) void setHero(snapshot.hero)
+const firstHero = initial.daemon?.heartbeat ?? snapshot?.hero
+if (firstHero) void setHero(firstHero)
+// A cached snapshot may predate the visit. Refresh it instead of waiting for the idle minute.
+if (initial.daemon?.connected) void invoke('daemon_request', { method: 'sync_now', params: {} }).catch(() => {})
 await listen('hero-settings', ({ payload }) => {
   setStayStill(payload?.still === true)
   const nextScreen = payload?.screen ?? 'main'
@@ -646,7 +710,7 @@ await listen('hero-settings', ({ payload }) => {
 // A click elsewhere on screen near the hero (overlay.rs reports it in window coordinates) sends it
 // hurrying away, so it never sits on what the user is reaching for. "Stop walking" keeps it put.
 await listen('screen-click', ({ payload }) => {
-  if (!rect || !character || paused || hidden || stayStill || drag || fall || statsOpen || menuOpen) return
+  if (!rect || !character || outgoing.away() || paused || hidden || stayStill || drag || fall || statsOpen || menuOpen) return
   if (aura && Date.now() - auraStarted < aura.durationMs) return
   const dx = payload.x - (rect.spriteX + 64), dy = payload.y - (rect.spriteY + 64)
   if (Math.hypot(dx, dy) > 260) return

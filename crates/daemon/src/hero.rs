@@ -19,6 +19,7 @@ pub fn hero_view(heartbeat: &Value) -> Value {
         "progression",
         "player",
         "visit",
+        "outgoingVisit",
     ] {
         if let Some(value) = heartbeat.get(key) {
             view.insert(key.to_string(), value.clone());
@@ -69,5 +70,33 @@ pub fn load_cache(home: &Path) -> Result<Option<Value>> {
         Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error.into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{hero_view, load_cache, save_cache};
+    use serde_json::json;
+
+    #[test]
+    fn outgoing_visit_survives_hero_cache_for_restart_recovery() {
+        let heartbeat = json!({
+            "character": {"id": "hero"},
+            "outgoingVisit": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "status": "delivered",
+                "expiresAt": "2026-10-26T12:02:00Z"
+            },
+            "unrelated": "discard"
+        });
+        let view = hero_view(&heartbeat);
+        assert_eq!(view["outgoingVisit"], heartbeat["outgoingVisit"]);
+        assert!(view.get("unrelated").is_none());
+        let home = tempfile::tempdir().unwrap();
+        save_cache(home.path(), &view).unwrap();
+        assert_eq!(
+            load_cache(home.path()).unwrap().unwrap()["outgoingVisit"],
+            heartbeat["outgoingVisit"]
+        );
     }
 }
