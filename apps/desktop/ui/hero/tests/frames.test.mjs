@@ -7,7 +7,6 @@ const animation = { frames: ['zero', 'one', 'two'], mirroredFrames: { 1: 'one-le
   walk: { frames: [0, 1, 2], durations: [100, 200, 100] },
   sleep: { frames: [0, 1, 2], durations: [100, 200, 100] },
   kiss: { frames: [0, 1, 2], durations: [100, 200, 100] },
-  grab: { frames: [0, 1, 2, 1], durations: [100, 200, 150, 150] },
 } }
 
 test('clip playback loops or holds the final kiss and sleep frame', () => {
@@ -40,17 +39,6 @@ test('frameDelay reaches each exact boundary and stops on a held frame', () => {
   assert.equal(frameDelay(animation, 'idle', 0), Infinity)
   assert.equal(frameDelay({ clips: { sleep: { frames: [0, 1, 1], durations: [100, 200, 100] } } }, 'sleep', 100), Infinity)
   assert.equal(frameDelay(null, 'walk', 0), Infinity)
-})
-
-test('grab plays pickup once and loops only the held poses', () => {
-  assert.equal(companionFrame(animation, 'grab', 0), 0)
-  assert.equal(companionFrame(animation, 'grab', 100), 1)
-  assert.equal(companionFrame(animation, 'grab', 300), 2)
-  assert.equal(companionFrame(animation, 'grab', 450), 1)
-  assert.equal(companionFrame(animation, 'grab', 600), 2)
-  assert.equal(companionFrame(animation, 'grab', 1200), 2)
-  assert.equal(frameDelay(animation, 'grab', 599), 1)
-  assert.equal(frameDelay(animation, 'grab', 600), 150)
 })
 
 test('left facing selects authored mirror or requests a horizontal flip', () => {

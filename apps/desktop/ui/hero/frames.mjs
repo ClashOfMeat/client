@@ -1,20 +1,12 @@
 function clipFor(animation, state) { return animation?.clips?.[state] ?? animation?.clips?.idle }
 
-// Grab has a one-time reaction before its held poses repeat. Replaying the
-// neutral and pickup frames while dragging makes props reappear in midair.
-function clipTime(animation, state, clip, elapsed) {
-  const duration = clip.durations.reduce((a, b) => a + b, 0)
-  const time = Math.max(0, elapsed)
-  if (state === 'sleep' || state === 'kiss') return { time: Math.min(time, duration - 1), repeatStart: clip.frames.length }
-  const repeatStart = state === 'grab' && animation?.clips?.grab === clip && clip.frames.length > 2 ? 2 : 0
-  const onset = clip.durations.slice(0, repeatStart).reduce((a, b) => a + b, 0)
-  return { time: time < onset ? time : onset + (time - onset) % (duration - onset), repeatStart }
-}
-
 export function companionFrame(animation, state, elapsed) {
   const clip = clipFor(animation, state)
   if (!clip) return 0
-  let { time } = clipTime(animation, state, clip, elapsed)
+  const duration = clip.durations.reduce((a, b) => a + b, 0)
+  let time = state === 'sleep' || state === 'kiss'
+    ? Math.min(Math.max(0, elapsed), duration - 1)
+    : Math.max(0, elapsed) % duration
   for (let i = 0; i < clip.frames.length; i++) {
     if (time < clip.durations[i]) return clip.frames[i]
     time -= clip.durations[i]
@@ -25,9 +17,9 @@ export function companionFrame(animation, state, elapsed) {
 export function frameDelay(animation, state, elapsed) {
   const clip = clipFor(animation, state)
   if (!clip) return Infinity
+  const duration = clip.durations.reduce((a, b) => a + b, 0)
   const held = state === 'sleep' || state === 'kiss'
-  if (held && elapsed >= clip.durations.reduce((a, b) => a + b, 0)) return Infinity
-  const { time, repeatStart } = clipTime(animation, state, clip, elapsed)
+  const time = held ? Math.max(0, elapsed) : Math.max(0, elapsed) % duration
   let remaining = time
   let index = clip.durations.length - 1
   for (let i = 0; i < clip.durations.length; i++) {
@@ -39,7 +31,7 @@ export function frameDelay(animation, state, elapsed) {
   for (let step = 1; step <= clip.frames.length; step++) {
     const next = index + step
     if (held && next >= clip.frames.length) return Infinity
-    const wrapped = next < clip.frames.length ? next : repeatStart + (next - clip.frames.length) % (clip.frames.length - repeatStart)
+    const wrapped = next % clip.frames.length
     if (clip.frames[wrapped] !== current) return delay
     delay += clip.durations[wrapped]
   }

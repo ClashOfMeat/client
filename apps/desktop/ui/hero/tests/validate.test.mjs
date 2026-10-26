@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { COMPANION_STATES, LEAGUES, validPng, validateAnimation, validateCharacter, validateLevelUp, validateVisit } from '../validate.mjs'
+import { COMPANION_STATES, validPng, validateAnimation, validateCharacter, validateLevelUp, validateVisit } from '../validate.mjs'
 
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
 const uuid = '12345678-1234-1234-1234-123456789abc'
@@ -67,12 +67,8 @@ test('level-up and visit validation preserve bounds without a level cap', () => 
   assert.equal(validateVisit({ ...visit, expiresAt: new Date(now + 300001).toISOString() }, now), null)
   assert.equal(validateVisit({ ...visit, character: { id: uuid, png } }, now), null)
   assert.equal(validateVisit(visit, now).emote, 'kiss')
-  assert.equal(validateVisit({ ...visit, emote: 'flex', league: 'goose' }, now).emote, 'flex')
-  assert.equal(validateVisit({ ...visit, emote: 'flex', league: 'goose' }, now).league, 'goose')
-  assert.equal(validateVisit({ ...visit, emote: 'wave', league: 'unknown' }, now).league, 'bronze')
-  assert.equal(validateVisit({ ...visit, emote: 'wave' }, now).emote, 'kiss')
+  assert.equal(validateVisit({ ...visit, emote: 'wave' }, now).emote, 'wave')
   assert.equal(validateVisit({ ...visit, emote: 'dance' }, now).emote, 'kiss')
-  assert.equal(LEAGUES.length, 7)
 })
 
 test('character keeps a display name and rejects a bad one', () => {

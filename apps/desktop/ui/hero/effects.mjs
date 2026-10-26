@@ -29,10 +29,7 @@ export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
   const state = arriving || leaving ? 'walk' : animation?.clips?.[emote] ? emote : 'kiss'
   const progress = arriving ? Math.max(0, elapsed) / 1500 : leaving ? Math.min(1, (elapsed - 6500) / 1500) : 0
   const inward = edge > stand ? 'left' : 'right', outward = inward === 'left' ? 'right' : 'left'
-  const clip = animation?.clips?.[state]
-  const duration = clip?.durations.reduce((sum, ms) => sum + ms, 0) ?? 0
-  const clipElapsed = state === 'flex' && duration ? Math.min(elapsed - 1500, duration - 1) : arriving || leaving ? elapsed : elapsed - 1500
-  return { frame: companionFrame(animation, state, clipElapsed), state,
+  return { frame: companionFrame(animation, state, arriving || leaving ? elapsed : elapsed - 1500), state,
     facing: arriving ? inward : leaving ? outward : stand > 0 ? 'left' : 'right',
     offset: arriving ? edge + (stand - edge) * progress : leaving ? stand + (edge - stand) * progress : stand }
 }

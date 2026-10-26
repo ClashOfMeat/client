@@ -858,7 +858,7 @@ impl HeroArt {
 }
 
 /// The emotes a hero can play on a friend's screen.
-pub const VISIT_EMOTES: [&str; 3] = ["flex", "kiss", "angry"];
+pub const VISIT_EMOTES: [&str; 5] = ["kiss", "wave", "laugh", "victory", "angry"];
 
 /// This install's companion session, created once. Heartbeats carry it so the server only
 /// sends visits to an app that is running.

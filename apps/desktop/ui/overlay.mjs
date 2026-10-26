@@ -3,8 +3,7 @@ import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
 import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace } from './hero/effects.mjs'
 import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
-import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES, leagueOrBronze } from './hero/validate.mjs'
-import { flexPhase, flexDelay, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT, FLEX_WIDTH } from './hero/flex.mjs'
+import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES } from './hero/validate.mjs'
 import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
 import { friendRows, errorText } from './overlay/friends.mjs'
@@ -27,10 +26,9 @@ const visitLabel = document.getElementById('visit-label')
 const stillButton = document.getElementById('still')
 // The hide shortcut is Control+Option+H on a Mac and Ctrl+Alt+H on Windows (main.rs).
 if (/Windows/.test(navigator.userAgent)) document.querySelector('#pause .key').textContent = 'Ctrl+Alt+H'
-const EMOTE_LABELS = { flex: 'Flex', kiss: 'Kiss', angry: 'Angry' }
+const EMOTE_LABELS = { wave: 'Wave', laugh: 'Laugh', victory: 'Victory', kiss: 'Kiss', angry: 'Angry' }
 const activity = heroActivity()
 const images = new Map()
-const effectImages = new Map()
 let workArea, animation, character, progression, player, sessions = []
 // This machine's effective tokens the last heartbeat did not include yet (see overlay/predict.mjs).
 let localTokens = 0
@@ -55,18 +53,6 @@ async function bitmap(png) {
     }).catch(error => { images.delete(png); throw error }))
   }
   return images.get(png)
-}
-
-function effectImage(src) {
-  if (!effectImages.has(src)) {
-    const image = new Image()
-    effectImages.set(src, image)
-    image.onload = wake
-    image.onerror = () => effectImages.delete(src)
-    image.src = src
-  }
-  const image = effectImages.get(src)
-  return image.complete && image.naturalWidth ? image : null
 }
 
 async function decodeHero() {
@@ -158,14 +144,10 @@ async function playLevelUp() {
   levelingUp = false
 }
 
-function emoteIconSrc(name) {
-  return name === 'flex' ? `./assets/leagues/${leagueOrBronze(player?.league)}.png` : `./assets/emote-${name}.png`
-}
-
 function emoteButton(name) {
   const button = document.createElement('button')
   const icon = document.createElement('img')
-  icon.src = emoteIconSrc(name)
+  icon.src = `./assets/emote-${name}.png`
   icon.alt = ''
   // Without the icon file the button falls back to its word.
   icon.addEventListener('error', () => { button.textContent = EMOTE_LABELS[name]; button.style.width = 'auto' }, { once: true })
@@ -177,7 +159,7 @@ function emoteButton(name) {
 
 function updateEmotes() {
   emotes.replaceChildren()
-  for (const name of VISIT_EMOTES) {
+  for (const name of ['wave', 'laugh', 'victory', 'kiss', 'angry']) {
     if (!animation?.clips[name]) continue
     const button = emoteButton(name)
     button.addEventListener('click', () => {
@@ -205,7 +187,7 @@ function note(text, { error = false, emote } = {}) {
   if (!text) return
   if (emote) {
     const icon = document.createElement('img')
-    icon.src = emoteIconSrc(emote)
+    icon.src = `./assets/emote-${emote}.png`
     icon.alt = EMOTE_LABELS[emote]
     friendsNote.append(icon)
   }
@@ -287,15 +269,11 @@ async function setHero(data, heartbeat = false) {
   const nextAnimation = validateAnimation(data?.animation ?? candidate?.animation)
   const previous = character
   const previousAnimation = animation
-  const previousLeague = leagueOrBronze(player?.league)
   character = candidate
   animation = nextAnimation
+  if (animation !== previousAnimation) updateEmotes()
   progression = data?.progression ?? null
   player = data?.player ?? null
-  if (animation !== previousAnimation || leagueOrBronze(player?.league) !== previousLeague) updateEmotes()
-  effectImage(`./assets/flex-fx/${leagueOrBronze(player?.league)}.png`)
-  effectImage('./assets/emote-kiss.png')
-  effectImage('./assets/angry-mark.png')
   // A later heartbeat carries no effect; let a playing aura finish.
   const nextAura = validateLevelUp(data?.levelUp ?? data?.level_up)
   if (nextAura || !(aura && now - auraStarted < aura.durationMs)) aura = nextAura
@@ -331,7 +309,7 @@ async function setHero(data, heartbeat = false) {
   wake()
 }
 
-function drawImage(png, x, y, size, flip = false, opacity = 1, height = size) {
+function drawImage(png, x, y, size, flip = false, opacity = 1) {
   const image = images.get(png)
   if (!image || typeof image.then === 'function') return
   ctx.save()
@@ -339,37 +317,9 @@ function drawImage(png, x, y, size, flip = false, opacity = 1, height = size) {
   if (flip) {
     ctx.translate(x + size, y)
     ctx.scale(-1, 1)
-    ctx.drawImage(image, 0, 0, size, height)
-  } else ctx.drawImage(image, x, y, size, height)
+    ctx.drawImage(image, 0, 0, size, size)
+  } else ctx.drawImage(image, x, y, size, size)
   ctx.restore()
-}
-
-function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league) {
-  if (state === 'flex') {
-    const phase = flexPhase(elapsed)
-    if (phase < 0) return
-    const sheet = effectImage(`./assets/flex-fx/${leagueOrBronze(league)}.png`)
-    if (!sheet) return
-    const place = flexPlace(spriteX, spriteY, rect.width)
-    ctx.drawImage(sheet, 0, phase * FLEX_HEIGHT, FLEX_WIDTH, FLEX_HEIGHT, place.x, place.y, FLEX_WIDTH, FLEX_HEIGHT)
-  } else if (state === 'kiss' && frame === 8) {
-    const heart = effectImage('./assets/emote-kiss.png')
-    if (!heart) return
-    // The large heart covers the small kiss cue on older sprite sheets.
-    const rise = Math.min(1, Math.max(0, (elapsed - 520) / 450))
-    const size = 58 + Math.round(6 * Math.sin(Math.PI * rise))
-    const wantedX = facing === 'left' ? spriteX + 4 : spriteX + 83
-    const x = Math.max(0, Math.min(rect.width - size, wantedX))
-    ctx.drawImage(heart, x, spriteY + 8 - rise * 12, size, size)
-  } else if (state === 'angry' && frame === 12) {
-    const mark = effectImage('./assets/angry-mark.png')
-    if (!mark) return
-    const pulse = 1 + 0.08 * Math.sin(elapsed / 85)
-    const size = 76 * pulse
-    const centerX = spriteX + (facing === 'left' ? 35 : 93)
-    const x = Math.max(0, Math.min(rect.width - size, centerX - size / 2))
-    ctx.drawImage(mark, x, spriteY - 25 - size / 2, size, size)
-  }
 }
 
 function deadline(now, pose) {
@@ -379,16 +329,10 @@ function deadline(now, pose) {
   if (Number.isFinite(clip)) delays.push(clip)
   if (Number.isFinite(pose.until)) delays.push(pose.until)
   if (pose.state === 'walk' && !paused) delays.push(83)
-  if (pose.state === 'flex') delays.push(flexDelay(pose.elapsed))
-  if (pose.state === 'kiss' || pose.state === 'angry') delays.push(83)
   if (gained && bubbleFrame(gained, now).visible) delays.push(83, Math.max(0, gained.startedAt + 1800 - now))
   if (aura && now - auraStarted < aura.durationMs) delays.push(83, aura.durationMs - (now - auraStarted))
-  if (visitor && now - visitorStarted < 8000) {
-    delays.push(83, 8000 - (now - visitorStarted))
-    const visitorFlexElapsed = now - visitorStarted - 1500
-    if (visitor.emote === 'flex' && visitorFlexElapsed >= 0 && visitorFlexElapsed < FLEX_DURATION) delays.push(flexDelay(visitorFlexElapsed))
-  }
-  return delays.length ? Math.max(16, Math.min(...delays)) : Infinity
+  if (visitor && now - visitorStarted < 8000) delays.push(83, 8000 - (now - visitorStarted))
+  return delays.length ? Math.max(83, Math.min(...delays)) : Infinity
 }
 
 async function draw() {
@@ -432,11 +376,8 @@ async function draw() {
     const size = 128 * (aura.renderScale ?? 1)
     drawImage(aura.frames[levelUpFrame(aura, now - auraStarted)], rect.spriteX + 64 - size / 2, rect.spriteY + 128 - size, size, pose.facing === 'left')
   } else {
-    const frame = companionFrame(animation, pose.state, pose.elapsed)
-    const chosen = frameImage(animation, frame, pose.facing)
-    const motion = pose.state === 'flex' ? flexMotion(pose.elapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
-    drawImage(chosen.png ?? character.png, rect.spriteX + motion.dx, rect.spriteY + motion.dy, motion.width, chosen.flip, 1, motion.height)
-    drawEmoteEffect(pose.state, pose.elapsed, frame, rect.spriteX, rect.spriteY, pose.facing, player?.league)
+    const chosen = frameImage(animation, companionFrame(animation, pose.state, pose.elapsed), pose.facing)
+    drawImage(chosen.png ?? character.png, rect.spriteX, rect.spriteY, 128, chosen.flip)
   }
   if (visitor && now - visitorStarted >= 8000) {
     visitDone(visitor.id)
@@ -448,10 +389,7 @@ async function draw() {
     const place = visitPlace(rect.spriteX, rect.width)
     const v = visitPose(visitAnimation, now - visitorStarted, place.stand, place.edge, visitor.emote)
     const frame = frameImage(visitAnimation, v.frame, v.facing)
-    const visitElapsed = now - visitorStarted - 1500
-    const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
-    drawImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
-    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league)
+    drawImage(frame.png, rect.spriteX + v.offset, rect.spriteY, 128, frame.flip)
     const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null
     visitLabel.style.left = `${left ?? 0}px`
@@ -513,8 +451,8 @@ canvas.addEventListener('pointermove', event => {
     drag.moved = true
     statsOpen = false
     menuOpen = false
-    // Held in the air, the authored grab poses flail until the hero is let go.
-    play('grab', Date.now(), 600_000)
+    // Held in the air, the hero struggles until it is let go.
+    play('angry', Date.now(), 600_000)
   }
   if (drag.moved) {
     activity.drag(drag.starting + event.screenX - drag.startX, Date.now())
@@ -531,10 +469,8 @@ function release() {
     if (statsOpen) showFriends(false)
     updateStats()
   }
-  else {
-    play('grab', Date.now(), 0)
-    if (lift >= 2) fall = { from: lift, startedAt: Date.now() }
-  }
+  else if (lift >= 2) fall = { from: lift, startedAt: Date.now() }
+  else play('angry', Date.now(), 0)
   drag = null
   wake()
 }
