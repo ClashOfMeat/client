@@ -53,6 +53,15 @@ export function outgoingVisits(limit = 64) {
     expire,
     away(now = Date.now()) { expire(now); return active.size > 0 },
     ids(now = Date.now()) { expire(now); return [...active.keys()] },
+    clearActive(except = new Set()) {
+      let changed = false
+      for (const [id, expiresAt] of active) {
+        if (except.has(id)) continue
+        finish(id, expiresAt)
+        changed = true
+      }
+      return changed
+    },
     snapshot(now = Date.now()) {
       expire(now)
       return [
@@ -60,5 +69,83 @@ export function outgoingVisits(limit = 64) {
         ...[...active].map(([id, expiresAt]) => ({ id, status: 'pending', expiresAt: new Date(expiresAt).toISOString() })),
       ]
     },
+  }
+}
+
+const HANDLE = /^[a-z0-9_]{3,24}$/
+
+// The server's player handle identifies the paired account. Keep each account's short-lived
+// visit records separate so switching accounts cannot carry an away hero to another player.
+export function scopedOutgoingVisits(storage) {
+  let owner = null
+  let visits = outgoingVisits()
+  const sentHere = new Set()
+  const key = () => `clashofmeat.outgoingVisits.v2.${owner}`
+
+  function save(now = Date.now()) {
+    if (!owner) return
+    try {
+      const records = visits.snapshot(now)
+      if (records.length) storage.setItem(key(), JSON.stringify(records))
+      else storage.removeItem(key())
+    } catch { /* A heartbeat can restore the state when WebView storage is unavailable. */ }
+  }
+
+  function trimSent(now) {
+    const active = new Set(visits.ids(now))
+    for (const id of sentHere) if (!active.has(id)) sentHere.delete(id)
+  }
+
+  return {
+    owner() { return owner },
+    identify(handle, now = Date.now()) {
+      const next = typeof handle === 'string' && HANDLE.test(handle.toLowerCase()) ? handle.toLowerCase() : null
+      if (next === owner) return false
+      const wasAway = visits.away(now)
+      owner = next
+      visits = outgoingVisits()
+      sentHere.clear()
+      if (owner) {
+        try {
+          const saved = JSON.parse(storage.getItem(key()) ?? '[]')
+          if (Array.isArray(saved)) for (const visit of saved) visits.observe(visit, now)
+        } catch { /* Ignore corrupt or unavailable storage. */ }
+      }
+      save(now)
+      return wasAway !== visits.away(now)
+    },
+    sent(value, now = Date.now()) {
+      const changed = visits.observe(value, now)
+      const parsed = parseOutgoingVisit(value, now)
+      if (parsed && ACTIVE.has(parsed.status) && visits.ids(now).includes(parsed.id)) sentHere.add(parsed.id)
+      save(now)
+      return changed
+    },
+    heartbeat(value, now = Date.now(), authoritative = false) {
+      if (value === null) {
+        // A heartbeat fetched before a local send can arrive after its successful response.
+        if (!authoritative) return false
+        const changed = visits.clearActive(sentHere)
+        save(now)
+        return changed
+      }
+      const changed = visits.observe(value, now)
+      trimSent(now)
+      save(now)
+      return changed
+    },
+    status(value, now = Date.now()) {
+      const changed = visits.observe(value, now)
+      trimSent(now)
+      save(now)
+      return changed
+    },
+    expire(now = Date.now()) {
+      const changed = visits.expire(now)
+      if (changed) { trimSent(now); save(now) }
+      return changed
+    },
+    away(now = Date.now()) { return visits.away(now) },
+    ids(now = Date.now()) { return visits.ids(now) },
   }
 }

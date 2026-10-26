@@ -7,7 +7,7 @@ import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, V
 import { flexPhase, flexDelay, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT, FLEX_WIDTH } from './hero/flex.mjs'
 import { kissHeartPlace } from './hero/kiss.mjs'
 import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
-import { outgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
+import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
 import { formatTokens, windowRect } from './overlay/layout.mjs'
 import { friendRows, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
@@ -38,20 +38,13 @@ let workArea, animation, character, progression, player, sessions = []
 let localTokens = 0
 let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
 const visits = visitTracker()
-const outgoing = outgoingVisits()
-const OUTGOING_STORAGE = 'clashofmeat.outgoingVisits.v1'
+let outgoingStorage
 try {
-  const saved = JSON.parse(localStorage.getItem(OUTGOING_STORAGE) ?? '[]')
-  if (Array.isArray(saved)) for (const visit of saved) outgoing.observe(visit)
-} catch { /* The server heartbeat also recovers an away hero when storage is unavailable. */ }
-function saveOutgoing() {
-  try {
-    const records = outgoing.snapshot()
-    if (records.length) localStorage.setItem(OUTGOING_STORAGE, JSON.stringify(records))
-    else localStorage.removeItem(OUTGOING_STORAGE)
-  } catch { /* The daemon's cached heartbeat is the other restart path. */ }
-}
-saveOutgoing()
+  outgoingStorage = localStorage
+  // Old records had no account owner. A heartbeat restores an active visit under the new key.
+  outgoingStorage.removeItem('clashofmeat.outgoingVisits.v1')
+} catch { outgoingStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} } }
+const outgoing = scopedOutgoingVisits(outgoingStorage)
 let friendsRequest = 0, sending = false, noteTimer
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = false
 let timer, rect, lastPlaced, drag, visible = false
@@ -274,8 +267,8 @@ async function sendVisit(friend, emote) {
   try {
     const result = await invoke('daemon_request', { method: 'send_visit', params: { target: friend.handle, emote } })
     if (!parseOutgoingVisit(result)) throw new Error('The visit was sent without a valid visit ID.')
-    outgoing.observe(result)
-    saveOutgoing()
+    outgoing.identify(player?.handle)
+    outgoing.sent(result)
     note(null)
     statsOpen = false
     menuOpen = false
@@ -304,10 +297,8 @@ function setStayStill(next) {
 
 async function setHero(data, heartbeat = false) {
   const now = Date.now()
-  if (data?.outgoingVisit) {
-    outgoing.observe(data.outgoingVisit, now)
-    saveOutgoing()
-  }
+  if (data && Object.hasOwn(data, 'player')) outgoing.identify(data.player?.handle, now)
+  if (data && Object.hasOwn(data, 'outgoingVisit')) outgoing.heartbeat(data.outgoingVisit, now, heartbeat)
   const candidate = validateCharacter(data?.character)
   const nextAnimation = validateAnimation(data?.animation ?? candidate?.animation)
   const previous = character
@@ -641,18 +632,17 @@ window.addEventListener('resize', wake)
 let checkingOutgoing = false
 setInterval(async () => {
   const now = Date.now()
-  if (outgoing.expire(now)) { saveOutgoing(); wake() }
+  if (outgoing.expire(now)) wake()
   if (checkingOutgoing) return
   const ids = outgoing.ids(now)
   if (!ids.length) return
+  const owner = outgoing.owner()
   checkingOutgoing = true
   try {
     for (const id of ids) {
       try {
         const result = await invoke('daemon_request', { method: 'visit_status', params: { id } })
-        const changed = outgoing.observe(result?.visit)
-        if (result?.visit) saveOutgoing()
-        if (changed) wake()
+        if (owner === outgoing.owner() && outgoing.status(result?.visit)) wake()
       } catch { /* An offline sender stays away until the visit expires locally. */ }
     }
   } finally { checkingOutgoing = false }

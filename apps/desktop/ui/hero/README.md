@@ -15,6 +15,9 @@ On each daemon activity event, call `hero.update(activity, now)`. On a heartbeat
 
 Run `node --test apps/desktop/ui/hero/tests/` from the repository root.
 
-The overlay also polls `visit_status` while an outbound visit is active. A fresh heartbeat or
-restart snapshot can restore that pending ID; local expiry returns the hero if the service is
-offline. Incoming visits still play while the sender's own hero is away.
+The overlay also polls `visit_status` while an outbound visit is active. Visit IDs are saved under
+the paired player's handle, so changing accounts switches to that player's own away state. A fresh
+heartbeat or restart snapshot can restore a pending ID; an authoritative heartbeat with no outgoing
+visit clears a restored ID, while a locally sent ID waits for its explicit status or expiry. Local
+expiry returns the hero if the service is offline. Incoming visits still play while the sender's
+own hero is away.
