@@ -8,6 +8,19 @@ const animation = { version: 1, frames: Array(20).fill(png), clips: Object.fromE
 const aura = { id: 'preview', heroId: 'hero', version: 1, fromLevel: 1, toLevel: 30,
   frames: Array(18).fill(png), durations: [80, ...Array(16).fill(90), 120], durationMs: 1640 }
 
+test('older server art without Flex and Grab still gives the desktop a hero', () => {
+  const clips = { ...animation.clips }
+  delete clips.flex
+  delete clips.grab
+  for (const name of ['wave', 'laugh', 'victory']) clips[name] = { frames: [0], durations: [100] }
+  const olderAnimation = { ...animation, clips }
+  const character = { id: uuid, png, animation: olderAnimation }
+  assert(validateAnimation(olderAnimation))
+  assert(validateCharacter(character).animation)
+  assert.equal(validateAnimation({ ...olderAnimation, clips: { ...clips, flex: { frames: [999], durations: [100] } } }), null)
+  assert.equal(validateAnimation({ ...olderAnimation, clips: { ...clips, idle: undefined } }), null)
+})
+
 test('PNG and animation validation retain sprite limits and mirrored frames', () => {
   assert(validPng(png))
   assert.equal(validPng('bad'), false)
