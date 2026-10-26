@@ -1,0 +1,39 @@
+apps/desktop/ui/assets/README.md
+  s_c6fb21e5153431::t_f711b66577a7c3 1-2
+apps/desktop/ui/hero/effects.mjs
+  s_c6fb21e5153431::t_10a833b66ebcd5 32
+apps/desktop/ui/hero/frames.mjs
+  s_c6fb21e5153431::t_2abfdf92c98d52 6-9,20,22,34
+apps/desktop/ui/hero/tests/activity.test.mjs
+  s_c6fb21e5153431::t_d2205829ddfa9f 28-29,110,112,116-117,138,228,230
+apps/desktop/ui/hero/tests/effects.test.mjs
+  s_c6fb21e5153431::t_aa1958f23212c9 46-52
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_c6fb21e5153431::t_d97c222b2d3f9a 3,70
+apps/desktop/ui/hero/validate.mjs
+  s_c6fb21e5153431::t_1a87cfcd3981d1 1-2,86
+apps/desktop/ui/overlay.mjs
+  s_c6fb21e5153431::t_98e85cfd7a2c25 6,29,150,162,190,274,312,320-321,334-335,379-380,392,454-455,472-473
+crates/daemon/examples/fake/sprite.rs
+  s_c6fb21e5153431::t_89a669f0b2844f 19-20,22
+crates/daemon/src/sync.rs
+  s_c6fb21e5153431::t_00bad6d779261e 861
+crates/daemon/tests/sync.rs
+  s_c6fb21e5153431::t_425b052c649c02 803,809-810,823,920-921,929
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e4f6ace44015244e95aa0536b9f7d780e49a6beb",
+  "prompts": {},
+  "sessions": {
+    "s_c6fb21e5153431": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16003-b24f-7a40-ba29-f242b8e4691d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
