@@ -1,0 +1,21 @@
+apps/desktop/ui/hero/validate.mjs
+  s_c6fb21e5153431::t_d40c45f6d2beee 3,24
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_c6fb21e5153431::t_1eb895011f723a 11-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "079872c586a0252d0a3d4d26709197ac2ee15e99",
+  "prompts": {},
+  "sessions": {
+    "s_c6fb21e5153431": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16003-b24f-7a40-ba29-f242b8e4691d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
