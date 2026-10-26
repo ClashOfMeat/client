@@ -647,8 +647,10 @@ setInterval(async () => {
     }
   } finally { checkingOutgoing = false }
 }, 3000)
+// Display selection can change under us when a monitor disconnects or its work area moves.
+// hero_geometry falls back to the primary display if the selected display is gone.
 setInterval(async () => {
-  if (screen !== 'cursor' || paused) return
+  if (paused) return
   try {
     const { work_area: next } = await invoke('hero_geometry', { screen })
     if (!workArea || Object.keys(next).some(key => next[key] !== workArea[key])) {
