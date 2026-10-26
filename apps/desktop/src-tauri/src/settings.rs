@@ -135,6 +135,7 @@ pub fn daemon_request(
             | "level_up"
             | "friends"
             | "send_visit"
+            | "visit_status"
             | "visit_done"
     ) {
         return Err("unsupported method".into());

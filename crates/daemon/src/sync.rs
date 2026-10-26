@@ -226,6 +226,11 @@ impl Client {
         )
     }
 
+    /// Checks whether an outbound visit is still awaiting its recipient's playback.
+    pub fn visit_status(&self, id: &str) -> Result<Value, ApiError> {
+        self.get(&format!("/api/companion/visit-status?visitId={id}"))
+    }
+
     pub fn upload_observations(
         &self,
         store: &mut Store,

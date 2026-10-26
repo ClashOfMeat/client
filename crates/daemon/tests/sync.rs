@@ -797,6 +797,7 @@ fn send_visit_posts_the_target_emote_and_request_id_and_keeps_the_server_message
     let server = Server::start(vec![
         Reply::ok(json!({"id": ID, "target": "gab", "expiresAt": NOW, "emote": "flex"})),
         Reply::error(409, json!({"error": "Gab's app isn't running."})),
+        Reply::ok(json!({"visit": {"id": ID, "status": "played", "expiresAt": NOW}})),
     ]);
     let client = client(&server);
     let request_id = clashofmeat_core::ids::random_uuid();
@@ -811,11 +812,24 @@ fn send_visit_posts_the_target_emote_and_request_id_and_keeps_the_server_message
         (status, detail.as_deref()),
         (409, Some("Gab's app isn't running."))
     );
+    assert_eq!(
+        client.visit_status(ID).unwrap()["visit"]["status"],
+        "played"
+    );
     let requests = server.finish();
     assert_eq!(requests[0].path, "/api/companion/kiss");
     assert_eq!(
         requests[0].body,
         json!({"target": "gab", "requestId": request_id, "emote": "flex"})
+    );
+    assert_eq!(requests[2].method, "GET");
+    assert_eq!(
+        requests[2].path,
+        format!("/api/companion/visit-status?visitId={ID}")
+    );
+    assert_eq!(
+        requests[2].headers["authorization"],
+        format!("Bearer {TOKEN}")
     );
 }
 
@@ -876,7 +890,7 @@ fn socket_call(
 fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
     let dir = tempfile::tempdir().unwrap();
     let env = Env::for_home(dir.path());
-    let server = Server::with_handler(5, || {
+    let server = Server::with_handler(6, || {
         |request: &Request| match request.path.as_str() {
             "/api/companion/friends" => {
                 Reply::ok(json!({"friends": [{"handle": "gab", "name": "Gab", "online": true}]}))
@@ -888,6 +902,9 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
                 Reply::error(409, json!({"error": "Lea is already receiving a kiss."}))
             }
             "/api/companion/kiss" => Reply::error(403, json!({"error": "Only friends can kiss."})),
+            path if path == format!("/api/companion/visit-status?visitId={ID}") => {
+                Reply::ok(json!({"visit": {"id": ID, "status": "played", "expiresAt": NOW}}))
+            }
             _ => Reply::ok(json!({"connected": true})),
         }
     });
@@ -939,6 +956,14 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
     assert_eq!(
         call(6, "visit_done", json!({"id": ID}))["result"]["queued"],
         true
+    );
+    assert_eq!(
+        call(9, "visit_status", json!({"id": ID}))["result"]["visit"]["status"],
+        "played"
+    );
+    assert_eq!(
+        call(10, "visit_status", json!({"id": "nope"}))["error"]["code"],
+        "bad_request"
     );
     assert_eq!(call(7, "sync_now", json!({}))["result"]["queued"], true);
 
