@@ -1,0 +1,21 @@
+apps/desktop/src-tauri/tauri.conf.json
+  s_3c65b42bf834d6::t_b3d60484d04a91 46
+apps/desktop/src-tauri/updater.pub
+  s_3c65b42bf834d6::t_c9586b2b2054f5 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7f5bbae9aa9193b9e51f9948c4eee3d9d076e6b9",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "unknown"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
