@@ -1,0 +1,23 @@
+.github/workflows/ci.yaml
+  s_3c65b42bf834d6::t_e16ef35b613f74 1-24
+.github/workflows/release.yaml
+  s_3c65b42bf834d6::t_e16ef35b613f74 1-92
+docs/building.md
+  s_3c65b42bf834d6::t_16b56203dbd933 3,14,218-226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c5e5156218606d141798f0c30818ad0c915b4397",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
