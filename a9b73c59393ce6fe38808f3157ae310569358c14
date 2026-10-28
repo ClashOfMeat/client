@@ -1,0 +1,19 @@
+apps/desktop/src-tauri/src/daemon.rs
+  s_c6fb21e5153431::t_36101f819a9e13 6-7,136-188,281,286,288-290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a9b73c59393ce6fe38808f3157ae310569358c14",
+  "prompts": {},
+  "sessions": {
+    "s_c6fb21e5153431": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a16003-b24f-7a40-ba29-f242b8e4691d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
