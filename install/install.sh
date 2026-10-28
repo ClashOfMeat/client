@@ -7,7 +7,7 @@ fail() { printf 'Clash of Meat: %s\n' "$1" >&2; exit 1; }
 say() { printf 'Clash of Meat: %s\n' "$1"; }
 
 # The updater's minisign public key (apps/desktop/src-tauri/updater.pub); release archives carry its .sig.
-UPDATER_KEY='RWRP6ClwSA6d5cZZJmyTzyqamZG0SXQ/Y5SlJ5CNEVmv16lrKqQfcG0P'
+UPDATER_KEY='RWSC/TfveVpY2OTPXC0Xtm3TKi6XKYNZIc4H2Mu2JZ0GO3V3n+tTFSXp'
 
 # Everything runs from main, called on the last line, so a download cut off mid-transfer runs nothing.
 main() {
