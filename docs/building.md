@@ -1,6 +1,6 @@
 # Building and releasing Clash of Meat
 
-There is no build pipeline. Every build and release is made by hand on Paul's Mac with the scripts in `scripts/`.
+Releases run from GitHub Actions (section 6) with the scripts in `scripts/`; the same scripts also run by hand on a Mac.
 One Mac builds all three installers:
 
 | Target | Installer | Who uses it |
@@ -11,8 +11,7 @@ One Mac builds all three installers:
 
 The Windows installer is cross-compiled on the Mac with `cargo-xwin`.
 
-The GitHub repo `ClashOfMeat/client` is private for now. Release downloads (the Mac `curl` install and
-the Windows `.exe`) only work for people with access to the repo until it is made public.
+The GitHub repo `ClashOfMeat/client` is public, so release downloads need no token.
 
 ## 1. Prerequisites (once)
 
@@ -215,6 +214,15 @@ export TAURI_SIGNING_PRIVATE_KEY_PASSWORD='…'   # optional: release.sh asks on
 `TAURI_SIGNING_PRIVATE_KEY` (the key contents) works instead of the path.
 
 ## 6. Cut a release
+
+**From GitHub Actions (normal path):** Actions ▸ **Release** ▸ Run workflow on `dev`, choosing `patch`, `minor` or
+`major`. The `version` job bumps the version in `Cargo.toml`, `apps/desktop/src-tauri/Cargo.toml` and `tauri.conf.json`
+(the first release keeps `Cargo.toml`'s), commits it to `dev` and fast-forwards `main`. The `publish` job then waits
+for approval in the `release` environment, which alone holds `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and runs `scripts/release.sh` on a macOS runner. The web app offers the new
+release within five minutes; nothing changes on the app side. Every pull request runs `scripts/check.sh` (`CI`).
+
+**By hand on a Mac:** the steps below.
 
 ```sh
 scripts/release.sh <version> --app https://<web app URL> [--min-version x.y.z] [--security] [--mac-only] [--dry-run] [--out DIR]

@@ -1,0 +1,24 @@
+name: CI
+# The checks a release runs (scripts/check.sh), on every pull request and on dev.
+on:
+  pull_request:
+  push:
+    branches: [dev]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    # The daemon and installer target macOS first; Linux would not exercise them.
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 24 }
+      - run: rustup component add clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: scripts/check.sh
