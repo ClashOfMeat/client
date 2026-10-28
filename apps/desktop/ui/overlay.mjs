@@ -36,6 +36,7 @@ const effectImages = new Map()
 let workArea, animation, character, progression, player, sessions = []
 // This machine's effective tokens the last heartbeat did not include yet (see overlay/predict.mjs).
 let localTokens = 0
+let localTodayTokens = 0
 let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
 const visits = visitTracker()
 let outgoingStorage
@@ -109,7 +110,7 @@ function updateStats() {
   if (!character) return
   document.getElementById('name').textContent = character.name ?? heroName(character.heroId)
   const level = `Level ${character.level ?? 1}`
-  const { xp, tokens } = predict(character, progression, localTokens)
+  const { xp, tokens } = predict(character, progression, localTokens, localTodayTokens)
   const next = character.nextLevelAt
   const floor = Number.isSafeInteger(character.levelFloor) ? character.levelFloor : 0
   const span = next - floor
@@ -664,16 +665,19 @@ setInterval(async () => {
 await listen('daemon', ({ payload }) => {
   if (payload?.kind === 'snapshot') {
     localTokens = payload.data?.localTokens ?? 0
+    localTodayTokens = payload.data?.localTodayTokens ?? 0
     normaliseActivity(payload.data?.activity)
     void setHero(payload.data?.hero)
   } else if (payload?.kind === 'event') {
     if (payload.data?.event === 'activity') normaliseActivity(payload.data.data)
     if (payload.data?.event === 'heartbeat') {
       localTokens = payload.data.data?.localTokens ?? 0
+      localTodayTokens = payload.data.data?.localTodayTokens ?? localTodayTokens
       void setHero(payload.data.data, true)
     }
     if (payload.data?.event === 'local_tokens') {
       localTokens = payload.data.data?.effective ?? 0
+      localTodayTokens = payload.data.data?.localTodayTokens ?? localTodayTokens
       updateStats()
     }
   } else if (payload?.kind === 'status' && payload.data?.connected === false) {
@@ -685,7 +689,10 @@ screen = initial.hero?.screen ?? 'main'
 setStayStill(initial.hero?.still === true)
 setPaused(initial.hero?.show === false)
 const snapshot = initial.daemon?.snapshot
-if (snapshot) localTokens = snapshot.localTokens ?? 0
+if (snapshot) {
+  localTokens = snapshot.localTokens ?? 0
+  localTodayTokens = snapshot.localTodayTokens ?? 0
+}
 if (snapshot) normaliseActivity(snapshot.activity)
 const firstHero = initial.daemon?.heartbeat ?? snapshot?.hero
 if (firstHero) void setHero(firstHero)

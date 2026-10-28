@@ -112,6 +112,37 @@ fn today_tokens_uses_offset_and_maps_shared_claude_events() {
 }
 
 #[test]
+fn snapshot_counts_effective_today_even_before_a_server_heartbeat() {
+    let dir = tempdir().unwrap();
+    let env = Env::for_home(dir.path());
+    let now = OffsetDateTime::now_utc();
+    let mut store = Store::open(store_path(&env)).unwrap();
+    store
+        .save_events(
+            "codex",
+            &[
+                token_event("today", "codex", "input_tokens", 100, now),
+                token_event("cached", "codex", "cache_read_tokens", 90, now),
+                token_event(
+                    "yesterday",
+                    "codex",
+                    "output_tokens",
+                    999,
+                    now - time::Duration::days(1),
+                ),
+            ],
+            None,
+        )
+        .unwrap();
+    drop(store);
+    let handle = start(dir.path());
+    let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
+    let snapshot = request(&mut stream, &json!({"id":1,"method":"snapshot"}));
+    assert_eq!(snapshot["result"]["localTodayTokens"], 109);
+    handle.stop().unwrap();
+}
+
+#[test]
 fn status_reports_persisted_today_tokens_and_accepts_local_midnight() {
     let dir = tempdir().unwrap();
     let env = Env::for_home(dir.path());

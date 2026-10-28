@@ -252,6 +252,7 @@ fn main_loop(
     let mut polled_at = Instant::now();
     let mut pair_state = json!({"status":"unpaired"});
     let mut local = LocalTokens::default();
+    local.refresh(&store);
     loop {
         let full_deadline = full_at + Duration::from_secs(600);
         let deadline = changed_at
@@ -265,6 +266,13 @@ fn main_loop(
                 changed_at = Some(Instant::now());
             }
             Ok(Message::Tick) => {
+                if local.day != Some(OffsetDateTime::now_utc().date()) && local.refresh(&store) {
+                    broadcast(
+                        &mut subscribers,
+                        "local_tokens",
+                        json!({"effective":local.pending,"localTodayTokens":local.today}),
+                    );
+                }
                 let next = serde_json::to_value(engine.activity(OffsetDateTime::now_utc()))
                     .unwrap_or(Value::Null);
                 if next != activity {
@@ -297,6 +305,7 @@ fn main_loop(
                     &mut store,
                     &activity,
                     local.pending,
+                    local.today,
                     cached.as_ref(),
                     &pair_state,
                     &sync_tx,
@@ -339,6 +348,7 @@ fn main_loop(
                     local.base = result.tokens_base;
                     local.refresh(&store);
                     view["localTokens"] = json!(local.pending);
+                    view["localTodayTokens"] = json!(local.today);
                     broadcast(&mut subscribers, "heartbeat", view);
                 }
             }
@@ -425,7 +435,7 @@ fn scan_and_broadcast(
                     broadcast(
                         subscribers,
                         "local_tokens",
-                        json!({"effective": local.pending}),
+                        json!({"effective": local.pending,"localTodayTokens":local.today}),
                     );
                 }
             }
@@ -445,24 +455,37 @@ fn scan_and_broadcast(
     recent
 }
 
-/// This machine's effective tokens that the last heartbeat's numbers don't include yet, so the
-/// overlay's XP bar and token count move right away; each heartbeat starts over.
+/// This machine's effective tokens since the last heartbeat, plus its independent UTC-day total.
+/// The day total survives daemon restarts while the server is offline.
 #[derive(Default)]
 struct LocalTokens {
     /// The last heartbeat's `tokens_base`: since when, and how much was acknowledged then.
     base: Option<(String, u64)>,
     pending: u64,
+    today: u64,
+    day: Option<time::Date>,
 }
 
 impl LocalTokens {
     /// Recounts; true when the number changed.
     fn refresh(&mut self, store: &Store) -> bool {
+        let today = OffsetDateTime::now_utc().date();
+        let midnight = today.midnight().assume_utc();
+        let total = midnight
+            .format(&Rfc3339)
+            .ok()
+            .and_then(|since| store.effective_tokens_since(&since, false).ok())
+            .unwrap_or(0);
         let pending = self.base.as_ref().map_or(0, |(since, synced)| {
             store
                 .effective_tokens_since(since, false)
                 .map_or(0, |total| total.saturating_sub(*synced))
         });
-        std::mem::replace(&mut self.pending, pending) != pending
+        let changed = self.pending != pending || self.today != total || self.day != Some(today);
+        self.pending = pending;
+        self.today = total;
+        self.day = Some(today);
+        changed
     }
 }
 
@@ -518,6 +541,7 @@ fn handle_request(
     store: &mut Store,
     activity: &Value,
     local_tokens: u64,
+    local_today_tokens: u64,
     cached: Option<&Value>,
     pair_state: &Value,
     sync_tx: &Sender<SyncCommand>,
@@ -547,7 +571,9 @@ fn handle_request(
                 })
             })
         }
-        "snapshot" => Ok(json!({"activity":activity,"hero":cached,"localTokens":local_tokens})),
+        "snapshot" => Ok(
+            json!({"activity":activity,"hero":cached,"localTokens":local_tokens,"localTodayTokens":local_today_tokens}),
+        ),
         "subscribe" => {
             if let Some(subscriber) = subscriber {
                 subscribers.push(subscriber);
