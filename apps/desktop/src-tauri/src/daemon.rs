@@ -3,6 +3,8 @@ use std::io::{BufRead, BufReader, Write};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
+#[cfg(target_os = "macos")]
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
@@ -131,6 +133,59 @@ fn spawn_daemon() {
     }
 }
 
+/// The installed LaunchAgent may have been booted out while the app stayed open.
+/// Bootstrap it again so a normal app launch can recover without a logout.
+#[cfg(target_os = "macos")]
+fn start_launch_agent() {
+    let Some(home) = env::var_os("HOME").map(PathBuf::from) else {
+        return;
+    };
+    let path = home.join("Library/LaunchAgents/com.clashofmeat.daemon.plist");
+    if !path.is_file() {
+        return;
+    }
+    let Ok(uid) = Command::new("/usr/bin/id").arg("-u").output() else {
+        eprintln!("daemon launch agent: could not read uid");
+        return;
+    };
+    if !uid.status.success() {
+        eprintln!("daemon launch agent: could not read uid");
+        return;
+    }
+    let Ok(uid) = std::str::from_utf8(&uid.stdout).map(str::trim) else {
+        eprintln!("daemon launch agent: invalid uid");
+        return;
+    };
+    if uid.parse::<u32>().is_err() {
+        eprintln!("daemon launch agent: invalid uid");
+        return;
+    }
+    let domain = format!("gui/{uid}");
+    let bootstrapped = Command::new("/bin/launchctl")
+        .args(["bootstrap", &domain])
+        .arg(&path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success());
+    if bootstrapped {
+        return;
+    }
+    // An already loaded agent rejects bootstrap; kickstart starts it if it stopped.
+    let job = format!("{domain}/com.clashofmeat.daemon");
+    let kicked = Command::new("/bin/launchctl")
+        .args(["kickstart", &job])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success());
+    if !kicked {
+        eprintln!("daemon launch agent: could not start {job}");
+    }
+}
+
 fn request(stream: &mut UnixStream, id: u64, method: &str, params: &Value) -> Result<(), String> {
     writeln!(
         stream,
@@ -223,13 +278,16 @@ fn connect(app: &AppHandle) -> Result<(), String> {
 pub fn start(app: AppHandle) {
     thread::spawn(move || {
         let mut delay = Duration::from_millis(500);
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let mut spawned_at: Option<std::time::Instant> = None;
         loop {
             if let Err(error) = connect(&app) {
                 eprintln!("daemon connection: {error}");
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "macos"))]
                 if spawned_at.is_none_or(|at| at.elapsed() > Duration::from_secs(30)) {
+                    #[cfg(target_os = "macos")]
+                    start_launch_agent();
+                    #[cfg(windows)]
                     spawn_daemon();
                     spawned_at = Some(std::time::Instant::now());
                 }
