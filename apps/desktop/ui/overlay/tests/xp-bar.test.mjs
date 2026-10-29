@@ -22,6 +22,6 @@ test('the count and fill stay inside the bar', () => {
 })
 
 test('max level fills the bar and missing XP empties it', () => {
-  assert.deepEqual(xpBar({ level: 30, nextLevelAt: null }, 2_400_000), { state: 'max', level: 'Lv 30 · Max level', count: '2.4M XP', fill: 100 })
+  assert.deepEqual(xpBar({ level: 30, nextLevelAt: null }, 2_400_000), { state: 'max', level: 'Lv 30', count: 'Max · 2.4M XP', fill: 100 })
   assert.deepEqual(xpBar({ level: 3, nextLevelAt: 100 }, undefined), { state: 'unavailable', level: 'Lv 3', count: 'XP unavailable', fill: 0 })
 })

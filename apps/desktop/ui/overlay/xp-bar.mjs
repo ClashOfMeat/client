@@ -1,5 +1,5 @@
 // The hero card's XP bar, drawn like the web app's daily reward meter (guildbyte-app
-// components/daily-gauge): the level sits above the bar and the count is centred inside it.
+// components/daily-gauge): the level sits on the left of the bar and the count is centred inside it.
 
 /** Same as the web app's compactTokens: floored, so 15.49M never reads as 15.5M early. */
 export function compactAmount(value) {
@@ -20,7 +20,7 @@ export function xpBar(character, xp) {
     return { state: 'progress', level, count: `${compactAmount(shown)}/${compactAmount(span)}`, fill: shown / span * 100 }
   }
   if (Number.isSafeInteger(xp) && (next === null || span <= 0)) {
-    return { state: 'max', level: `${level} · Max level`, count: `${compactAmount(xp)} XP`, fill: 100 }
+    return { state: 'max', level, count: `Max · ${compactAmount(xp)} XP`, fill: 100 }
   }
   return { state: 'unavailable', level, count: 'XP unavailable', fill: 0 }
 }
