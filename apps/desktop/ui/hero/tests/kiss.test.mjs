@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { kissHeartPlace } from '../kiss.mjs'
+import { kissHeartPlace, visitorKissHeartPlace } from '../kiss.mjs'
+import { visitPlace } from '../effects.mjs'
 
 const overlaps = (a, b) => a.x < b.x + b.width && a.x + a.size > b.x && a.y < b.y + b.height && a.y + a.size > b.y
 
@@ -32,4 +33,30 @@ test('large Kiss heart uses the available side and rises during the pose', () =>
 test('large Kiss heart scales down on narrow overlays and skips when there is no side room', () => {
   assert.equal(kissHeartPlace(36, 100, 200, 'right', 745).size, 36)
   assert.equal(kissHeartPlace(0, 100, 128, 'right', 745), null)
+})
+
+test('a visitor\'s large Kiss heart sits on its far side, clear of the host and its name label', () => {
+  for (const hostX of [0, 20, 56, 84, 112]) {
+    const { stand } = visitPlace(hostX, 240)
+    const visitorX = hostX + stand
+    const facing = stand > 0 ? 'left' : 'right'
+    for (const elapsed of [520, 745, 970]) {
+      const heart = visitorKissHeartPlace(visitorX, 252, 240, facing, elapsed)
+      const at = `${hostX}/${elapsed}`
+      assert(heart.x >= 0 && heart.x + heart.size <= 240 && heart.y >= 0, `${at}: clipped`)
+      assert(!overlaps(heart, { x: hostX, y: 252, width: 128, height: 128 }), `${at}: covers the host`)
+      assert(heart.y + heart.size <= 252 - 4, `${at}: covers the "from" label`)
+      const away = heart.x + heart.size / 2 - (visitorX + 64)
+      assert(stand > 0 ? away > 0 : away < 0, `${at}: on the host's side`)
+      assert(heart.size >= 52 && heart.size <= 56)
+    }
+  }
+})
+
+test('a visitor\'s large Kiss heart goes beside it when the window has room, and rises', () => {
+  assert.deepEqual(visitorKissHeartPlace(112, 252, 400, 'left', 520), { x: 240, y: 260, size: 52 })
+  assert.deepEqual(visitorKissHeartPlace(112, 252, 240, 'left', 520), { x: 188, y: 194, size: 52 })
+  assert.deepEqual(visitorKissHeartPlace(28, 252, 240, 'right', 520), { x: 28, y: 194, size: 52 })
+  assert(visitorKissHeartPlace(112, 252, 240, 'left', 970).y < 194)
+  assert.equal(visitorKissHeartPlace(112, 20, 240, 'left', 970).y, 0)
 })

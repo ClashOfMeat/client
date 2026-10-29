@@ -19,3 +19,16 @@ export function kissHeartPlace(spriteX, spriteY, windowWidth, facing, elapsed) {
   if (x === null) return null
   return { x, y: spriteY + 8 - rise * 12, size }
 }
+
+// A visitor faces the host, so its large heart goes on the far side, where it covers neither hero.
+// The fixed 240px window rarely leaves room beside the visitor there, so the heart then floats above
+// that side of its head, clear of the "from <name>" label (top at spriteY - 4).
+export function visitorKissHeartPlace(spriteX, spriteY, windowWidth, facing, elapsed) {
+  const rise = clamp((elapsed - 520) / 450, 0, 1)
+  const size = Math.min(52 + Math.round(4 * Math.sin(Math.PI * rise)), windowWidth)
+  if (size < 1) return null
+  const beside = facing === 'left' ? spriteX + SPRITE_SIZE : spriteX - size
+  if (beside >= 0 && beside + size <= windowWidth) return { x: beside, y: spriteY + 8 - rise * 12, size }
+  const above = facing === 'left' ? spriteX + SPRITE_SIZE - size : spriteX
+  return { x: clamp(above, 0, windowWidth - size), y: Math.max(0, spriteY - 6 - size - rise * 12), size }
+}
