@@ -105,8 +105,11 @@ pub(crate) enum Message {
 
 enum SyncCommand {
     Now,
-    /// The live channel announced a change for this player.
-    Live,
+    /// The live channel announced a change for this player; `companion` when it came on the
+    /// desktop's own topic, such as a hero switch on the web.
+    Live {
+        companion: bool,
+    },
     Evolve {
         character_id: String,
         level: u64,
@@ -186,8 +189,8 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
         let stopping = stopping.clone();
         let live = sync_tx.clone();
         thread::spawn(move || {
-            crate::live::follow(env, version, stopping, || {
-                live.send(SyncCommand::Live).is_ok()
+            crate::live::follow(env, version, stopping, |companion| {
+                live.send(SyncCommand::Live { companion }).is_ok()
             })
         });
     }
@@ -1041,7 +1044,10 @@ fn sync_loop(
                 });
                 let _ = reply.send(result);
             }
-            Ok(SyncCommand::Live) => {
+            Ok(SyncCommand::Live { companion: true }) => {
+                cadence.on_companion(Instant::now());
+            }
+            Ok(SyncCommand::Live { companion: false }) => {
                 cadence.on_live(Instant::now());
             }
             Ok(SyncCommand::VisitDone { id }) => {

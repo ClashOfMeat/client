@@ -8,9 +8,10 @@ import { flexPhase, flexDelay, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT
 import { kissHeartPlace } from './hero/kiss.mjs'
 import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
-import { formatTokens, windowRect } from './overlay/layout.mjs'
+import { windowRect } from './overlay/layout.mjs'
 import { friendRows, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
+import { xpBar } from './overlay/xp-bar.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen, emit } = window.__TAURI__.event
@@ -33,7 +34,7 @@ const EMOTE_LABELS = { flex: 'Flex', kiss: 'Kiss', angry: 'Angry' }
 const activity = heroActivity()
 const images = new Map()
 const effectImages = new Map()
-let workArea, animation, character, progression, player, sessions = []
+let workArea, animation, character, progression, player
 // This machine's effective tokens the last heartbeat did not include yet (see overlay/predict.mjs).
 let localTokens = 0
 let localTodayTokens = 0
@@ -79,16 +80,21 @@ function effectImage(src) {
   return image.complete && image.naturalWidth ? image : null
 }
 
-async function decodeHero() {
-  if (!animation || !character) return
-  await Promise.all([
-    ...animation.frames,
-    ...Object.values(animation.mirroredFrames ?? {}),
-    character.png,
-    ...(aura?.frames ?? []),
+// Every PNG the overlay may draw for this hero: its skin and frames, its effect and a visiting friend.
+function heroPngs(hero = character, frames = animation, effect = aura) {
+  return [
+    ...frames.frames,
+    ...Object.values(frames.mirroredFrames ?? {}),
+    hero.png,
+    ...(effect?.frames ?? []),
     ...(visitor?.character.animation?.frames ?? []),
     ...Object.values(visitor?.character.animation?.mirroredFrames ?? {}),
-  ].map(bitmap))
+  ]
+}
+
+async function decodeHero() {
+  if (!animation || !character) return
+  await Promise.all(heroPngs().map(bitmap))
 }
 
 function normaliseActivity(data) {
@@ -99,7 +105,6 @@ function normaliseActivity(data) {
       state: ({ busy: 'Busy', done: 'Done', idle: 'Idle' })[String(s.state).toLowerCase()] ?? 'Idle',
     })) : [],
   }
-  sessions = clean.sessions
   lastActivityAt = Date.now()
   activity.update(clean, lastActivityAt)
   updateStats()
@@ -109,30 +114,12 @@ function normaliseActivity(data) {
 function updateStats() {
   if (!character) return
   document.getElementById('name').textContent = character.name ?? heroName(character.heroId)
-  const level = `Level ${character.level ?? 1}`
-  const { xp, tokens } = predict(character, progression, localTokens, localTodayTokens)
-  const next = character.nextLevelAt
-  const floor = Number.isSafeInteger(character.levelFloor) ? character.levelFloor : 0
-  const span = next - floor
-  const into = xp - floor
-  const fmt = value => value.toLocaleString('en-US')
-  const xpText = document.getElementById('xp-text')
-  const xpFill = document.getElementById('xp-fill')
-  if (Number.isSafeInteger(xp) && Number.isSafeInteger(next) && span > 0) {
-    xpText.textContent = `${level} · ${fmt(Math.min(into, span))} / ${fmt(span)} XP`
-    xpFill.style.width = `${Math.max(0, Math.min(1, into / span)) * 100}%`
-  } else if (Number.isSafeInteger(xp) && (next === null || span <= 0)) {
-    xpText.textContent = `${level} · ${fmt(xp)} XP · max level`
-    xpFill.style.width = '100%'
-  } else {
-    xpText.textContent = 'XP unavailable'
-    xpFill.style.width = '0%'
-  }
-  const tokensLine = document.getElementById('tokens')
-  tokensLine.hidden = tokens === null
-  if (tokens !== null) tokensLine.textContent = `today ${formatTokens(tokens)} tokens`
-  const active = [...new Set(sessions.filter(s => s.state === 'Busy').map(s => s.provider))]
-  document.getElementById('providers').textContent = active.length ? active.join(' · ') : 'No agent working'
+  const { xp } = predict(character, progression, localTokens, localTodayTokens)
+  const bar = xpBar(character, xp)
+  document.getElementById('xp-text').textContent = bar.level
+  document.getElementById('xp-count').textContent = bar.count
+  document.getElementById('xp-fill').style.width = `${bar.fill}%`
+  document.querySelector('.xp-track').dataset.state = bar.state
 }
 
 // Older servers send no display name; "framework_familiar" reads as "Framework Familiar".
@@ -297,11 +284,22 @@ function setStayStill(next) {
 }
 
 async function setHero(data, heartbeat = false) {
-  const now = Date.now()
+  let now = Date.now()
   if (data && Object.hasOwn(data, 'player')) outgoing.identify(data.player?.handle, now)
   if (data && Object.hasOwn(data, 'outgoingVisit')) outgoing.heartbeat(data.outgoingVisit, now, heartbeat)
   const candidate = validateCharacter(data?.character)
   const nextAnimation = validateAnimation(data?.animation ?? candidate?.animation)
+  const nextAura = validateLevelUp(data?.levelUp ?? data?.level_up)
+  const current = ++generation
+  // A switched hero brings over 1 MB of new art. Decode it before showing any of it, so the old
+  // hero stays whole until the new one swaps in at once: never a new name on an old skin, or
+  // new frames that draw nothing yet. A newer heartbeat that arrives meanwhile wins.
+  if (candidate && nextAnimation) {
+    try { await Promise.all(heroPngs(candidate, nextAnimation, nextAura).map(bitmap)) }
+    catch (error) { console.error('hero image decoding:', error); return }
+    if (current !== generation) return
+    now = Date.now()
+  }
   const previous = character
   const previousAnimation = animation
   const previousLeague = leagueOrBronze(player?.league)
@@ -313,9 +311,8 @@ async function setHero(data, heartbeat = false) {
   effectImage(`./assets/flex-fx/${leagueOrBronze(player?.league)}.png`)
   effectImage('./assets/emote-kiss.png')
   effectImage('./assets/angry-mark.png')
-  // A later heartbeat carries no effect; let a playing aura finish.
-  const nextAura = validateLevelUp(data?.levelUp ?? data?.level_up)
-  if (nextAura || !(aura && now - auraStarted < aura.durationMs)) aura = nextAura
+  // A later heartbeat carries no effect; let a playing aura finish, unless it shows a hero just switched away.
+  if (nextAura || !(aura && now - auraStarted < aura.durationMs) || previous?.id !== character?.id) aura = nextAura
   if (heartbeat) {
     gained = xpGain(previous, character, now)
     if (aura && previous?.level < character?.level) auraStarted = now
@@ -332,15 +329,20 @@ async function setHero(data, heartbeat = false) {
       visitLabel.textContent = `from ${visit.name}`
     } else if (visitor?.id !== visit.id) visitDone(visit.id)
   }
-  const current = ++generation
   if (character && animation) {
+    // The stats change with the skin, not after the visitor's frames or the geometry below.
+    updateStats()
     try { await decodeHero() } catch (error) { console.error('hero image decoding:', error); return }
     if (current !== generation) return
+    // The previous skin's bitmaps can no longer be drawn; each switch would otherwise keep them.
+    if (previous && previous.png !== character.png) {
+      const kept = new Set(heroPngs())
+      for (const png of images.keys()) if (!kept.has(png)) images.delete(png)
+    }
     if (!workArea) {
       try { ({ work_area: workArea } = await invoke('hero_geometry', { screen })) }
       catch (error) { console.error('hero geometry:', error); return }
     }
-    updateStats()
   } else if (visible) {
     await nativeWindow.hide()
     visible = false
@@ -564,10 +566,9 @@ function release() {
     if (statsOpen) showFriends(false)
     updateStats()
   }
-  else {
-    play('grab', Date.now(), 0)
-    if (lift >= 2) fall = { from: lift, startedAt: Date.now() }
-  }
+  else play('grab', Date.now(), 0)
+  // A hero let go in the air falls back to the ground, also one caught mid-fall by a click.
+  if (lift >= 2) fall = { from: lift, startedAt: Date.now() }
   drag = null
   wake()
 }

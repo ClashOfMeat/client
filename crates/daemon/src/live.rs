@@ -11,9 +11,14 @@ use clashofmeat_core::{Env, Store};
 
 use crate::{config, sync};
 
-/// Calls `changed` for every revision the server announces. Returns when
-/// `stopping` is set or `changed` returns false.
-pub fn follow(env: Env, version: String, stopping: Arc<AtomicBool>, changed: impl Fn() -> bool) {
+/// Calls `changed` for every revision the server announces, with whether it came on the
+/// desktop's own `companion:<id>` topic. Returns when `stopping` is set or `changed` returns false.
+pub fn follow(
+    env: Env,
+    version: String,
+    stopping: Arc<AtomicBool>,
+    changed: impl Fn(bool) -> bool,
+) {
     let mut store = match Store::open(config::store_path(&env)) {
         Ok(store) => store,
         Err(error) => {
@@ -58,10 +63,11 @@ pub fn follow(env: Env, version: String, stopping: Arc<AtomicBool>, changed: imp
 
 /// Reads one event stream until it ends. False when the daemon no longer listens. Every
 /// revision counts, whatever its topic: `player:<id>`, or `companion:<id>` on newer servers.
+/// Only `companion:` revisions are flagged: the server never puts our own uploads there.
 fn read_events(
     reader: Box<dyn std::io::Read + Send + Sync>,
     stopping: &AtomicBool,
-    changed: &impl Fn() -> bool,
+    changed: &impl Fn(bool) -> bool,
 ) -> bool {
     let mut event = String::new();
     for line in BufReader::new(reader).lines() {
@@ -71,8 +77,10 @@ fn read_events(
         }
         if let Some(name) = line.strip_prefix("event:") {
             event = name.trim().to_owned();
-        } else if line.starts_with("data:") && event == "revision" && !changed() {
-            return false;
+        } else if let Some(data) = line.strip_prefix("data:").filter(|_| event == "revision") {
+            if !changed(companion(data)) {
+                return false;
+            }
         } else if line.is_empty() {
             event.clear();
         }
@@ -80,21 +88,34 @@ fn read_events(
     true
 }
 
+/// Whether a revision batch, `[{"topic":..,"revision":..}]`, names a `companion:` topic.
+fn companion(data: &str) -> bool {
+    serde_json::from_str::<Vec<serde_json::Value>>(data.trim()).is_ok_and(|changes| {
+        changes.iter().any(|change| {
+            change["topic"]
+                .as_str()
+                .is_some_and(|topic| topic.starts_with("companion:"))
+        })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::Cell;
+    use std::cell::RefCell;
 
     #[test]
     fn only_revision_events_count_whatever_their_topic() {
         let stream = "retry: 3000\nevent: snapshot\ndata: [{\"topic\":\"player:x\",\"revision\":\"1\"}]\n\n: heartbeat\n\nevent: revision\ndata: [{\"topic\":\"player:x\",\"revision\":\"2\"}]\n\nevent: revision\ndata: [{\"topic\":\"companion:x\",\"revision\":\"3\"}]\n\n";
-        let seen = Cell::new(0);
+        let seen = RefCell::new(Vec::new());
         let reader: Box<dyn std::io::Read + Send + Sync> =
             Box::new(std::io::Cursor::new(stream.as_bytes().to_vec()));
-        assert!(read_events(reader, &AtomicBool::new(false), &|| {
-            seen.set(seen.get() + 1);
+        assert!(read_events(reader, &AtomicBool::new(false), &|companion| {
+            seen.borrow_mut().push(companion);
             true
         }));
-        assert_eq!(seen.get(), 2);
+        // Only the companion revision is flagged, so the hero switch it carries is never
+        // mistaken for the echo of an upload.
+        assert_eq!(*seen.borrow(), [false, true]);
     }
 }

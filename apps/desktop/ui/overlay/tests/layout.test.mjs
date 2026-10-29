@@ -48,3 +48,11 @@ test('lift raises the hero, up to its head touching the top of the work area', (
   const top = windowRect(300, { workArea, bubble: true, lift: 10_000 })
   assert.equal(top.y + top.spriteY, 50)
 })
+
+test('a lifted hero reaches the top without the window leaving the work area', () => {
+  for (const lift of [0, 300, 400, 572, 10_000]) {
+    const rect = windowRect(300, { workArea, bubble: true, lift })
+    assert(rect.y >= 50 && rect.y + rect.height <= 750)
+    assert.equal(rect.y + rect.spriteY + 128, 750 - Math.min(lift, 572))
+  }
+})

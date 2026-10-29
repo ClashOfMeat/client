@@ -22,6 +22,9 @@ const FLUSH_AFTER: Duration = Duration::from_secs(10);
 const DRAIN_EVERY: Duration = Duration::from_secs(2);
 /// A live nudge waits until this long after the last sync.
 const LIVE_AFTER_SYNC: Duration = Duration::from_secs(10);
+/// A revision on the desktop's own `companion:` topic (a hero switch, an evolve or a visit
+/// made elsewhere) syncs this soon after the last sync: enough to merge a burst into one.
+const COMPANION_AFTER_SYNC: Duration = Duration::from_secs(1);
 /// Each upload makes the server announce a revision on our own live channel. One that arrives
 /// this soon after an upload is that echo; following it would upload again, in a loop.
 const OWN_ECHO: Duration = Duration::from_secs(15);
@@ -98,6 +101,14 @@ impl Cadence {
         }
         self.nudge(now);
         true
+    }
+
+    /// The server announced a change on the `companion:` topic. It never carries our own
+    /// uploads, so it is no echo, and the overlay should show it within a second or two
+    /// rather than after the 10 s live floor or the next heartbeat.
+    pub fn on_companion(&mut self, now: Instant) {
+        let at = (self.last_sync + COMPANION_AFTER_SYNC).max(now);
+        self.live_at = Some(self.live_at.map_or(at, |live| live.min(at)));
     }
 
     /// Syncs soon, but never sooner than 10 s after the last sync.
@@ -243,6 +254,27 @@ mod tests {
         assert!(cadence.on_live(start + S(32)));
         assert_eq!(cadence.due(start + S(39), true, false, S(0)), Due::Wait);
         assert_eq!(cadence.due(start + S(40), true, false, S(0)), Due::Sync);
+    }
+
+    #[test]
+    fn a_companion_revision_syncs_at_once_even_right_after_an_upload() {
+        let start = Instant::now();
+        let mut cadence = Cadence::with_jitter(start, same);
+        cadence.after(start + S(30), done(Due::Sync, 5));
+        // A hero switch 3 s after an upload: the player topic would call it an echo and drop it.
+        cadence.on_companion(start + S(33));
+        assert_eq!(cadence.due(start + S(33), true, false, S(0)), Due::Sync);
+        // One right after a sync waits a second, and pulls a pending player nudge (10 s) forward.
+        let ms = Duration::from_millis;
+        let mut cadence = Cadence::with_jitter(start, same);
+        cadence.after(start + S(30), done(Due::Sync, 0));
+        assert!(cadence.on_live(start + ms(30_100)));
+        cadence.on_companion(start + ms(30_200));
+        assert_eq!(
+            cadence.due(start + ms(30_500), true, false, S(0)),
+            Due::Wait
+        );
+        assert_eq!(cadence.due(start + S(31), true, false, S(0)), Due::Sync);
     }
 
     #[test]

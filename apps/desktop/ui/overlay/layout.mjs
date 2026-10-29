@@ -9,11 +9,14 @@ export function windowRect(x, { workArea, sprite = 128, bubble = false, lift = 0
   const spriteLeft = workArea.x + clamp(x, 0, Math.max(0, workArea.width - size))
   const wanted = spriteLeft - (width - size) / 2
   const left = clamp(wanted, workArea.x, workArea.x + workArea.width - width)
-  const top = workArea.y + workArea.height - height - clamp(lift, 0, Math.max(0, workArea.height - size))
+  const feet = workArea.y + workArea.height - clamp(lift, 0, Math.max(0, workArea.height - size))
+  // The window never leaves the work area (macOS stops it at the menu bar), so once it reaches
+  // the top the sprite keeps rising inside it instead.
+  const top = Math.max(workArea.y, feet - height)
   return {
     x: left, y: top, width, height,
     spriteX: spriteLeft - left,
-    spriteY: height - size,
+    spriteY: feet - size - top,
   }
 }
 
