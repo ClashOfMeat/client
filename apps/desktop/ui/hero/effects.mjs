@@ -24,10 +24,17 @@ export function levelUpFrame(effect, elapsed) {
 // Offsets are pixels from the host hero: the visitor walks in from `edge` to `stand` beside it,
 // plays its emote (or a kiss when its animation lacks that clip) turned towards the host, and walks
 // back out. It always faces the way it walks; base frames face right.
+export function visitDuration(animation, emote = 'kiss') {
+  const flex = emote === 'flex' && animation?.clips?.flex
+  const emoteMs = flex ? flex.durations.reduce((sum, ms) => sum + ms, 0) : 5000
+  return 1500 + emoteMs + 1500
+}
+
 export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
-  const arriving = elapsed < 1500, leaving = elapsed >= 6500
+  const leaveAt = visitDuration(animation, emote) - 1500
+  const arriving = elapsed < 1500, leaving = elapsed >= leaveAt
   const state = arriving || leaving ? 'walk' : animation?.clips?.[emote] ? emote : 'kiss'
-  const progress = arriving ? Math.max(0, elapsed) / 1500 : leaving ? Math.min(1, (elapsed - 6500) / 1500) : 0
+  const progress = arriving ? Math.max(0, elapsed) / 1500 : leaving ? Math.min(1, (elapsed - leaveAt) / 1500) : 0
   const inward = edge > stand ? 'left' : 'right', outward = inward === 'left' ? 'right' : 'left'
   const clip = animation?.clips?.[state]
   const duration = clip?.durations.reduce((sum, ms) => sum + ms, 0) ?? 0

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { FLEX_DELAYS, FLEX_DURATION, flexDelay, flexMotion, flexPhase, flexPlace } from '../flex.mjs'
 
 test('rank crest plays all twelve phases and leaves after the final lift', () => {
-  assert.equal(FLEX_DURATION, 2205)
+  assert.equal(FLEX_DURATION, 3550)
   let at = 0
   for (let phase = 0; phase < FLEX_DELAYS.length; phase++) {
     assert.equal(flexPhase(at), phase)
@@ -22,13 +22,13 @@ test('rank crest stays above the sprite and inside the overlay at both screen ed
   assert.deepEqual(flexPlace(112, 252), { x: 60, y: 52 })
 })
 
-test('hero anticipates, rises, lands, and settles while the crest plays', () => {
-  const crouch = flexMotion(FLEX_DELAYS[0])
-  assert.equal(crouch.dy + crouch.height, 128)
-  assert(crouch.width > 128)
-  const launch = flexMotion(FLEX_DELAYS[0] + FLEX_DELAYS[1])
-  assert(launch.dy + launch.height < 128)
-  const landed = flexMotion(FLEX_DELAYS.slice(0, 6).reduce((sum, ms) => sum + ms, 0))
-  assert.equal(landed.dy + landed.height, 128)
+test('hero moves during the middle pose and holds the final pose still for three seconds', () => {
+  const normal = { dx: 0, dy: 0, width: 128, height: 128 }
+  assert.deepEqual(flexMotion(299), normal)
+  const moving = flexMotion(300)
+  assert.equal(moving.dy + moving.height, 128)
+  assert(moving.width > 128)
+  assert.deepEqual(flexMotion(550), normal)
+  assert.deepEqual(flexMotion(3549), normal)
   assert.deepEqual(flexMotion(FLEX_DURATION), { dx: 0, dy: 0, width: 128, height: 128 })
 })

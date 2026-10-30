@@ -1,6 +1,6 @@
 import { heroActivity } from './hero/activity.mjs'
 import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
-import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace } from './hero/effects.mjs'
+import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace, visitDuration } from './hero/effects.mjs'
 import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES, leagueOrBronze } from './hero/validate.mjs'
@@ -419,8 +419,8 @@ function deadline(now, pose) {
   if (pose.state === 'kiss' || pose.state === 'angry') delays.push(83)
   if (gained && bubbleFrame(gained, now).visible) delays.push(83, Math.max(0, gained.startedAt + 1800 - now))
   if (aura && now - auraStarted < aura.durationMs) delays.push(83, aura.durationMs - (now - auraStarted))
-  if (visitor && now - visitorStarted < 8000) {
-    delays.push(83, 8000 - (now - visitorStarted))
+  if (visitor && now - visitorStarted < visitDuration(visitor.character.animation, visitor.emote)) {
+    delays.push(83, visitDuration(visitor.character.animation, visitor.emote) - (now - visitorStarted))
     const visitorFlexElapsed = now - visitorStarted - 1500
     if (visitor.emote === 'flex' && visitorFlexElapsed >= 0 && visitorFlexElapsed < FLEX_DURATION) delays.push(flexDelay(visitorFlexElapsed))
   }
@@ -440,7 +440,7 @@ async function draw() {
       play('sit', now, 3000)
     }
   }
-  if (visitor && now - visitorStarted >= 8000) {
+  if (visitor && now - visitorStarted >= visitDuration(visitor.character.animation, visitor.emote)) {
     visitDone(visitor.id)
     visitor = null
   }

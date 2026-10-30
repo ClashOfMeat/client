@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace } from '../effects.mjs'
+import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace, visitDuration } from '../effects.mjs'
 
 const animation = { clips: { idle: { frames: [0], durations: [100] }, walk: { frames: [0, 1, 2], durations: [100, 200, 100] }, kiss: { frames: [0, 1, 2], durations: [100, 200, 100] } } }
 const aura = { durations: [80, ...Array(16).fill(90), 120] }
@@ -44,11 +44,14 @@ test('aura and visitor keep old one-shot timing with pixel travel', () => {
 })
 
 test('a visitor plays flex once between walking in and out, or a kiss without the clip', () => {
-  const flexing = { clips: { ...animation.clips, flex: { frames: [5, 6], durations: [1100, 1105] } } }
+  const flexing = { clips: { ...animation.clips, flex: { frames: [5, 6, 7], durations: [300, 250, 3000] } } }
+  assert.equal(visitDuration(flexing, 'flex'), 6550)
+  assert.equal(visitDuration(animation, 'kiss'), 8000)
   assert.equal(visitPose(flexing, 1000, 84, 240, 'flex').state, 'walk')
-  assert.deepEqual([1500, 2600, 3705, 5000].map(ms => visitPose(flexing, ms, 84, 240, 'flex').frame), [5, 6, 6, 6])
+  assert.deepEqual([1500, 1800, 2050, 5049].map(ms => visitPose(flexing, ms, 84, 240, 'flex').frame), [5, 6, 7, 7])
   assert.equal(visitPose(flexing, 3000, 84, 240, 'flex').state, 'flex')
-  assert.equal(visitPose(flexing, 7000, 84, 240, 'flex').state, 'walk')
+  assert.equal(visitPose(flexing, 5050, 84, 240, 'flex').state, 'walk')
+  assert.equal(visitPose(flexing, 6550, 84, 240, 'flex').offset, 240)
   assert.equal(visitPose(animation, 3000, 84, 240, 'wave').state, 'kiss')
   assert.equal(visitPose(animation, 3000, 84, 240).state, 'kiss')
 })
