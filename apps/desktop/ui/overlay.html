@@ -17,8 +17,10 @@
         <div class="xp-track"><div id="xp-fill"></div><span id="xp-count"></span></div>
       </div>
       <div id="emotes" class="emotes"></div>
-      <button id="send-friend" class="wide">Send to a friend →</button>
-      <button id="open-app" class="wide">Open Clash of Meat →</button>
+      <div class="card-actions">
+        <button id="send-friend" class="wide">Send to a friend →</button>
+        <button id="open-app" aria-label="Open Clash of Meat" title="Open Clash of Meat">↗</button>
+      </div>
     </div>
     <div id="friends" class="friends" hidden>
       <div class="friends-head"><button id="friends-back" class="back" aria-label="Back to the hero card">‹</button>Send to a friend</div>
@@ -28,7 +30,7 @@
     </div>
   </div>
   <div id="menu" class="bubble menu" hidden>
-    <button id="pause">Hide hero <span class="key">⌃⌥H</span></button>
+    <button id="pause">Hide hero</button>
     <button id="still">Stop walking</button>
     <button id="settings">Settings…</button>
     <button id="quit">Quit Clash of Meat</button>

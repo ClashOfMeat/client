@@ -13,7 +13,7 @@ test('large Kiss heart stays outside the sprite at both edges and in the center'
         assert(heart.x >= 0 && heart.x + heart.size <= 240, `${spriteX}/${facing}/${elapsed}: horizontal clipping`)
         assert(heart.y >= 0 && heart.y + heart.size <= 380, `${spriteX}/${facing}/${elapsed}: vertical clipping`)
         assert(!overlaps(heart, { x: spriteX, y: 252, width: 128, height: 128 }), `${spriteX}/${facing}/${elapsed}: sprite overlap`)
-        assert(heart.size >= 52 && heart.size <= 56)
+        assert(heart.size >= 39 && heart.size <= 42)
       }
     }
   }
@@ -35,6 +35,10 @@ test('large Kiss heart scales down on narrow overlays and skips when there is no
   assert.equal(kissHeartPlace(0, 100, 128, 'right', 745), null)
 })
 
+test('Kiss heart pulses at 75% of its previous size', () => {
+  assert.deepEqual([520, 632, 745, 857, 970].map(elapsed => kissHeartPlace(56, 252, 240, 'right', elapsed).size), [39, 41, 42, 41, 39])
+})
+
 test('a visitor\'s large Kiss heart sits on its far side, clear of the host and its name label', () => {
   for (const hostX of [0, 20, 56, 84, 112]) {
     const { stand } = visitPlace(hostX, 240)
@@ -48,15 +52,15 @@ test('a visitor\'s large Kiss heart sits on its far side, clear of the host and 
       assert(heart.y + heart.size <= 252 - 4, `${at}: covers the "from" label`)
       const away = heart.x + heart.size / 2 - (visitorX + 64)
       assert(stand > 0 ? away > 0 : away < 0, `${at}: on the host's side`)
-      assert(heart.size >= 52 && heart.size <= 56)
+      assert(heart.size >= 39 && heart.size <= 42)
     }
   }
 })
 
 test('a visitor\'s large Kiss heart goes beside it when the window has room, and rises', () => {
-  assert.deepEqual(visitorKissHeartPlace(112, 252, 400, 'left', 520), { x: 240, y: 260, size: 52 })
-  assert.deepEqual(visitorKissHeartPlace(112, 252, 240, 'left', 520), { x: 188, y: 194, size: 52 })
-  assert.deepEqual(visitorKissHeartPlace(28, 252, 240, 'right', 520), { x: 28, y: 194, size: 52 })
-  assert(visitorKissHeartPlace(112, 252, 240, 'left', 970).y < 194)
+  assert.deepEqual(visitorKissHeartPlace(112, 252, 400, 'left', 520), { x: 240, y: 260, size: 39 })
+  assert.deepEqual(visitorKissHeartPlace(112, 252, 240, 'left', 520), { x: 201, y: 207, size: 39 })
+  assert.deepEqual(visitorKissHeartPlace(28, 252, 240, 'right', 520), { x: 28, y: 207, size: 39 })
+  assert(visitorKissHeartPlace(112, 252, 240, 'left', 970).y < 207)
   assert.equal(visitorKissHeartPlace(112, 20, 240, 'left', 970).y, 0)
 })

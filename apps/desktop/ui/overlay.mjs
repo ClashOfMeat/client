@@ -8,6 +8,7 @@ import { flexPhase, flexDelay, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT
 import { kissHeartPlace, visitorKissHeartPlace } from './hero/kiss.mjs'
 import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
+import { beginDeparture, departurePose } from './hero/departure.mjs'
 import { windowRect } from './overlay/layout.mjs'
 import { friendRows, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
@@ -28,8 +29,6 @@ const friendsNote = document.getElementById('friends-note')
 const friendsOpenApp = document.getElementById('friends-open')
 const visitLabel = document.getElementById('visit-label')
 const stillButton = document.getElementById('still')
-// The hide shortcut is Control+Option+H on a Mac and Ctrl+Alt+H on Windows (main.rs).
-if (/Windows/.test(navigator.userAgent)) document.querySelector('#pause .key').textContent = 'Ctrl+Alt+H'
 const EMOTE_LABELS = { flex: 'Flex', kiss: 'Kiss', angry: 'Angry' }
 const activity = heroActivity()
 const images = new Map()
@@ -38,7 +37,7 @@ let workArea, animation, character, progression, player
 // This machine's effective tokens the last heartbeat did not include yet (see overlay/predict.mjs).
 let localTokens = 0
 let localTodayTokens = 0
-let aura, auraStarted = 0, gained, visitor, visitorStarted = 0
+let aura, auraStarted = 0, gained, visitor, visitorStarted = 0, departure = null
 const visits = visitTracker()
 let outgoingStorage
 try {
@@ -257,6 +256,11 @@ async function sendVisit(friend, emote) {
     if (!parseOutgoingVisit(result)) throw new Error('The visit was sent without a valid visit ID.')
     outgoing.identify(player?.handle)
     outgoing.sent(result)
+    if (outgoing.away() && character && animation && workArea) {
+      const now = Date.now()
+      const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: true })
+      departure = beginDeparture({ x: pose.x, width: Math.max(0, workArea.width - 128), facing: pose.facing, startedAt: now })
+    }
     note(null)
     statsOpen = false
     menuOpen = false
@@ -363,7 +367,7 @@ function drawImage(png, x, y, size, flip = false, opacity = 1, height = size) {
   ctx.restore()
 }
 
-function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league, visiting = false) {
+function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league, leagueScore, visiting = false) {
   if (state === 'flex') {
     const phase = flexPhase(elapsed)
     if (phase < 0) return
@@ -371,6 +375,21 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
     if (!sheet) return
     const place = flexPlace(spriteX, spriteY, rect.width)
     ctx.drawImage(sheet, 0, phase * FLEX_HEIGHT, FLEX_WIDTH, FLEX_HEIGHT, place.x, place.y, FLEX_WIDTH, FLEX_HEIGHT)
+    if (phase >= 1 && phase <= 9 && Number.isFinite(leagueScore) && leagueScore >= 0) {
+      ctx.save()
+      ctx.font = '18px Righteous, Georgia, serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'alphabetic'
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = 4
+      ctx.strokeStyle = '#241a14'
+      ctx.fillStyle = '#fff1cc'
+      const score = leagueScore.toLocaleString('en-US', { maximumFractionDigits: 3 })
+      const center = place.x + FLEX_WIDTH / 2
+      ctx.strokeText(score, center, place.y + 172, FLEX_WIDTH - 16)
+      ctx.fillText(score, center, place.y + 172, FLEX_WIDTH - 16)
+      ctx.restore()
+    }
   } else if (state === 'kiss' && frame === 8) {
     const heart = effectImage('./assets/emote-kiss.png')
     if (!heart) return
@@ -381,7 +400,7 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
     const mark = effectImage('./assets/angry-mark.png')
     if (!mark) return
     const pulse = 1 + 0.08 * Math.sin(elapsed / 85)
-    const size = 76 * pulse
+    const size = 57 * pulse
     const centerX = spriteX + (facing === 'left' ? 35 : 93)
     const x = Math.max(0, Math.min(rect.width - size, centerX - size / 2))
     ctx.drawImage(mark, x, spriteY - 25 - size / 2, size, size)
@@ -425,9 +444,14 @@ async function draw() {
     visitor = null
   }
   let away = outgoing.away(now)
-  const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: stayStill || statsOpen || menuOpen || away })
+  if (!away) departure = null
+  let leaving = away && departure ? departurePose(departure, now) : null
+  if (leaving?.done) { departure = null; leaving = null }
+  const patrolWidth = Math.max(0, workArea.width - 128)
+  const pose = activity.snapshot(now, { width: patrolWidth, still: stayStill || statsOpen || menuOpen || away })
   // One fixed size: the window only moves, so opening the card never resizes it (no flash).
-  const nextRect = windowRect(pose.x, { workArea, bubble: true, lift })
+  const boundedX = Math.max(0, Math.min(patrolWidth, leaving?.x ?? pose.x))
+  const nextRect = windowRect(boundedX, { workArea, bubble: true, lift })
   const changed = !lastPlaced || Math.abs(nextRect.x - lastPlaced.x) >= 1 || nextRect.y !== lastPlaced.y || nextRect.width !== lastPlaced.width || nextRect.height !== lastPlaced.height
   rect = nextRect
   if (changed) {
@@ -436,7 +460,7 @@ async function draw() {
     catch (error) { console.error('hero placement:', error); return }
   }
   away = outgoing.away(Date.now())
-  if (away && !visitor) {
+  if (away && !leaving && !visitor) {
     stats.hidden = true
     menu.hidden = true
     visitLabel.hidden = true
@@ -447,7 +471,7 @@ async function draw() {
   }
   if (!visible) { await nativeWindow.show(); visible = true }
   away = outgoing.away(Date.now())
-  if (away && !visitor) {
+  if (away && !leaving && !visitor) {
     await nativeWindow.hide()
     visible = false
     if (!outgoing.away() || visitor) wake()
@@ -469,12 +493,14 @@ async function draw() {
     // (renderScale) with the feet at the bottom, so they replace the sprite while they play.
     const size = 128 * (aura.renderScale ?? 1)
     drawImage(aura.frames[levelUpFrame(aura, now - auraStarted)], rect.spriteX + 64 - size / 2, rect.spriteY + 128 - size, size, pose.facing === 'left')
-  } else if (!away) {
-    const frame = companionFrame(animation, pose.state, pose.elapsed)
-    const chosen = frameImage(animation, frame, pose.facing)
-    const motion = pose.state === 'flex' ? flexMotion(pose.elapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
-    drawImage(chosen.png ?? character.png, rect.spriteX + motion.dx, rect.spriteY + motion.dy, motion.width, chosen.flip, 1, motion.height)
-    drawEmoteEffect(pose.state, pose.elapsed, frame, rect.spriteX, rect.spriteY, pose.facing, player?.league)
+  } else if (!away || leaving) {
+    const active = leaving ?? pose
+    const frame = companionFrame(animation, active.state, active.elapsed)
+    const chosen = frameImage(animation, frame, active.facing)
+    const motion = active.state === 'flex' ? flexMotion(active.elapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
+    const exitOffset = leaving ? leaving.x - boundedX : 0
+    drawImage(chosen.png ?? character.png, rect.spriteX + exitOffset + motion.dx, rect.spriteY + motion.dy, motion.width, chosen.flip, leaving?.opacity ?? 1, motion.height)
+    if (!leaving) drawEmoteEffect(active.state, active.elapsed, frame, rect.spriteX, rect.spriteY, active.facing, player?.league, player?.leagueScore)
   }
   visitLabel.hidden = !visitor
   if (visitor) {
@@ -487,7 +513,7 @@ async function draw() {
     drawImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
     // Visits carry the baked Kiss frame (the server sends no bare one), so its small lip heart stays;
     // the large heart sits away from the host instead of covering it.
-    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league, true)
+    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueScore, true)
     const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null
     visitLabel.style.left = `${left ?? 0}px`
@@ -504,7 +530,7 @@ async function draw() {
   stats.hidden = away || !statsOpen || menuOpen
   menu.hidden = away || !menuOpen
   updateHitRegions()
-  const next = deadline(now, pose)
+  const next = deadline(now, leaving ?? pose)
   if (Number.isFinite(next)) timer = setTimeout(draw, next)
 }
 
