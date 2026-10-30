@@ -155,7 +155,8 @@ $('connect').addEventListener('click', async () => {
     const result = await request('pair_start')
     $('pair-code').replaceChildren()
     const label = document.createElement('span')
-    label.textContent = 'Enter code '
+    // A loopback link links in the browser by itself; the code is for a browser on another device.
+    label.textContent = result.link?.includes('port=') ? 'Finish in your browser. From another device, enter code ' : 'Enter code '
     const code = document.createElement('strong')
     code.textContent = result.code ?? ''
     $('pair-code').append(label, code)
