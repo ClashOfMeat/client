@@ -1,5 +1,5 @@
-// The hero has three poses: start for 300ms, moving for 250ms, then a still
-// final pose for 3000ms. The separate twelve-frame crest animates over that span.
+// The hero has four poses: start for 300ms, two moving poses for 125ms each,
+// then a still final pose for 3000ms. The twelve-frame crest spans that clip.
 export const FLEX_DELAYS = [300, 250, 100, 100, 100, 100, 100, 100, 100, 2150, 100, 50]
 export const FLEX_DURATION = FLEX_DELAYS.reduce((sum, delay) => sum + delay, 0)
 export const FLEX_WIDTH = 180

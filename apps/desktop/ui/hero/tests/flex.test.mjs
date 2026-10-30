@@ -22,12 +22,15 @@ test('rank crest stays above the sprite and inside the overlay at both screen ed
   assert.deepEqual(flexPlace(112, 252), { x: 60, y: 52 })
 })
 
-test('hero moves during the middle pose and holds the final pose still for three seconds', () => {
+test('hero moves during both middle poses and holds the final pose still for three seconds', () => {
   const normal = { dx: 0, dy: 0, width: 128, height: 128 }
   assert.deepEqual(flexMotion(299), normal)
   const moving = flexMotion(300)
   assert.equal(moving.dy + moving.height, 128)
   assert(moving.width > 128)
+  assert.deepEqual(flexMotion(424), moving)
+  assert.deepEqual(flexMotion(425), moving)
+  assert.deepEqual(flexMotion(549), moving)
   assert.deepEqual(flexMotion(550), normal)
   assert.deepEqual(flexMotion(3549), normal)
   assert.deepEqual(flexMotion(FLEX_DURATION), { dx: 0, dy: 0, width: 128, height: 128 })
