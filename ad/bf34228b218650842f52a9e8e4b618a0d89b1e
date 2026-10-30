@@ -1,0 +1,21 @@
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_e20649749bb22c 389-391
+docs/bronze-flex-effect.md
+  s_4974f21a2d9593::t_af40d5fa285136 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "adbf34228b218650842f52a9e8e4b618a0d89b1e",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
