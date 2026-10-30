@@ -386,8 +386,9 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
       ctx.fillStyle = '#fff1cc'
       const score = leagueScore.toLocaleString('en-US', { maximumFractionDigits: 3 })
       const center = place.x + FLEX_WIDTH / 2
-      ctx.strokeText(score, center, place.y + 172, FLEX_WIDTH - 16)
-      ctx.fillText(score, center, place.y + 172, FLEX_WIDTH - 16)
+      const scoreBaseline = place.y + (leagueOrBronze(league) === 'bronze' ? 153 : 172)
+      ctx.strokeText(score, center, scoreBaseline, FLEX_WIDTH - 16)
+      ctx.fillText(score, center, scoreBaseline, FLEX_WIDTH - 16)
       ctx.restore()
     }
   } else if (state === 'kiss' && frame === 8) {
