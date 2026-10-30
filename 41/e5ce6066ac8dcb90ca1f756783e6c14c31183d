@@ -1,0 +1,35 @@
+crates/daemon/src/loopback.rs
+  s_421b24eb6e4d44::t_833036398b4be6 1-4,6-11,13-21,24-48,52-54,58-112,120-129,134-153
+README.md
+  s_421b24eb6e4d44::t_eb75dc4ce3f6c9 26-28
+crates/cli/src/connect.rs
+  s_421b24eb6e4d44::t_b7e9dec7b7f1ec 1-3,15,88-91,110,112,115,117,120-122,130,142-154,157-158,160-161,166,169-182,184,190,192,195,199,201-202,243-248
+crates/cli/tests/e2e.rs
+  s_421b24eb6e4d44::t_e99ea225f9f974 192,197
+crates/daemon/src/lib.rs
+  s_421b24eb6e4d44::t_e5dc048e4b780e 7
+crates/daemon/src/run.rs
+  s_421b24eb6e4d44::t_1db8d68d3d7488 22,126-131,187-188,995,1015-1016,1080-1104,1115-1146,1149-1151,1162,1164-1165,1266-1286
+crates/daemon/src/sync.rs
+  s_421b24eb6e4d44::t_61b5e995285353 168-180,683-688
+crates/daemon/tests/sync.rs
+  s_421b24eb6e4d44::t_381e88fcec5ceb 401-406,425-428,443
+install/README.md
+  s_421b24eb6e4d44::t_d5f3f33a388114 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "41e5ce6066ac8dcb90ca1f756783e6c14c31183d",
+  "prompts": {},
+  "sessions": {
+    "s_421b24eb6e4d44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "887667db-69cd-4f31-a4b8-8c6c099f0b80",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
