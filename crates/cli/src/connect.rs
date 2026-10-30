@@ -137,7 +137,7 @@ fn pair(env: &Env, mut client: Client, json_output: bool, no_open: bool) -> Resu
     });
     waiting.clear();
     result?;
-    println!("✔ Linked! Your hero is on its way.");
+    println!("{INDENT}✔ Linked! Your hero is on its way.");
     Ok(())
 }
 
@@ -187,7 +187,7 @@ impl Waiting {
         }
         self.started = true;
         if !self.interactive {
-            println!("{}", Self::TEXT);
+            println!("{INDENT}{}", Self::TEXT);
         }
     }
 
@@ -197,7 +197,7 @@ impl Waiting {
         }
         let frame = Self::FRAMES[self.frame % Self::FRAMES.len()];
         self.frame += 1;
-        print!("\r\x1b[2K{frame} {}", Self::TEXT);
+        print!("\r\x1b[2K{INDENT}{frame} {}", Self::TEXT);
         let _ = io::stdout().flush();
     }
 
