@@ -1,0 +1,47 @@
+apps/desktop/src-tauri/src/main.rs
+  s_4974f21a2d9593::t_3a9869e3e9b25b 12-14
+apps/desktop/ui/hero/kiss.mjs
+  s_4974f21a2d9593::t_7c39caafe025a2 2,5,8,13,30
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_4974f21a2d9593::t_c0feb25f32f4d1 85-87
+apps/desktop/ui/hero/validate.mjs
+  s_4974f21a2d9593::t_c0feb25f32f4d1 90-92
+apps/desktop/ui/overlay.css
+  s_4974f21a2d9593::t_32c90d4f872e2b 45-47
+apps/desktop/ui/hero/departure.mjs
+  s_4974f21a2d9593::t_d2188db2521579 5,12-15,17,26
+  s_4974f21a2d9593::t_b6fe6e0ce9c768 1-4,6-11,16,18-25,27-32
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_7844b438d2f757 389-390
+  s_4974f21a2d9593::t_198866eb4659d4 11,40,259-263,370,378-388,391-392,403
+  s_4974f21a2d9593::t_951ef5e93da56a 450-451,453-454,501-502
+  s_4974f21a2d9593::t_3aae13eddf69e0 447-449,463,474,496-500,503,516,533
+apps/desktop/ui/overlay.html
+  s_4974f21a2d9593::t_4f18bddd8dacd2 33
+  s_4974f21a2d9593::t_32c90d4f872e2b 20-23
+apps/desktop/ui/hero/tests/kiss.test.mjs
+  s_4974f21a2d9593::t_7c39caafe025a2 16,38-41,55,61-64
+apps/desktop/ui/hero/tests/departure.test.mjs
+  s_4974f21a2d9593::t_b6fe6e0ce9c768 1-2,4-7,9-12,14-15,17-22,24-31,33,35
+  s_4974f21a2d9593::t_d2188db2521579 3,8,13,16,23,32,34
+apps/desktop/src-tauri/Cargo.lock
+  s_4974f21a2d9593::t_a13c18ede47d90 2212
+apps/desktop/src-tauri/gen/schemas/acl-manifests.json
+  s_4974f21a2d9593::t_0b7307dbac10fd 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c9f59c79d92bdff29541034fe8fa419177e01176",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
