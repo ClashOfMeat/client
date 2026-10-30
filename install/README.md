@@ -27,7 +27,7 @@ For version `x.y.z`, the installer reads `${CLASHOFMEAT_RELEASES_URL:-https://gi
 }
 ```
 
-`install.sh` only reads the two macOS entries; Windows users download the `-setup.exe` directly (see [docs/building.md](../docs/building.md)). `scripts/update-manifest.sh` writes this file during a release. Each tarball contains `Clash of Meat.app`. The installer checks the requested version, download size, SHA-256 and, when `minisign` is installed, the release signature before installing to `${CLASHOFMEAT_APPS_DIR:-$HOME/Applications}` and linking the CLI in `${CLASHOFMEAT_BIN_DIR:-$HOME/.local/bin}`. It then runs the app's `clashofmeat install` command.
+`install.sh` only reads the two macOS entries; Windows users download the `-setup.exe` directly (see [docs/building.md](../docs/building.md)). `scripts/update-manifest.sh` writes this file during a release. Each tarball contains `Clash of Meat.app`. The installer checks the requested version, download size, SHA-256 and, when `minisign` is installed, the release signature before installing to `${CLASHOFMEAT_APPS_DIR:-$HOME/Applications}` and linking the CLI in `${CLASHOFMEAT_BIN_DIR:-$HOME/.local/bin}`. It then runs the app's `clashofmeat install` command, which sets up the background service and, when the computer isn't linked yet, shows the link code in the terminal and waits until it is typed on the app's link page. Enter is read from `/dev/tty`, since stdin is the download under `curl | sh`; `--no-connect` skips linking, and `CLASHOFMEAT_NO_OPEN=1` keeps the browser closed. If the background service isn't reachable, the installer says to run `clashofmeat connect` later.
 
 ## What the installer checks
 

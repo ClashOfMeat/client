@@ -26,6 +26,7 @@ time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 walkdir = "2"
 crossbeam-channel = "0.5"
 tempfile = "3"
+libc = "0.2"
 
 [profile.release]
 opt-level = "s"
