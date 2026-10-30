@@ -1,4 +1,3 @@
-mod bigtext;
 mod client;
 mod connect;
 mod hook;

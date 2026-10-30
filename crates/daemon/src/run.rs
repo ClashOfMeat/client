@@ -19,6 +19,7 @@ use crate::{
     config, detect,
     engine::Engine,
     hero,
+    loopback::{Deliver, Loopback},
     socket::{BoundSocket, Request, SocketError},
     sync, watch, wiring,
 };
@@ -122,6 +123,12 @@ enum SyncCommand {
         tools: Vec<String>,
         reply: Sender<std::result::Result<Value, SocketError>>,
     },
+    /// The link page approved this computer's pairing through the loopback listener; the
+    /// reply is where to send the browser, or what to tell the player.
+    PairGrant {
+        grant: String,
+        reply: Sender<std::result::Result<String, String>>,
+    },
     /// The overlay finished playing this visit; the next heartbeat acknowledges it.
     VisitDone {
         id: String,
@@ -177,7 +184,8 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
         let version = opts.version.clone();
         let sender = sender.clone();
         let busy = busy.clone();
-        thread::spawn(move || sync_loop(env, version, sync_rx, sender, busy))
+        let own = sync_tx.clone();
+        thread::spawn(move || sync_loop(env, version, sync_rx, own, sender, busy))
     };
     {
         // Not joined on stop: a blocked read ends within the 60 s read timeout.
@@ -984,6 +992,7 @@ fn sync_loop(
     env: Env,
     version: String,
     commands: Receiver<SyncCommand>,
+    own: Sender<SyncCommand>,
     main: Sender<Message>,
     busy: Arc<Busy>,
 ) {
@@ -1003,6 +1012,8 @@ fn sync_loop(
         .map(|view| sync::HeroArt::from_view(&view))
         .unwrap_or_default();
     let mut pairing: Option<sync::Pairing> = None;
+    // Listens for the link page while `pairing` is pending; dropping it stops it.
+    let mut loopback: Option<Loopback> = None;
     let mut next_poll = Instant::now();
     let session = sync::companion_session(&mut store)
         .map_err(|error| eprintln!("daemon companion session: {error}"))
@@ -1066,7 +1077,31 @@ fn sync_loop(
                 });
                 match result {
                     Ok((client, pair)) => {
-                        let response = json!({"link":pair.link(&client.origin),"code":pair.code,"expires_at":pair.expires_at});
+                        let commands = own.clone();
+                        let deliver: Arc<Deliver> = Arc::new(move |grant: &str| {
+                            let (reply, answer) = crossbeam_channel::bounded(1);
+                            commands
+                                .send(SyncCommand::PairGrant {
+                                    grant: grant.to_string(),
+                                    reply,
+                                })
+                                .map_err(|_| "Clash of Meat stopped.".to_string())?;
+                            answer
+                                .recv_timeout(Duration::from_secs(30))
+                                .map_err(|_| "Clash of Meat didn't answer in time.".to_string())?
+                        });
+                        // Without a free local port, the player types the code instead.
+                        loopback = Loopback::start(deliver).ok();
+                        let link = match &loopback {
+                            Some(listening) => pair.loopback_link(&client.origin, listening.port),
+                            None => pair.link(&client.origin),
+                        };
+                        let response = json!({
+                            "link": link,
+                            "link_page": format!("{}/link", client.origin),
+                            "code": pair.code,
+                            "expires_at": pair.expires_at,
+                        });
                         let _ = reply.send(Ok(response));
                         let _ = main.send(Message::PairState(json!({"status":"pending","code":pair.code,"expires_at":pair.expires_at})));
                         pairing = Some(pair);
@@ -1077,7 +1112,42 @@ fn sync_loop(
                     }
                 }
             }
+            Ok(SyncCommand::PairGrant { grant, reply }) => {
+                let outcome = match (&pairing, make_client(&env, &version, None)) {
+                    (None, _) => Err(
+                        "This computer isn't linking anymore. Run the command again.".to_string(),
+                    ),
+                    (_, Err(error)) => Err(error.message),
+                    (Some(pair), Ok(client)) => match client.pair_exchange(pair, Some(&grant)) {
+                        Ok(Some(linked)) => {
+                            pairing = None;
+                            forced = true;
+                            finish_pairing(&mut store, &linked, &main)
+                                .map(|()| format!("{}/link?linked=1", client.origin))
+                        }
+                        Ok(None) => Err("This link isn't for this computer.".to_string()),
+                        Err(sync::ApiError::Status {
+                            status: 400..=499,
+                            message,
+                            reason,
+                            ..
+                        }) => {
+                            pairing = None;
+                            let _ = main.send(Message::PairState(
+                                json!({"status":"failed","reason":reason,"message":message}),
+                            ));
+                            Err(message)
+                        }
+                        // Pending still: reloading the page retries.
+                        Err(error) => Err(error.to_string()),
+                    },
+                };
+                let _ = reply.send(outcome);
+            }
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
+        }
+        if pairing.is_none() {
+            drop(loopback.take());
         }
         if pairing.is_some() && Instant::now() >= next_poll {
             let pair = pairing.as_ref().expect("checked");
@@ -1089,21 +1159,10 @@ fn sync_loop(
                     json!({"status":"failed","reason":"expired","message":"Clash of Meat: This code expired. Run the command again."}),
                 ));
             } else if let Ok(client) = make_client(&env, &version, None) {
-                match client.pair_exchange(pair) {
+                match client.pair_exchange(pair, None) {
                     Ok(Some(linked)) => {
-                        match sync::mark_paired(&mut store, &linked, OffsetDateTime::now_utc()) {
-                            Ok(()) => {
-                                pairing = None;
-                                let _ = main.send(Message::PairState(json!({"status":"paired"})));
-                                forced = true;
-                            }
-                            Err(error) => {
-                                pairing = None;
-                                let _ = main.send(Message::PairState(
-                                    json!({"status":"failed","reason":null,"message":error.to_string()}),
-                                ));
-                            }
-                        }
+                        pairing = None;
+                        forced = finish_pairing(&mut store, &linked, &main).is_ok();
                     }
                     Ok(None) => next_poll = Instant::now() + Duration::from_secs(3),
                     Err(sync::ApiError::Status {
@@ -1204,6 +1263,27 @@ fn sync_loop(
 
 /// A client for the configured app. Given the store, it carries the installation token, when that
 /// app issued it.
+/// Stores the installation token and tells subscribers; the pairing is over either way.
+fn finish_pairing(
+    store: &mut Store,
+    linked: &sync::Linked,
+    main: &Sender<Message>,
+) -> std::result::Result<(), String> {
+    match sync::mark_paired(store, linked, OffsetDateTime::now_utc()) {
+        Ok(()) => {
+            let _ = main.send(Message::PairState(json!({"status":"paired"})));
+            Ok(())
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let _ = main.send(Message::PairState(
+                json!({"status":"failed","reason":null,"message":message}),
+            ));
+            Err(message)
+        }
+    }
+}
+
 fn make_client(
     env: &Env,
     version: &str,

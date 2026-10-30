@@ -1,5 +1,6 @@
-//! Linking this computer to a player's account: the daemon starts a pairing, the player
-//! types the code shown here on the app's link page.
+//! Linking this computer to a player's account: the daemon starts a pairing and listens on
+//! 127.0.0.1, the browser it opens approves it there. From another device, the player types
+//! the code shown here on the app's link page instead.
 
 use std::io::{self, IsTerminal, Write};
 use std::process::Command;
@@ -11,7 +12,7 @@ use clashofmeat_core::Env;
 use clashofmeat_daemon::config;
 use serde_json::{json, Value};
 
-use crate::{bigtext, client::Client, term};
+use crate::{client::Client, term};
 
 const PAIRING_TIMEOUT: Duration = Duration::from_secs(600);
 const TICK: Duration = Duration::from_millis(100);
@@ -84,6 +85,10 @@ fn pair(env: &Env, mut client: Client, json_output: bool, no_open: bool) -> Resu
     let code = pairing["code"]
         .as_str()
         .ok_or_else(|| anyhow!("Missing pairing code"))?;
+    // Daemons before the loopback listener send only the code link.
+    let link_page = pairing["link_page"]
+        .as_str()
+        .map_or_else(|| link.split('?').next().unwrap_or(link).to_string(), str::to_string);
     let may_open = !no_open && env.vars.get("CLASHOFMEAT_NO_OPEN").map(String::as_str) != Some("1");
 
     if json_output {
@@ -97,39 +102,32 @@ fn pair(env: &Env, mut client: Client, json_output: bool, no_open: bool) -> Resu
     }
 
     let interactive = io::stdout().is_terminal();
-    let width = interactive.then(|| term::width(env).unwrap_or(DEFAULT_WIDTH));
-    print!("{}", code_screen(code, width));
     let mut enter = if may_open && interactive {
         term::enter_presses()
     } else {
         None
     };
+    println!();
     if enter.is_some() {
-        println!("{INDENT}Press Enter to open the link page (or open {link})");
+        println!("{INDENT}Press Enter to link this computer in your browser…");
     } else if may_open {
         open(link);
-        println!("{INDENT}Opening the link page in your browser (or open {link})");
+        println!("{INDENT}Linking this computer in your browser…");
     } else {
-        println!("{INDENT}Open {link} and type this code.");
+        println!("{INDENT}Open {link} on this computer to link it.");
     }
     println!();
-
-    let mut waiting = Waiting::new(interactive);
-    if enter.is_none() {
-        waiting.start();
-    }
+    let fallback = fallback(&link_page, code);
+    let width = interactive.then(|| term::width(env).unwrap_or(DEFAULT_WIDTH));
+    let mut waiting = Waiting::start(&fallback, width);
     let result = wait(&mut events, || {
         if let Some(pressed) = enter.as_ref().map(|presses| presses.try_recv()) {
             match pressed {
                 Ok(()) => {
                     open(link);
                     enter = None;
-                    waiting.start();
                 }
-                Err(TryRecvError::Disconnected) => {
-                    enter = None;
-                    waiting.start();
-                }
+                Err(TryRecvError::Disconnected) => enter = None,
                 Err(TryRecvError::Empty) => {}
             }
         }
@@ -141,69 +139,67 @@ fn pair(env: &Env, mut client: Client, json_output: bool, no_open: bool) -> Resu
     Ok(())
 }
 
-/// The heading, the code in block letters when the terminal is wide enough, and the plain
-/// code on its own line to copy. `width` is `None` when stdout isn't a terminal.
-fn code_screen(code: &str, width: Option<usize>) -> String {
-    let grouped = bigtext::group(code);
-    let mut screen = format!("\n{INDENT}Your link code\n\n");
-    let big = width.and_then(|columns| {
-        bigtext::render(&grouped).filter(|rows| INDENT.len() + bigtext::width(rows) <= columns)
-    });
-    match big {
-        Some(rows) => {
-            for row in &rows {
-                screen.push_str(&format!("{INDENT}{row}\n"));
-            }
-            let center = bigtext::width(&rows).saturating_sub(grouped.len()) / 2;
-            screen.push_str(&format!("\n{INDENT}{}{grouped}\n\n", " ".repeat(center)));
-        }
-        None => screen.push_str(&format!("{INDENT}{INDENT}{grouped}\n\n")),
-    }
-    screen
+/// The way to link from a browser on another device, which can't reach this computer's
+/// listener: the link page and the code to type there.
+fn fallback(link_page: &str, code: &str) -> String {
+    let page = link_page
+        .strip_prefix("https://")
+        .or_else(|| link_page.strip_prefix("http://"))
+        .unwrap_or(link_page);
+    let code = if code.len() == 10 && code.is_ascii() {
+        format!("{}-{}", &code[..5], &code[5..])
+    } else {
+        code.to_owned()
+    };
+    format!("{INDENT}Linking from another device? Open {page}\n{INDENT}and type  {code}\n")
 }
 
-/// The "waiting for the browser" line: a spinner on a terminal, a single line otherwise.
+/// The "waiting for the browser" line above the fallback: a spinner redrawn in place on a
+/// terminal, printed once otherwise. `width` is `None` when stdout isn't a terminal.
 struct Waiting {
-    interactive: bool,
-    started: bool,
+    /// Rows from the cursor up to the spinner line.
+    rows: Option<usize>,
     frame: usize,
 }
 
 impl Waiting {
-    const TEXT: &'static str = "Waiting for you to type the code on the link page…";
+    const TEXT: &'static str = "Waiting for your browser…";
     const FRAMES: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-    fn new(interactive: bool) -> Self {
+    fn start(fallback: &str, width: Option<usize>) -> Self {
+        let Some(width) = width else {
+            println!("{INDENT}{}\n", Self::TEXT);
+            print!("{fallback}");
+            return Self { rows: None, frame: 0 };
+        };
+        println!("\n");
+        print!("{fallback}");
+        let _ = io::stdout().flush();
+        // The spinner line, the blank line, then the fallback as the terminal wraps it.
+        let wrapped: usize = fallback
+            .lines()
+            .map(|line| line.chars().count().max(1).div_ceil(width.max(1)))
+            .sum();
         Self {
-            interactive,
-            started: false,
+            rows: Some(2 + wrapped),
             frame: 0,
         }
     }
 
-    fn start(&mut self) {
-        if self.started {
-            return;
-        }
-        self.started = true;
-        if !self.interactive {
-            println!("{INDENT}{}", Self::TEXT);
-        }
-    }
-
     fn tick(&mut self) {
-        if !(self.started && self.interactive) {
+        let Some(rows) = self.rows else {
             return;
-        }
+        };
         let frame = Self::FRAMES[self.frame % Self::FRAMES.len()];
         self.frame += 1;
-        print!("\r\x1b[2K{INDENT}{frame} {}", Self::TEXT);
+        print!("\x1b[{rows}A\r\x1b[2K{INDENT}{frame} {}\x1b[{rows}B\r", Self::TEXT);
         let _ = io::stdout().flush();
     }
 
+    /// Erases the spinner and the fallback, for the result to take their place.
     fn clear(&self) {
-        if self.started && self.interactive {
-            print!("\r\x1b[2K");
+        if let Some(rows) = self.rows {
+            print!("\x1b[{rows}A\r\x1b[J");
             let _ = io::stdout().flush();
         }
     }
@@ -244,27 +240,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn wide_terminals_get_block_letters_and_the_plain_code() {
-        let screen = code_screen("ABCDE12345", Some(80));
-        let lines: Vec<_> = screen.lines().collect();
-        assert_eq!(lines[1], "  Your link code");
-        assert!(lines[3].contains('█'));
-        assert_eq!(lines[3..8].len(), 5);
-        assert_eq!(lines[9].trim(), "ABCDE-12345");
-        assert!(lines.iter().all(|line| line.chars().count() <= 80));
-    }
-
-    #[test]
-    fn narrow_terminals_and_pipes_get_the_plain_code() {
-        for width in [Some(40), None] {
-            let screen = code_screen("ABCDE12345", width);
-            assert!(!screen.contains('█'));
-            assert_eq!(screen, "\n  Your link code\n\n    ABCDE-12345\n\n");
-        }
-    }
-
-    #[test]
-    fn codes_without_glyphs_fall_back_to_plain() {
-        assert!(!code_screen("ghijk", Some(200)).contains('█'));
+    fn the_fallback_names_the_link_page_and_the_grouped_code() {
+        assert_eq!(
+            fallback("https://app.clashofmeat.com/link", "ABCDE12345"),
+            "  Linking from another device? Open app.clashofmeat.com/link\n  and type  ABCDE-12345\n"
+        );
+        assert!(fallback("http://localhost:3110/link", "odd").ends_with("and type  odd\n"));
     }
 }

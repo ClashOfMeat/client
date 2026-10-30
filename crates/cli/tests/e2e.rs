@@ -189,15 +189,12 @@ fn binary_pairs_and_uploads_real_claude_activity() {
         String::from_utf8_lossy(&linked.stderr)
     );
     let stdout = String::from_utf8_lossy(&linked.stdout);
-    assert!(stdout.contains("Your link code"), "{stdout}");
+    assert!(stdout.contains("and type  ABCDE-F1234"), "{stdout}");
     assert!(
         stdout.contains("✔ Linked! Your hero is on its way."),
         "{stdout}"
     );
-    assert!(
-        !stdout.contains('█'),
-        "no block letters when stdout is a pipe: {stdout}"
-    );
+
 
     let at = OffsetDateTime::now_utc().format(&Rfc3339).unwrap();
     let session = "123e4567-e89b-12d3-a456-426614174001";
