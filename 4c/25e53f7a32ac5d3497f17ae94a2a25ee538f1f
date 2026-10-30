@@ -1,0 +1,51 @@
+Cargo.lock
+  s_421b24eb6e4d44::t_0f04099fbdecc5 178
+Cargo.toml
+  s_421b24eb6e4d44::t_31ac02db1c9920 29
+README.md
+  s_421b24eb6e4d44::t_c1ca27d240dd0e 26-28
+apps/desktop/ui/settings.mjs
+  s_421b24eb6e4d44::t_4a8e038c8588f0 158-159
+crates/cli/Cargo.toml
+  s_421b24eb6e4d44::t_6ae8c5d1d57ed4 24-26
+crates/cli/src/connect.rs
+  s_421b24eb6e4d44::t_831bbf53cf8d9f 1-250
+crates/cli/src/install.rs
+  s_421b24eb6e4d44::t_d4a0282b26adee 113-114,131
+crates/cli/src/main.rs
+  s_421b24eb6e4d44::t_ab161a448ceee9 2,6,8,13,105,116
+crates/cli/src/term.rs
+  s_421b24eb6e4d44::t_95faca6a7e0c68 1-57
+crates/cli/tests/e2e.rs
+  s_421b24eb6e4d44::t_c1feae0edca9e2 191-197
+crates/cli/tests/install.rs
+  s_421b24eb6e4d44::t_02989155ed354b 269-310
+crates/daemon/src/lib.rs
+  s_421b24eb6e4d44::t_c39ea4df379988 7
+crates/daemon/src/loopback.rs
+  s_421b24eb6e4d44::t_710677544ad916 1-155
+crates/daemon/src/run.rs
+  s_421b24eb6e4d44::t_d67227698deaa3 22,129-134,190-191,998,1018-1019,1086-1110,1121-1152,1155-1157,1168,1170-1171,1272-1292
+crates/daemon/src/sync.rs
+  s_421b24eb6e4d44::t_edceb6204849b9 168-180,683-688
+crates/daemon/tests/sync.rs
+  s_421b24eb6e4d44::t_6d15b175ac3aa2 401-406,425-428,443
+install/README.md
+  s_421b24eb6e4d44::t_7b3b1d31280ca6 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c25e53f7a32ac5d3497f17ae94a2a25ee538f1f",
+  "prompts": {},
+  "sessions": {
+    "s_421b24eb6e4d44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "887667db-69cd-4f31-a4b8-8c6c099f0b80",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
