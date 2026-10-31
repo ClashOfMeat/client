@@ -1,24 +1,11 @@
-// Timing and geometry of the approved rank crest animation. Each sheet is twelve
-// transparent 180x200 frames, top to bottom. The sprite and crest stay separate.
-export const FLEX_DELAYS = [80, 110, 100, 120, 145, 250, 170, 340, 340, 340, 150, 60]
+// The hero has four poses: start for 300ms, two moving poses for 125ms each,
+// then a still final pose for 3000ms. The twelve-frame crest spans that clip.
+export const FLEX_DELAYS = [300, 250, 100, 100, 100, 100, 100, 100, 100, 2150, 100, 50]
 export const FLEX_DURATION = FLEX_DELAYS.reduce((sum, delay) => sum + delay, 0)
 export const FLEX_WIDTH = 180
 export const FLEX_HEIGHT = 200
 const NORMAL = { dx: 0, dy: 0, width: 128, height: 128 }
-const MOTION = [
-  NORMAL,
-  { dx: -3, dy: 6, width: 134, height: 122 }, // anticipation: feet stay planted
-  { dx: 1, dy: -10, width: 126, height: 132 }, // launch
-  { dx: -1, dy: -6, width: 130, height: 130 },
-  { dx: 0, dy: -2, width: 128, height: 128 },
-  NORMAL,
-  { dx: 0, dy: 2, width: 128, height: 126 }, // landing squash
-  { dx: 0, dy: -1, width: 128, height: 129 },
-  NORMAL,
-  { dx: 0, dy: -1, width: 128, height: 129 },
-  NORMAL,
-  NORMAL,
-]
+const MOVING = { dx: -2, dy: 2, width: 132, height: 126 }
 
 export function flexPhase(elapsed) {
   if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed >= FLEX_DURATION) return -1
@@ -41,8 +28,7 @@ export function flexDelay(elapsed) {
 }
 
 export function flexMotion(elapsed) {
-  const phase = flexPhase(elapsed)
-  return phase < 0 ? NORMAL : MOTION[phase]
+  return elapsed >= FLEX_DELAYS[0] && elapsed < FLEX_DELAYS[0] + FLEX_DELAYS[1] ? MOVING : NORMAL
 }
 
 // The large crest is centered above the hero's head. Keep the whole effect in

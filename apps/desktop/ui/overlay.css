@@ -42,6 +42,9 @@ button[hidden] { display: none; }
 .emotes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
 .emotes button { width: 36px; height: 36px; padding: 3px; display: grid; place-items: center; }
 .wide { display: block; width: 100%; margin-top: 7px; padding: 8px 9px; }
+.card-actions { display: flex; align-items: stretch; gap: 6px; margin-top: 7px; }
+.card-actions #send-friend { flex: 1; min-width: 0; margin-top: 0; }
+.card-actions #open-app { flex: 0 0 38px; padding: 0; font: 700 23px/1 "Alegreya Sans", sans-serif; }
 .emotes img { width: 26px; height: 26px; image-rendering: pixelated; pointer-events: none; }
 
 /* The friend panel takes the card's place in the same bubble; a long list scrolls. */
@@ -69,4 +72,3 @@ button[hidden] { display: none; }
 
 .menu { display: grid; gap: 4px; width: 172px; right: auto; padding: 8px; }
 .menu button { padding: 7px 9px; text-align: left; }
-.menu button .key { float: right; color: var(--muted); font-weight: 400; }
