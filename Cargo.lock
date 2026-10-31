@@ -167,7 +167,7 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
 name = "clashofmeat-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -184,7 +184,7 @@ dependencies = [
 
 [[package]]
 name = "clashofmeat-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "hex",
@@ -201,7 +201,7 @@ dependencies = [
 
 [[package]]
 name = "clashofmeat-daemon"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clashofmeat-core",
@@ -217,7 +217,7 @@ dependencies = [
 
 [[package]]
 name = "clashofmeat-providers"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clashofmeat-core",
