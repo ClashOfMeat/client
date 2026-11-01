@@ -1,0 +1,21 @@
+apps/desktop/ui/overlay.css
+  s_3c65b42bf834d6::t_405932d80c7f35 13-17
+apps/desktop/ui/overlay.mjs
+  s_3c65b42bf834d6::t_07ed221d0ccb64 13-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85c42e5c2bbf16bd25a47a48a4017be183d8f843",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
