@@ -10,9 +10,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 const FIRST: Duration = Duration::from_secs(3);
-const SIX_HOURS: Duration = Duration::from_secs(6 * 3600);
+const HOURLY: Duration = Duration::from_secs(3600);
 const RETRY: Duration = Duration::from_secs(10 * 60);
-const JITTER: u64 = 30 * 60;
+const JITTER: u64 = 10 * 60;
 const PLACEHOLDER: &str = "REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY";
 
 #[derive(Clone, Serialize)]
@@ -121,10 +121,16 @@ pub fn start(app: &AppHandle) {
             }
             let app_for_check = app.clone();
             tauri::async_runtime::block_on(check(&app_for_check));
+            // A verified update installs and relaunches the app at once; players never have to click.
+            if status(&app).phase == "ready" {
+                if let Err(error) = install(&app) {
+                    eprintln!("updater: {error}");
+                }
+            }
             wait = if status(&app).phase == "failed" {
                 RETRY
             } else {
-                SIX_HOURS + jitter()
+                HOURLY + jitter()
             };
         }
     });
@@ -323,8 +329,8 @@ pub fn update_check(app: AppHandle) {
     }
 }
 
-#[tauri::command]
-pub async fn update_restart(app: AppHandle) -> Result<(), String> {
+/// Installs the downloaded update and relaunches into it. Blocks while the bundle is replaced.
+fn install(app: &AppHandle) -> Result<(), String> {
     let ready = app
         .state::<State>()
         .ready
@@ -332,25 +338,27 @@ pub async fn update_restart(app: AppHandle) -> Result<(), String> {
         .unwrap()
         .take()
         .ok_or("No update is ready")?;
-    edit(&app, |status| {
+    edit(app, |status| {
         status.phase = "installing";
         status.error = None;
     });
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        ready.0.install(&ready.1).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())?;
-    match result {
+    match ready.0.install(&ready.1).map_err(|e| e.to_string()) {
         Ok(()) => app.restart(),
         Err(error) => {
-            edit(&app, |status| {
+            edit(app, |status| {
                 status.phase = "failed";
                 status.error = Some(format!("Could not install update: {error}"));
             });
             Err(error)
         }
     }
+}
+
+#[tauri::command]
+pub async fn update_restart(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || install(&app))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

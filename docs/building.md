@@ -171,12 +171,11 @@ It runs a whole release on this Mac without touching an installed Clash of Meat,
 5. Starts the daemon itself and runs `clashofmeat connect --no-open` until the web app issues a pairing link.
    Confirming the link needs a signed-in browser, so the script stops there.
 6. Copies 0.1.1's `update.json` with `"minimum": "0.1.1"` to `update-e2e.json` and starts the app, which then opens
-   Settings by itself. Once the app has downloaded and verified 0.1.1, it presses
-   "Update and restart" through the accessibility API, then checks the bundle is now 0.1.1 and that the app relaunched.
+   Settings by itself. Once the app has downloaded and verified 0.1.1, it installs it
+   by itself; the script checks the bundle is now 0.1.1 and that the app relaunched.
 7. Puts a 0.1.2 whose signature belongs to the other archive in `update-e2e.json` and checks the app refuses it.
 
-Requirements: the web app answers at `--app`, the port is free, and the terminal has Accessibility access (System
-Settings › Privacy & Security › Accessibility) for step 6. Everything is removed at the end, including WebKit's
+Requirements: the web app answers at `--app` and the port is free. Everything is removed at the end, including WebKit's
 `~/Library/{Caches,WebKit}/com.clashofmeat.e2e`, which ignores `HOME`. `--keep` keeps the temp dir.
 
 What it does not cover: confirming the pairing in the browser, the daemon's default update endpoint
