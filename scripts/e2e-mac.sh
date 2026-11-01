@@ -57,44 +57,6 @@ until_ok() {
   done
 }
 
-# Swift helper: list or press a button of a running app through the accessibility API.
-cat >"$work/press.swift" <<'EOF'
-import ApplicationServices
-import Foundation
-let pid = pid_t(CommandLine.arguments[1])!
-let wanted = CommandLine.arguments[2]
-let seconds = Double(CommandLine.arguments[3])!
-guard AXIsProcessTrusted() else {
-  print("this terminal needs Accessibility access (System Settings > Privacy & Security > Accessibility)")
-  exit(2)
-}
-let app = AXUIElementCreateApplication(pid)
-// Ask WebKit to expose the page to accessibility.
-AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
-func attr(_ e: AXUIElement, _ name: String) -> AnyObject? {
-  var v: AnyObject?
-  return AXUIElementCopyAttributeValue(e, name as CFString, &v) == .success ? v : nil
-}
-func find(_ e: AXUIElement, _ depth: Int) -> AXUIElement? {
-  if depth > 30 { return nil }
-  let texts = ["AXTitle", "AXDescription"].compactMap { attr(e, $0) as? String }
-  if attr(e, "AXRole") as? String == "AXButton" && texts.contains(wanted) { return e }
-  for child in (attr(e, "AXChildren") as? [AXUIElement]) ?? [] {
-    if let hit = find(child, depth + 1) { return hit }
-  }
-  return nil
-}
-let deadline = Date().addingTimeInterval(seconds)
-while Date() < deadline {
-  if let button = find(app, 0) {
-    exit(AXUIElementPerformAction(button, kAXPressAction as CFString) == .success ? 0 : 1)
-  }
-  Thread.sleep(forTimeInterval: 0.5)
-}
-print("no \"\(wanted)\" button within \(Int(seconds))s")
-exit(1)
-EOF
-
 note "work dir $work"
 note "throwaway updater key"
 (cd "$root/apps/desktop/src-tauri" && cargo tauri signer generate --ci -w "$work/e2e.key" >/dev/null 2>&1)
@@ -150,8 +112,7 @@ link=$(grep -Eo 'https?://[^ ]+' "$work/connect.log" | head -1)
 note "PASS pairing link issued: $link (not confirmed: that needs a signed-in browser)"
 kill "$connect" 2>/dev/null || true
 
-# Update. A "minimum" the app is below makes it open Settings by itself, with "Update and restart" once the update
-# is downloaded and verified.
+# Update. The app installs a verified update by itself and relaunches; the "minimum" also makes it open Settings.
 python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); d["minimum"] = "0.1.1"; json.dump(d, open(sys.argv[2], "w"))' \
   "$releases/desktop-v0.1.1/update.json" "$releases/desktop-v0.1.1/update-required.json"
 cp "$releases/desktop-v0.1.1/update-required.json" "$releases/desktop-v0.1.1/update-e2e.json"
@@ -162,8 +123,6 @@ pids+=("$app")
 until_ok 60 grep -q "GET /releases/download/desktop-v0.1.1/Clash.of.Meat_0.1.1_${arch}.app.tar.gz" "$work/server.log" ||
   { cat "$work/app.log" >&2; die "0.1.0 did not download 0.1.1"; }
 note "PASS update detected and downloaded"
-swift "$work/press.swift" "$app" "Update and restart" 60 || { cat "$work/app.log" >&2; die "could not press Update and restart"; }
-note "PASS update verified (Settings shows Update and restart); pressed it"
 until_ok 60 sh -c "! kill -0 $app" || die "the app did not quit to install the update"
 [[ $(plist_version) == 0.1.1 ]] || { cat "$work/app.log" >&2; die "the installed app is not 0.1.1 after the update"; }
 until_ok 30 pgrep -f "$executable" || die "the updated app did not restart"
