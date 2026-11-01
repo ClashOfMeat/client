@@ -58,8 +58,8 @@ button[hidden] { display: none; }
 .friends-head { display: flex; align-items: center; gap: 6px; font: 15px/1.2 Righteous, Georgia, serif; color: var(--title); }
 .back { width: 24px; height: 22px; padding: 0; display: grid; place-items: center; }
 /* The web app's pixel back arrow (BackLink), mirrored to point forward like the app's forward links. */
-.pixel-arrow { width: 20px; height: 20px; vertical-align: -5px; pointer-events: none; }
-.wide .pixel-arrow { margin-left: 3px; }
+.pixel-arrow, .pixel-globe { width: 20px; height: 20px; vertical-align: -5px; pointer-events: none; }
+.wide .pixel-arrow, .wide .pixel-globe { margin-left: 3px; }
 .back .pixel-arrow { width: 16px; height: 16px; }
 .pixel-arrow.forward { transform: scaleX(-1); }
 .friends-note { margin-top: 6px; color: var(--muted); font-size: 13px; }
