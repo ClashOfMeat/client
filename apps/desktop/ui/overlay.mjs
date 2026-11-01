@@ -10,6 +10,10 @@ import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
 import { beginDeparture, departurePose } from './hero/departure.mjs'
 import { windowRect } from './overlay/layout.mjs'
+
+// The hero window has no text to select or images to drag; a selection there could never be cleared (see overlay.css).
+for (const type of ['selectstart', 'dragstart']) document.addEventListener(type, event => event.preventDefault())
+document.getSelection()?.removeAllRanges()
 import { friendRows, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
 import { xpBar } from './overlay/xp-bar.mjs'
