@@ -10,6 +10,11 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; user-select: none; }
+/* macOS WebKit ignores the unprefixed rule: a double-click or drag on the hero drew a grey selection box, and clicks
+   elsewhere pass through this window, so nothing could clear it. */
+html, body, * { -webkit-user-select: none; -webkit-touch-callout: none; }
+img, canvas { -webkit-user-drag: none; }
+::selection { background: transparent; }
 #hero { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
 
 /* Sits just above the hero's head (the sprite is the window's bottom 128 px), whatever its height. */

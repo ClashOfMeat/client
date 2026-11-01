@@ -10,6 +10,10 @@ import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
 import { beginDeparture, departurePose } from './hero/departure.mjs'
 import { windowRect } from './overlay/layout.mjs'
+
+// The hero window has no text to select or images to drag; a selection there could never be cleared (see overlay.css).
+for (const type of ['selectstart', 'dragstart']) document.addEventListener(type, event => event.preventDefault())
+document.getSelection()?.removeAllRanges()
 import { friendRows, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
 import { xpBar } from './overlay/xp-bar.mjs'
@@ -739,7 +743,14 @@ await listen('hero-settings', ({ payload }) => {
 // A click elsewhere on screen near the hero (overlay.rs reports it in window coordinates) sends it
 // hurrying away, so it never sits on what the user is reaching for. "Stop walking" keeps it put.
 await listen('screen-click', ({ payload }) => {
-  if (!rect || !character || outgoing.away() || paused || hidden || stayStill || drag || fall || statsOpen || menuOpen) return
+  // overlay.rs reports only clicks outside the hit regions, so any click away from an open card or menu closes it.
+  if (statsOpen || menuOpen) {
+    statsOpen = false
+    menuOpen = false
+    wake()
+    return
+  }
+  if (!rect || !character || outgoing.away() || paused || hidden || stayStill || drag || fall) return
   if (aura && Date.now() - auraStarted < aura.durationMs) return
   const dx = payload.x - (rect.spriteX + 64), dy = payload.y - (rect.spriteY + 64)
   if (Math.hypot(dx, dy) > 260) return
