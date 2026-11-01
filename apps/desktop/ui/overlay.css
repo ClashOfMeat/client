@@ -44,14 +44,19 @@ button[hidden] { display: none; }
 .wide { display: block; width: 100%; margin-top: 7px; padding: 8px 9px; }
 .card-actions { display: flex; align-items: stretch; gap: 6px; margin-top: 7px; }
 .card-actions #send-friend { flex: 1; min-width: 0; margin-top: 0; }
-.card-actions #open-app { flex: 0 0 38px; padding: 0; font: 700 23px/1 "Alegreya Sans", sans-serif; }
+.card-actions #open-app { flex: 0 0 38px; padding: 0; display: grid; place-items: center; }
 .emotes img { width: 26px; height: 26px; image-rendering: pixelated; pointer-events: none; }
 
 /* The friend panel takes the card's place in the same bubble; a long list scrolls. */
 #stats:not([hidden]) { display: flex; flex-direction: column; }
 .friends:not([hidden]) { display: flex; flex-direction: column; min-height: 0; }
 .friends-head { display: flex; align-items: center; gap: 6px; font: 15px/1.2 Righteous, Georgia, serif; color: var(--title); }
-.back { width: 24px; height: 22px; padding: 0 0 2px; font-size: 17px; }
+.back { width: 24px; height: 22px; padding: 0; display: grid; place-items: center; }
+/* The web app's pixel back arrow (BackLink), mirrored to point forward like the app's forward links. */
+.pixel-arrow { width: 20px; height: 20px; vertical-align: -5px; pointer-events: none; }
+.wide .pixel-arrow { margin-left: 3px; }
+.back .pixel-arrow { width: 16px; height: 16px; }
+.pixel-arrow.forward { transform: scaleX(-1); }
 .friends-note { margin-top: 6px; color: var(--muted); font-size: 13px; }
 .friends-note.error { color: #f0a58c; }
 .friends-note img { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; image-rendering: pixelated; }
