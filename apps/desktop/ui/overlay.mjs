@@ -4,7 +4,7 @@ import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace, visitDuration
 import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES, leagueOrBronze } from './hero/validate.mjs'
-import { flexPhase, flexDelay, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT, FLEX_WIDTH } from './hero/flex.mjs'
+import { flexPhase, flexDelay, flexLabel, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT, FLEX_WIDTH } from './hero/flex.mjs'
 import { kissHeartPlace, visitorKissHeartPlace } from './hero/kiss.mjs'
 import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
@@ -367,7 +367,7 @@ function drawImage(png, x, y, size, flip = false, opacity = 1, height = size) {
   ctx.restore()
 }
 
-function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league, leagueScore, visiting = false) {
+function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league, leagueRank, visiting = false) {
   if (state === 'flex') {
     const phase = flexPhase(elapsed)
     if (phase < 0) return
@@ -375,7 +375,8 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
     if (!sheet) return
     const place = flexPlace(spriteX, spriteY, rect.width)
     ctx.drawImage(sheet, 0, phase * FLEX_HEIGHT, FLEX_WIDTH, FLEX_HEIGHT, place.x, place.y, FLEX_WIDTH, FLEX_HEIGHT)
-    if (phase >= 1 && phase <= 9 && Number.isFinite(leagueScore) && leagueScore >= 0) {
+    const label = flexLabel(leagueRank)
+    if (phase >= 1 && phase <= 9 && label) {
       ctx.save()
       ctx.font = '18px Righteous, Georgia, serif'
       ctx.textAlign = 'center'
@@ -384,11 +385,10 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
       ctx.lineWidth = 4
       ctx.strokeStyle = '#241a14'
       ctx.fillStyle = '#fff1cc'
-      const score = leagueScore.toLocaleString('en-US', { maximumFractionDigits: 3 })
       const center = place.x + FLEX_WIDTH / 2
-      const scoreBaseline = place.y + (leagueOrBronze(league) === 'bronze' ? 153 : 172)
-      ctx.strokeText(score, center, scoreBaseline, FLEX_WIDTH - 16)
-      ctx.fillText(score, center, scoreBaseline, FLEX_WIDTH - 16)
+      const baseline = place.y + (leagueOrBronze(league) === 'bronze' ? 153 : 172)
+      ctx.strokeText(label, center, baseline, FLEX_WIDTH - 16)
+      ctx.fillText(label, center, baseline, FLEX_WIDTH - 16)
       ctx.restore()
     }
   } else if (state === 'kiss' && frame === 8) {
@@ -404,7 +404,8 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
     const size = 57 * pulse
     const centerX = spriteX + (facing === 'left' ? 35 : 93)
     const x = Math.max(0, Math.min(rect.width - size, centerX - size / 2))
-    ctx.drawImage(mark, x, spriteY - 25 - size / 2, size, size)
+    // Half the old 25px gap above the sprite box, still clear of the head.
+    ctx.drawImage(mark, x, spriteY - 12 - size / 2, size, size)
   }
 }
 
@@ -501,7 +502,7 @@ async function draw() {
     const motion = active.state === 'flex' ? flexMotion(active.elapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
     const exitOffset = leaving ? leaving.x - boundedX : 0
     drawImage(chosen.png ?? character.png, rect.spriteX + exitOffset + motion.dx, rect.spriteY + motion.dy, motion.width, chosen.flip, leaving?.opacity ?? 1, motion.height)
-    if (!leaving) drawEmoteEffect(active.state, active.elapsed, frame, rect.spriteX, rect.spriteY, active.facing, player?.league, player?.leagueScore)
+    if (!leaving) drawEmoteEffect(active.state, active.elapsed, frame, rect.spriteX, rect.spriteY, active.facing, player?.league, player?.leagueRank)
   }
   visitLabel.hidden = !visitor
   if (visitor) {
@@ -514,7 +515,7 @@ async function draw() {
     drawImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
     // Visits carry the baked Kiss frame (the server sends no bare one), so its small lip heart stays;
     // the large heart sits away from the host instead of covering it.
-    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueScore, true)
+    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, true)
     const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null
     visitLabel.style.left = `${left ?? 0}px`

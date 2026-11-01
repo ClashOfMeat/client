@@ -10,6 +10,8 @@ h2 { margin: 0 0 10px; font-size: 10px; font-weight: 700; letter-spacing: .09em;
 .account-actions { display: flex; gap: 10px; align-items: center; margin-top: 13px; }
 button, select { font: inherit; border: 1px solid #c9c9ce; border-radius: 6px; background: #fff; color: inherit; padding: 5px 10px; }
 button { cursor: pointer; }
+/* The web app's pixel select chevron, at its size (16px, 13.6px from the right edge). */
+select { appearance: none; padding-right: 44px; background-image: url("./assets/pixel-chevron.svg"); background-repeat: no-repeat; background-position: right 13.6px center; background-size: 16px 16px; }
 button:disabled { opacity: .5; cursor: default; }
 .pair-code { margin-top: 9px; color: #555; font-size: 12px; }
 .pair-code strong { letter-spacing: .15em; font-size: 14px; }
@@ -26,7 +28,7 @@ button:disabled { opacity: .5; cursor: default; }
 .hero-settings label { white-space: nowrap; }
 .hero-settings label[for="show-hero"] { margin-right: 12px; }
 .hero-settings label[for="screen"] { margin-left: auto; }
-.hero-settings select { max-width: 132px; }
+.hero-settings select { max-width: 160px; }
 .about { display: flex; align-items: baseline; gap: 10px; }
 .about h2 { margin: 0; }
 .about span { color: #777780; font-size: 12px; }
@@ -40,7 +42,7 @@ button:disabled { opacity: .5; cursor: default; }
 @media (prefers-color-scheme: dark) {
   body { background: #25252a; color: #f4f4f5; }
   .muted, h2, .provider-state, .provider-tokens, .about span { color: #aaaab2; }
-  button, select { background: #393940; border-color: #575760; }
+  button, select { background-color: #393940; border-color: #575760; }
   .provider-state.active { color: #68c997; }
   .provider-state.warning { color: #e0ae63; }
   .pair-code { color: #ccc; }

@@ -31,11 +31,20 @@ export function flexMotion(elapsed) {
   return elapsed >= FLEX_DELAYS[0] && elapsed < FLEX_DELAYS[0] + FLEX_DELAYS[1] ? MOVING : NORMAL
 }
 
+// The crest art leaves 15–70px clear at the bottom of its 200px frame, so it overlaps the frame's
+// bottom by FLEX_DROP to sit closer to the hero's head without covering it.
+export const FLEX_DROP = 30
+
 // The large crest is centered above the hero's head. Keep the whole effect in
 // the 240px overlay window even when the hero stands at a screen edge.
 export function flexPlace(spriteX, spriteY, windowWidth = 240) {
   return {
     x: Math.max(0, Math.min(windowWidth - FLEX_WIDTH, spriteX + 64 - FLEX_WIDTH / 2)),
-    y: spriteY - FLEX_HEIGHT,
+    y: spriteY - FLEX_HEIGHT + FLEX_DROP,
   }
+}
+
+// The crest shows the player's leaderboard rank, or nothing while the server sends none.
+export function flexLabel(rank) {
+  return Number.isSafeInteger(rank) && rank > 0 ? `#${rank.toLocaleString('en-US')}` : null
 }

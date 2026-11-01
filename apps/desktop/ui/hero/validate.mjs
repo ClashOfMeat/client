@@ -87,7 +87,7 @@ export function validateVisit(value, now = Date.now()) {
   const clean = text => text.replace(/[\x00-\x1f\x7f]/g, '')
   // Older servers only send kisses; an emote this client doesn't know plays as one too.
   const emote = VISIT_EMOTES.includes(value.emote) ? value.emote : 'kiss'
-  const leagueScore = value.leagueScore
+  const leagueRank = value.leagueRank
   return { id: value.id, name: clean(value.name), guild: value.guild === null ? null : clean(value.guild), expiresAt: value.expiresAt, emote, league: leagueOrBronze(value.league),
-    ...(Number.isFinite(leagueScore) && leagueScore >= 0 && leagueScore <= Number.MAX_SAFE_INTEGER / 1000 ? { leagueScore } : {}), character }
+    ...(Number.isSafeInteger(leagueRank) && leagueRank > 0 ? { leagueRank } : {}), character }
 }
