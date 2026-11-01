@@ -743,7 +743,14 @@ await listen('hero-settings', ({ payload }) => {
 // A click elsewhere on screen near the hero (overlay.rs reports it in window coordinates) sends it
 // hurrying away, so it never sits on what the user is reaching for. "Stop walking" keeps it put.
 await listen('screen-click', ({ payload }) => {
-  if (!rect || !character || outgoing.away() || paused || hidden || stayStill || drag || fall || statsOpen || menuOpen) return
+  // overlay.rs reports only clicks outside the hit regions, so any click away from an open card or menu closes it.
+  if (statsOpen || menuOpen) {
+    statsOpen = false
+    menuOpen = false
+    wake()
+    return
+  }
+  if (!rect || !character || outgoing.away() || paused || hidden || stayStill || drag || fall) return
   if (aura && Date.now() - auraStarted < aura.durationMs) return
   const dx = payload.x - (rect.spriteX + 64), dy = payload.y - (rect.spriteY + 64)
   if (Math.hypot(dx, dy) > 260) return
