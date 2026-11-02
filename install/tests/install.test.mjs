@@ -176,3 +176,115 @@ exit "\${FAKE_MINISIGN_STATUS:-0}"
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+// The Linux branch, run on any Unix through CLASHOFMEAT_TEST_UNAME (only the OS name is faked).
+test('Linux CLI installer', { skip: process.platform === 'win32' }, async () => {
+  const root = mkdtempSync(join(tmpdir(), 'clashofmeat-linux-test-'))
+  const routes = new Map()
+  const server = createServer((request, response) => {
+    const body = routes.get(request.url)
+    if (body === undefined) {
+      response.writeHead(404)
+      response.end('missing')
+    } else response.end(body)
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  const localUrl = `http://127.0.0.1:${server.address().port}`
+  const arch = process.arch === 'arm64' ? 'aarch64' : 'x86_64'
+  const home = name => {
+    const path = join(root, name)
+    mkdirSync(path)
+    return path
+  }
+  const exePath = h => join(h, '.local', 'share', 'clashofmeat', 'bin', 'clashofmeat')
+  const binPath = h => join(h, '.local', 'bin', 'clashofmeat')
+  const logPath = h => join(h, 'started.log')
+  const started = h => readFileSync(logPath(h), 'utf8').trim().split('\n')
+
+  function publish(version, { sha256, named } = {}) {
+    const fixture = join(root, `fixture-${version}`)
+    mkdirSync(fixture)
+    writeFileSync(join(fixture, 'clashofmeat'),
+      `#!/bin/sh\nprintf '%s\\n' '${version}' > "$CLASHOFMEAT_TEST_LOG"\nprintf '%s\\n' "$@" >> "$CLASHOFMEAT_TEST_LOG"\n`,
+      { mode: 0o755 })
+    const tarball = join(root, `cli-${version}.tar.gz`)
+    const tar = spawnSync('tar', ['-czf', tarball, '-C', fixture, 'clashofmeat'], { encoding: 'utf8' })
+    assert.equal(tar.status, 0, tar.stderr)
+    const bytes = readFileSync(tarball)
+    const file = `clashofmeat_${version}_linux-${arch}.tar.gz`
+    const base = `/releases/download/desktop-v${version}`
+    routes.set(`${base}/${file}`, bytes)
+    routes.set(`${base}/${file}.sha256`, `${sha256 ?? createHash('sha256').update(bytes).digest('hex')}  ${named ?? file}\n`)
+  }
+
+  function run(h, args = [], env = {}) {
+    return new Promise((resolve, reject) => {
+      const child = spawn('sh', [script, ...args], {
+        env: {
+          // No minisign on this PATH: the checksum path is what runs here (the macOS test covers the signature).
+          PATH: '/usr/bin:/bin',
+          HOME: h,
+          CLASHOFMEAT_TEST_UNAME: 'Linux',
+          CLASHOFMEAT_RELEASES_URL: `${localUrl}/releases`,
+          CLASHOFMEAT_TEST_LOG: logPath(h),
+          ...env,
+        },
+      })
+      let stdout = '', stderr = ''
+      child.stdout.on('data', chunk => { stdout += chunk })
+      child.stderr.on('data', chunk => { stderr += chunk })
+      child.on('error', reject)
+      child.on('close', status => resolve({ status, stdout, stderr }))
+    })
+  }
+
+  try {
+    publish('2.0.0')
+    const h = home('installed')
+    const installed = await run(h, ['--app', localUrl, '--version', '2.0.0', '--no-connect'])
+    assert.equal(installed.status, 0, installed.stderr)
+    assert.equal(readlinkSync(binPath(h)), exePath(h))
+    assert.deepEqual(started(h), ['2.0.0', 'install', '--app', localUrl, '--no-connect'])
+    assert.match(installed.stdout, /Installed Clash of Meat 2\.0\.0/)
+    assert.match(installed.stdout, /install minisign \(apt install minisign/)
+    assert.match(installed.stdout, /not on PATH/)
+
+    publish('2.0.1')
+    const upgraded = await run(h, ['--app', localUrl, '--version', '2.0.1'])
+    assert.equal(upgraded.status, 0, upgraded.stderr)
+    assert.deepEqual(started(h), ['2.0.1', 'install', '--app', localUrl])
+
+    // XDG_DATA_HOME moves the CLI, as `clashofmeat update` expects.
+    const xdg = home('xdg')
+    const moved = await run(xdg, ['--app', localUrl, '--version', '2.0.1'], { XDG_DATA_HOME: join(xdg, 'data') })
+    assert.equal(moved.status, 0, moved.stderr)
+    assert.equal(readlinkSync(binPath(xdg)), join(xdg, 'data', 'clashofmeat', 'bin', 'clashofmeat'))
+
+    const refused = async (name, version, options, pattern) => {
+      publish(version, options)
+      const other = home(name)
+      const result = await run(other, ['--app', localUrl, '--version', version])
+      assert.notEqual(result.status, 0, name)
+      assert.match(result.stderr, pattern, name)
+      assert(!existsSync(exePath(other)), `${name}: CLI must not be installed`)
+      assert(!existsSync(logPath(other)), `${name}: CLI must not run`)
+    }
+    await refused('bad-sha', '2.1.0', { sha256: '0'.repeat(64) }, /sha256 does not match/)
+    await refused('wrong-name', '2.1.1', { named: 'other.tar.gz' }, /invalid checksum file/)
+    const missingHome = home('no-build')
+    const missing = await run(missingHome, ['--app', localUrl, '--version', '9.9.9'])
+    assert.notEqual(missing.status, 0)
+    assert.match(missing.stderr, /may have no Linux build/)
+
+    const blockedHome = home('regular-file')
+    mkdirSync(join(blockedHome, '.local', 'bin'), { recursive: true })
+    writeFileSync(binPath(blockedHome), 'keep me')
+    const blocked = await run(blockedHome, ['--app', localUrl, '--version', '2.0.0'])
+    assert.notEqual(blocked.status, 0)
+    assert.match(blocked.stderr, /regular file or directory/)
+    assert.equal(readFileSync(binPath(blockedHome), 'utf8'), 'keep me')
+  } finally {
+    await new Promise(resolve => server.close(resolve))
+    rmSync(root, { recursive: true, force: true })
+  }
+})

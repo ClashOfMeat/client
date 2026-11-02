@@ -17,6 +17,8 @@ It counts supported activity on your machine and sends content-free counts to yo
 
 - macOS 12 or later (Apple Silicon and Intel)
 - Windows 10 version 1803 or later, and Windows 11 (x64; ARM64 PCs run it under emulation)
+- Linux on x86_64 or arm64, any distribution (a static build): the background collector and the `clashofmeat`
+  command, without the on-screen hero. Your hero shows on the web app.
 
 ## Install
 
@@ -27,14 +29,20 @@ Sign in to the Clash of Meat web app and open its setup page.
   Enter: your browser opens, you sign in if needed, and the terminal confirms once the computer is linked to your
   account. Nothing to type; from a browser on another device, type the code the terminal shows on the link page. Pass `--no-connect` to skip this step and link later with `clashofmeat connect`.
 - **Windows:** download the setup `.exe` from the setup page and run it. It installs for your user only.
+- **Linux:** run the same install command in a terminal. It installs the `clashofmeat` command in
+  `~/.local/share/clashofmeat/bin` (linked from `~/.local/bin`), starts it as a systemd user service with a daily
+  update check (`clashofmeat update`), and links it to your account. Without a systemd user session (some containers
+  and WSL setups) it runs until you log out; start `clashofmeat daemon` from your startup scripts instead. Over SSH,
+  `loginctl enable-linger` keeps it running after you log out. On a server there is no Enter step: open
+  `<app>/link` on your phone or laptop and type the code the terminal shows; closing the terminal does not cancel it.
 
-To remove the client on a Mac, run `clashofmeat uninstall`. On Windows, uninstall it from Settings > Apps.
+To remove the client on a Mac or Linux, run `clashofmeat uninstall`. On Windows, uninstall it from Settings > Apps.
 
 ## Multiple accounts
 
 In client Settings, expand **Additional accounts** and add the local folder used by each Claude Code, Codex or Gemini CLI account. The normal account remains enabled. Use the account's `.claude` or `.codex` directory; for Gemini, use the home containing `.gemini` (the value of `GEMINI_CLI_HOME`). Up to eight extra homes per agent are watched simultaneously. Removing a home stops collecting it and preserves its queued counts. Account folder paths stay local; uploads use a random profile ID per folder, kept in `~/.clashofmeat/config.json`.
 
-On a Mac, if your default account lives elsewhere through `CLAUDE_CONFIG_DIR`, `CODEX_HOME` or `GEMINI_CLI_HOME`, have those variables set in the shell that runs the install command: the background service keeps the values it had then. After changing them, run `clashofmeat install` again, or add the folders under **Additional accounts**.
+On a Mac or Linux, if your default account lives elsewhere through `CLAUDE_CONFIG_DIR`, `CODEX_HOME` or `GEMINI_CLI_HOME`, have those variables set in the shell that runs the install command: the background service keeps the values it had then. After changing them, run `clashofmeat install` again, or add the folders under **Additional accounts**.
 
 ## Privacy
 
@@ -97,9 +105,9 @@ See [docs/building.md](docs/building.md). In short, you need Rust, the Tauri CLI
 | `crates/core` | Shared types: the provider interface, the local SQLite store, IDs, the file reader. |
 | `crates/providers` | One module per agent: where its session files live and how to read token counts from them. |
 | `crates/daemon` | The background process: watches the session files, keeps counts, syncs with the web app. |
-| `crates/cli` | The `clashofmeat` command: install, connect, status, sync, uninstall, and the Cursor hook. |
+| `crates/cli` | The `clashofmeat` command: install, connect, status, sync, update (Linux), uninstall, and the Cursor hook. |
 | `apps/desktop` | The Tauri app: the hero overlay and the settings window (`ui/` is plain HTML, CSS and JS). |
-| `install` | The macOS install script served by the web app. |
+| `install` | The macOS and Linux install script served by the web app. |
 | `scripts` | Check, package and release scripts. |
 | `fixtures` | Synthetic agent session files for the provider tests. They hold no real session data. |
 | `docs` | The build guide and the design notes. |

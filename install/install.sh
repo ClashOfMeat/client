@@ -9,6 +9,98 @@ say() { printf 'Clash of Meat: %s\n' "$1"; }
 # The updater's minisign public key (apps/desktop/src-tauri/updater.pub); release archives carry its .sig.
 UPDATER_KEY='RWSC/TfveVpY2OTPXC0Xtm3TKi6XKYNZIc4H2Mu2JZ0GO3V3n+tTFSXp'
 
+fetch() { curl -fsSL --proto '=https,http' --proto-redir '=https' --retry 2 -o "$2" "$1"; }
+
+# check_signature <archive> <signature url> <file name> <checksum source> <minisign install hint>
+# The checksum comes from the same release as the archive, so it only proves the download is intact. The
+# signature proves who built it: it must match the updater key, which only the release signer holds.
+check_signature() {
+  if minisign=$(command -v minisign 2>/dev/null); then
+    fetch "$2" "$work/release.sig" || fail "could not download $3.sig"
+    base64 --decode < "$work/release.sig" > "$work/release.minisig" 2>/dev/null || fail 'the release signature is not valid base64'
+    "$minisign" -V -q -P "$UPDATER_KEY" -m "$1" -x "$work/release.minisig" >/dev/null 2>&1 ||
+      fail 'the download is not signed with the Clash of Meat release key; nothing was installed'
+    say 'Download verified (SHA-256 and release signature).'
+  else
+    say "Download verified (SHA-256 from $4)."
+    say "Note: install minisign ($5) and run this again to also check the release signature."
+  fi
+}
+
+# Linux: the CLI alone (no desktop app yet). It goes to ${XDG_DATA_HOME:-~/.local/share}/clashofmeat/bin, where
+# `clashofmeat update` expects it, linked from ~/.local/bin; `clashofmeat install` then sets up the systemd service.
+install_linux() {
+  case "$(uname -m)" in
+    x86_64|amd64) arch=x86_64 ;;
+    aarch64|arm64) arch=aarch64 ;;
+    *) fail "no Clash of Meat Linux build for $(uname -m)" ;;
+  esac
+  command -v curl >/dev/null 2>&1 || fail 'curl is required'
+  command -v tar >/dev/null 2>&1 || fail 'tar is required'
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256() { sha256sum "$1" | cut -d ' ' -f 1; }
+  elif command -v shasum >/dev/null 2>&1; then
+    sha256() { shasum -a 256 "$1" | cut -d ' ' -f 1; }
+  else
+    fail 'sha256sum is required'
+  fi
+
+  RELEASES=${CLASHOFMEAT_RELEASES_URL:-https://github.com/ClashOfMeat/client/releases}
+  RELEASES=${RELEASES%/}
+  DATA_DIR=${XDG_DATA_HOME:-}
+  case "$DATA_DIR" in /*) ;; *) DATA_DIR=$HOME/.local/share ;; esac
+  INSTALL_DIR=$DATA_DIR/clashofmeat/bin
+  EXE=$INSTALL_DIR/clashofmeat
+  BIN_DIR=${CLASHOFMEAT_BIN_DIR:-$HOME/.local/bin}
+  LINK=$BIN_DIR/clashofmeat
+  if [ -e "$LINK" ] && [ ! -L "$LINK" ]; then
+    fail "$LINK is a regular file or directory; move it aside before installing"
+  fi
+
+  work=$(mktemp -d "${TMPDIR:-/tmp}/clashofmeat-install.XXXXXX") || fail 'could not create a temporary directory'
+  staged=''
+  cleanup_linux() {
+    status=$?
+    trap - 0
+    if [ -n "$staged" ]; then rm -f "$staged"; fi
+    rm -rf "$work"
+    exit "$status"
+  }
+  trap 'cleanup_linux' 0
+  trap 'exit 1' 1 2 3 15
+
+  file="clashofmeat_${VERSION}_linux-${arch}.tar.gz"
+  base=$RELEASES/download/desktop-v$VERSION
+  say "Downloading Clash of Meat $VERSION for Linux ${arch}..."
+  fetch "$base/$file" "$work/cli.tar.gz" || fail "could not download $file; release $VERSION may have no Linux build"
+  fetch "$base/$file.sha256" "$work/cli.sha256" || fail "could not download $file.sha256"
+  expected=$(sed -n "s/^\([0-9a-f]\{64\}\)  $file\$/\1/p" "$work/cli.sha256")
+  [ -n "$expected" ] || fail "invalid checksum file for $file"
+  [ "$(sha256 "$work/cli.tar.gz")" = "$expected" ] || fail 'download sha256 does not match the release checksum; nothing was installed'
+  check_signature "$work/cli.tar.gz" "$base/$file.sig" "$file" 'the release checksum' 'apt install minisign, dnf install minisign or pacman -S minisign'
+
+  mkdir "$work/unpacked"
+  tar -xzf "$work/cli.tar.gz" -C "$work/unpacked" clashofmeat || fail 'could not extract the Clash of Meat CLI'
+  [ -f "$work/unpacked/clashofmeat" ] && [ ! -L "$work/unpacked/clashofmeat" ] || fail 'the release archive has no clashofmeat binary'
+  mkdir -p "$INSTALL_DIR" "$BIN_DIR"
+  # Staged beside the target, so the final mv is an atomic rename; a running daemon keeps its old copy.
+  staged=$INSTALL_DIR/.clashofmeat.new.$$
+  cp "$work/unpacked/clashofmeat" "$staged" || fail "could not write to $INSTALL_DIR"
+  chmod 755 "$staged"
+  mv -f "$staged" "$EXE" || fail "could not install $EXE"
+  staged=''
+
+  if [ -L "$LINK" ]; then rm "$LINK" || fail "could not replace $LINK"; fi
+  ln -s "$EXE" "$LINK" || fail "could not create $LINK"
+  say "Installed Clash of Meat $VERSION in $EXE."
+  case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *) say "Run the CLI with $LINK (its directory is not on PATH)." ;;
+  esac
+
+  exec "$EXE" install --app "$APP" "$@"
+}
+
 # Everything runs from main, called on the last line, so a download cut off mid-transfer runs nothing.
 main() {
   DEFAULT_APP='__CLASHOFMEAT_APP_URL__'
@@ -47,7 +139,8 @@ main() {
   [ -n "$VERSION" ] || fail 'A desktop release version is required; pass --version <x.y.z>.'
   printf '%s\n' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || fail 'the desktop version must be x.y.z'
 
-  [ "$(uname -s)" = Darwin ] || fail 'the Clash of Meat desktop app is macOS-only for now'
+  if [ "${CLASHOFMEAT_TEST_UNAME:-$(uname -s)}" = Linux ]; then install_linux "$@"; fi
+  [ "$(uname -s)" = Darwin ] || fail "Clash of Meat runs on macOS and Linux; $(uname -s) is not supported yet"
   case "$(uname -m)" in
     arm64|aarch64) target=aarch64-apple-darwin ;;
     x86_64|amd64)
@@ -61,7 +154,6 @@ main() {
 
   command -v curl >/dev/null 2>&1 || fail 'curl is required'
   command -v shasum >/dev/null 2>&1 || fail 'shasum is required'
-  fetch() { curl -fsSL --proto '=https,http' --proto-redir '=https' --retry 2 -o "$2" "$1"; }
   sha256() { shasum -a 256 "$1" | cut -d ' ' -f 1; }
   read_manifest() { /usr/bin/plutil -extract "$1" raw -o - "$2" 2>/dev/null; }
 
@@ -109,18 +201,7 @@ main() {
   fetch "$base/$file" "$work/app.tar.gz" || fail "could not download $file"
   [ "$(wc -c < "$work/app.tar.gz" | tr -d '[:space:]')" = "$size" ] || fail 'download size does not match the release manifest; nothing was installed'
   [ "$(sha256 "$work/app.tar.gz")" = "$expected" ] || fail 'download sha256 does not match the release manifest; nothing was installed'
-  # The checksum comes from the same release as the archive, so it only proves the download is intact. The
-  # signature proves who built it: it must match the updater key, which only the release signer holds.
-  if minisign=$(command -v minisign 2>/dev/null); then
-    fetch "$base/$file.sig" "$work/app.sig" || fail "could not download $file.sig"
-    base64 --decode < "$work/app.sig" > "$work/app.minisig" 2>/dev/null || fail 'the release signature is not valid base64'
-    "$minisign" -V -q -P "$UPDATER_KEY" -m "$work/app.tar.gz" -x "$work/app.minisig" >/dev/null 2>&1 ||
-      fail 'the download is not signed with the Clash of Meat release key; nothing was installed'
-    say 'Download verified (SHA-256 and release signature).'
-  else
-    say 'Download verified (SHA-256 from the release manifest).'
-    say 'Note: install minisign (brew install minisign) and run this again to also check the release signature.'
-  fi
+  check_signature "$work/app.tar.gz" "$base/$file.sig" "$file" 'the release manifest' 'brew install minisign'
 
   mkdir "$work/unpacked"
   tar -xzf "$work/app.tar.gz" -C "$work/unpacked" || fail 'could not extract the desktop app'

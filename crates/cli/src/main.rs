@@ -2,8 +2,10 @@ mod client;
 mod connect;
 mod hook;
 mod install;
+mod linux;
 mod migrate;
 mod term;
+mod update;
 
 use std::process::ExitCode;
 
@@ -47,6 +49,11 @@ enum Action {
     Uninstall {
         #[arg(long)]
         keep_data: bool,
+    },
+    /// Linux: install the latest release (a daily timer runs this with --quiet).
+    Update {
+        #[arg(long)]
+        quiet: bool,
     },
     #[command(hide = true)]
     CursorHook,
@@ -118,6 +125,7 @@ fn execute(cli: Cli, env: &Env) -> Result<()> {
             Ok(())
         }
         Action::Uninstall { keep_data } => install::uninstall(env, keep_data),
+        Action::Update { quiet } => update::update(env, quiet),
         Action::CursorHook => Ok(()),
     }
 }

@@ -140,6 +140,8 @@ impl Client {
     }
 
     pub fn pair_start(&self, device: &str, tools: &[String]) -> Result<Pairing, ApiError> {
+        // The platform labels the computer on the approval screen, e.g. "build-01 (Linux)" for a server.
+        let device = json!({"name": device, "platform": device_platform()});
         let response = self.post("/api/pairings", &json!({"device": device, "tools": tools}))?;
         let id = required_string(&response, "id")?;
         let code = required_string(&response, "code")?;
@@ -674,6 +676,16 @@ pub struct Pairing {
     pub code: String,
     pub exchange_secret: String,
     pub expires_at: String,
+}
+
+/// This computer's platform as the app names it (`darwin`, `linux` or `win32`), or null elsewhere.
+fn device_platform() -> Value {
+    match std::env::consts::OS {
+        "macos" => json!("darwin"),
+        "linux" => json!("linux"),
+        "windows" => json!("win32"),
+        _ => Value::Null,
+    }
 }
 
 impl Pairing {

@@ -1,5 +1,6 @@
-//! Per-user installation. On macOS a LaunchAgent keeps the daemon running; on Windows the
-//! desktop app starts it (the installer registers the app to start at sign-in).
+//! Per-user installation. On macOS a LaunchAgent keeps the daemon running; on Linux a systemd
+//! user service does (linux.rs); on Windows the desktop app starts it (the installer registers the
+//! app to start at sign-in).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,7 +12,7 @@ use anyhow::{bail, Context, Result};
 use clashofmeat_core::{ConfigWriter, Env, WriteOutcome};
 use clashofmeat_daemon::{config, wiring};
 
-use crate::{client, migrate};
+use crate::{client, linux, migrate};
 
 const LABEL: &str = "com.clashofmeat.daemon";
 
@@ -44,16 +45,13 @@ pub fn install(env: &Env, app: &str, no_launch_agent: bool) -> Result<()> {
         }
         launchctl(env, &["kickstart", &target])?;
         println!("Installed LaunchAgent {}.", path.display());
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while client::Client::connect(env).is_err() && Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(100));
-        }
-        if client::Client::connect(env).is_err() {
-            eprintln!(
-                "Daemon socket is not ready yet; check {}.",
-                log_dir.join("daemon.log").display()
-            );
-        }
+        wait_for_daemon(env, &log_dir);
+    } else if !no_launch_agent && cfg!(target_os = "linux") {
+        let exe = std::env::current_exe()?.canonicalize()?;
+        let log_dir = config::home(env).join("logs");
+        fs::create_dir_all(&log_dir)?;
+        linux::install_service(env, &exe)?;
+        wait_for_daemon(env, &log_dir);
     }
 
     let writer = ConfigWriter::new(config::home(env).join("backup"));
@@ -89,6 +87,10 @@ pub fn uninstall(env: &Env, keep_data: bool) -> Result<()> {
     }
     if cfg!(target_os = "macos") {
         remove_mac_install(env)?;
+    } else if cfg!(target_os = "linux") {
+        linux::remove_service(env)?;
+        wiring::unwire_cursor(env, &ConfigWriter::new(config::home(env).join("backup")))?;
+        linux::remove_files(env)?;
     } else {
         wiring::unwire_cursor(env, &ConfigWriter::new(config::home(env).join("backup")))?;
     }
@@ -107,6 +109,19 @@ pub fn uninstall(env: &Env, keep_data: bool) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn wait_for_daemon(env: &Env, log_dir: &Path) {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while client::Client::connect(env).is_err() && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(100));
+    }
+    if client::Client::connect(env).is_err() {
+        eprintln!(
+            "Daemon socket is not ready yet; check {}.",
+            log_dir.join("daemon.log").display()
+        );
+    }
 }
 
 fn remove_mac_install(env: &Env) -> Result<()> {

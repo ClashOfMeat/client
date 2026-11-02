@@ -406,13 +406,21 @@ impl Store {
         #[cfg(unix)]
         {
             use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-            let file = fs::OpenOptions::new()
+            // Never open a descriptor on an existing database: closing any descriptor on a file
+            // drops every POSIX lock this process holds on it, SQLite's included. Another process
+            // closing the database (the CLI while the daemon runs) would then think it is the last
+            // connection and delete the WAL that this process's connections still write to.
+            match fs::OpenOptions::new()
                 .write(true)
-                .create(true)
-                .truncate(false)
+                .create_new(true)
                 .mode(0o600)
-                .open(path)?;
-            file.set_permissions(fs::Permissions::from_mode(0o600))?;
+                .open(path)
+            {
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(error) => return Err(error.into()),
+            }
+            fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
         }
         let conn = Connection::open(path)?;
         Self::initialize(conn)

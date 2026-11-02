@@ -70,23 +70,23 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 24 }
       - run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin \
+            x86_64-unknown-linux-musl aarch64-unknown-linux-musl
           rustup component add clippy
-          brew install llvm lld nsis
+          brew install zig
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/bin/cargo-tauri
-            ~/.cargo/bin/cargo-xwin
-          key: release-tools-${{ runner.os }}-tauri-2.12.2-v1
+            ~/.cargo/bin/cargo-zigbuild
+          key: release-tools-${{ runner.os }}-tauri-2.12.2-v3
       - run: |
           command -v cargo-tauri || cargo install tauri-cli --version 2.12.2 --locked
-          command -v cargo-xwin || cargo install --locked cargo-xwin
+          command -v cargo-zigbuild || cargo install --locked cargo-zigbuild
       - name: Build, sign and publish
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           GH_TOKEN: ${{ github.token }}
-          XWIN_ACCEPT_LICENSE: "1"
           VERSION: ${{ needs.version.outputs.version }}
         run: scripts/release.sh "$VERSION" --app https://app.clashofmeat.com

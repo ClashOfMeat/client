@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Validate the signed release artifacts (two macOS archives, one Windows installer) and write both release pointers:
-# manifest.json (read by install.sh) and update.json (Tauri v2 updater static JSON).
+# Validate the signed release artifacts (two macOS archives, two Linux CLI archives) and write both release pointers:
+# manifest.json (read by install.sh) and update.json (Tauri v2 updater static JSON; its linux-* entries are the CLI
+# archives `clashofmeat update` installs, since there is no Linux desktop app).
 # --mac-only checks and lists only the two macOS archives.
 set -euo pipefail
 
@@ -16,7 +17,8 @@ out = pathlib.Path(sys.argv[1])
 for arch, name in (
     ("aarch64", "Clash.of.Meat_0.0.1_aarch64.app.tar.gz"),
     ("x86_64", "Clash.of.Meat_0.0.1_x86_64.app.tar.gz"),
-    ("x64", "Clash.of.Meat_0.0.1_x64-setup.exe"),
+    ("linux-x86_64", "clashofmeat_0.0.1_linux-x86_64.tar.gz"),
+    ("linux-aarch64", "clashofmeat_0.0.1_linux-aarch64.tar.gz"),
 ):
     data = ("fake " + arch).encode()
     (out / name).write_bytes(data)
@@ -29,20 +31,20 @@ for arch, name in (
     python3 -c '
 import base64, json, pathlib, sys
 out = pathlib.Path(sys.argv[1])
-mac_only = sys.argv[2] == "true"
+scope = sys.argv[2]
 manifest = json.loads((out / "manifest.json").read_text())
 update = json.loads((out / "update.json").read_text())
 pairs = [("aarch64-apple-darwin", "darwin-aarch64"), ("x86_64-apple-darwin", "darwin-x86_64")]
-if not mac_only:
-    pairs.append(("x86_64-pc-windows-msvc", "windows-x86_64"))
+if scope != "mac-only":
+    pairs += [("x86_64-unknown-linux-musl", "linux-x86_64"), ("aarch64-unknown-linux-musl", "linux-aarch64")]
 assert manifest["version"] == update["version"] == "0.0.1"
 assert set(manifest["assets"]) == {target for target, _ in pairs}
 assert set(update["platforms"]) == {key for _, key in pairs}
-if mac_only:
-    assert "min_version" not in update and update["security"] is False
-else:
+if scope == "all":
+    assert manifest["assets"]["x86_64-unknown-linux-musl"]["file"] == "clashofmeat_0.0.1_linux-x86_64.tar.gz"
     assert update["min_version"] == "0.0.1" and update["security"] is True
-    assert manifest["assets"]["x86_64-pc-windows-msvc"]["file"] == "Clash.of.Meat_0.0.1_x64-setup.exe"
+else:
+    assert "min_version" not in update and update["security"] is False
 for target, key in pairs:
     asset = manifest["assets"][target]
     assert asset["size"] == (out / asset["file"]).stat().st_size
@@ -53,14 +55,14 @@ for target, key in pairs:
     assert b"trusted comment:" in base64.b64decode(platform["signature"])
 ' "$fixture" "$1"
   }
-  check false
-  # --mac-only: without the Windows files, the default run must fail and --mac-only must pass with Mac entries only.
-  rm "$fixture"/Clash.of.Meat_0.0.1_x64-setup.exe* "$fixture/manifest.json" "$fixture/update.json"
+  check all
+  # --mac-only: without the Linux files, the default run must fail and --mac-only must pass with Mac entries only.
+  rm "$fixture"/clashofmeat_0.0.1_linux-* "$fixture/manifest.json" "$fixture/update.json"
   if "$0" "$fixture" 0.0.1 https://example.test/releases/download/desktop-v0.0.1/ >/dev/null 2>&1; then
-    die "self-test: a run without the Windows installer should fail without --mac-only"
+    die "self-test: a run without the Linux archives should fail without --mac-only"
   fi
   "$0" "$fixture" 0.0.1 https://example.test/releases/download/desktop-v0.0.1/ --mac-only
-  check true
+  check mac-only
   echo "update-manifest: self-test passed"
   exit 0
 fi
@@ -75,7 +77,7 @@ shift 3
 base_url="${base_url%/}/"
 min_version=
 security=false
-mac_only=false
+scope=all
 while (( $# )); do
   case "$1" in
     --min-version)
@@ -83,7 +85,7 @@ while (( $# )); do
       min_version=$2
       shift 2 ;;
     --security) security=true; shift ;;
-    --mac-only) mac_only=true; shift ;;
+    --mac-only) scope=mac-only; shift ;;
     *) die "unknown option: $1" ;;
   esac
 done
@@ -95,7 +97,7 @@ fi
 python3 -c '
 import base64, datetime, hashlib, json, pathlib, re, sys
 
-dist, version, base_url, min_version, security, mac_only = sys.argv[1:]
+dist, version, base_url, min_version, security, scope = sys.argv[1:]
 out = pathlib.Path(dist)
 if min_version and tuple(map(int, min_version.split("."))) > tuple(map(int, version.split("."))):
     raise SystemExit("update-manifest: min version exceeds release version")
@@ -104,10 +106,11 @@ platforms = {}
 artifacts = (
     ("aarch64-apple-darwin", "darwin-aarch64", f"Clash.of.Meat_{version}_aarch64.app.tar.gz"),
     ("x86_64-apple-darwin", "darwin-x86_64", f"Clash.of.Meat_{version}_x86_64.app.tar.gz"),
-    ("x86_64-pc-windows-msvc", "windows-x86_64", f"Clash.of.Meat_{version}_x64-setup.exe"),
+    ("x86_64-unknown-linux-musl", "linux-x86_64", f"clashofmeat_{version}_linux-x86_64.tar.gz"),
+    ("aarch64-unknown-linux-musl", "linux-aarch64", f"clashofmeat_{version}_linux-aarch64.tar.gz"),
 )
-if mac_only == "true":
-    artifacts = artifacts[:2]
+if scope == "mac-only":
+    artifacts = tuple(artifact for artifact in artifacts if artifact[1].startswith("darwin-"))
 for target, platform, name in artifacts:
     file = out / name
     checksum_file = out / (name + ".sha256")
@@ -150,4 +153,4 @@ for filename, document in (("manifest.json", manifest), ("update.json", update))
     temporary.write_text(json.dumps(document, indent=2) + "\n")
     temporary.replace(path)
     print(f"update-manifest: {path}")
-' "$dist" "$version" "$base_url" "$min_version" "$security" "$mac_only"
+' "$dist" "$version" "$base_url" "$min_version" "$security" "$scope"
