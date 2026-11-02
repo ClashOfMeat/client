@@ -5,7 +5,6 @@ export const FLEX_DURATION = FLEX_DELAYS.reduce((sum, delay) => sum + delay, 0)
 export const FLEX_WIDTH = 180
 export const FLEX_HEIGHT = 200
 const NORMAL = { dx: 0, dy: 0, width: 128, height: 128 }
-const MOVING = { dx: -2, dy: 2, width: 132, height: 126 }
 
 export function flexPhase(elapsed) {
   if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed >= FLEX_DURATION) return -1
@@ -27,8 +26,8 @@ export function flexDelay(elapsed) {
   return Infinity
 }
 
-export function flexMotion(elapsed) {
-  return elapsed >= FLEX_DELAYS[0] && elapsed < FLEX_DELAYS[0] + FLEX_DELAYS[1] ? MOVING : NORMAL
+export function flexMotion() {
+  return NORMAL
 }
 
 // The crest art leaves 15–70px clear at the bottom of its 200px frame, so it overlaps the frame's
