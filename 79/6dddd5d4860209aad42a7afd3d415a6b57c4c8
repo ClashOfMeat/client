@@ -1,0 +1,39 @@
+apps/desktop/ui/assets/README.md
+  s_3c65b42bf834d6::t_e76603d2034e0f 10-13
+apps/desktop/ui/assets/pixel-arrow.svg
+  s_3c65b42bf834d6::t_7628d6e3460a73 1
+apps/desktop/ui/assets/pixel-chevron.svg
+  s_3c65b42bf834d6::t_9bed1b509072ea 1
+apps/desktop/ui/hero/flex.mjs
+  s_3c65b42bf834d6::t_4ab9745ac4d277 34-37,43,46-50
+apps/desktop/ui/hero/tests/flex.test.mjs
+  s_3c65b42bf834d6::t_6e92af8ba2fea9 3,19-28
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_3c65b42bf834d6::t_e7a66d3be7b1ba 85-87
+apps/desktop/ui/hero/validate.mjs
+  s_3c65b42bf834d6::t_0594c2516632e8 90,92
+apps/desktop/ui/overlay.css
+  s_3c65b42bf834d6::t_7e1e48df0dcd6f 47,54-59
+apps/desktop/ui/overlay.html
+  s_3c65b42bf834d6::t_5ca0262daa2da5 21-22,26,29
+apps/desktop/ui/overlay.mjs
+  s_3c65b42bf834d6::t_e74cbd71425f6c 7,370,378-379,389-391,407-408,505,518
+apps/desktop/ui/settings.css
+  s_3c65b42bf834d6::t_c21dc30c64629f 13-14,31,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "796dddd5d4860209aad42a7afd3d415a6b57c4c8",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}

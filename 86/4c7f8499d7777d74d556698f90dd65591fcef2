@@ -1,0 +1,25 @@
+apps/desktop/ui/assets/README.md
+  s_3c65b42bf834d6::t_0a036617eff7eb 13-14
+apps/desktop/ui/assets/pixel-globe.svg
+  s_3c65b42bf834d6::t_a29ec6e07b22f2 1
+apps/desktop/ui/overlay.css
+  s_3c65b42bf834d6::t_9e130f28a0daac 61-62
+apps/desktop/ui/overlay.html
+  s_3c65b42bf834d6::t_c5e4ba52ea3a4a 22,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "864c7f8499d7777d74d556698f90dd65591fcef2",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
