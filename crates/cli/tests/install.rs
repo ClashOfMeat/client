@@ -290,6 +290,8 @@ fn install_points_to_connect_when_the_daemon_is_not_running() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("Run `clashofmeat connect`"));
 }
 
+/// The Mac app bundle; on Linux, uninstall removes the service and the CLI instead (tests/linux.rs).
+#[cfg(target_os = "macos")]
 #[test]
 fn uninstall_run_through_the_command_link_removes_the_app() {
     let fixture = Fixture::new();
