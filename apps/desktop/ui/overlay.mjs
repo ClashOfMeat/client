@@ -10,6 +10,7 @@ import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
 import { beginDeparture, departurePose } from './hero/departure.mjs'
 import { windowRect } from './overlay/layout.mjs'
+import { heroSettings } from './settings/hero.mjs'
 
 // The hero window has no text to select or images to drag; a selection there could never be cleared (see overlay.css).
 for (const type of ['selectstart', 'dragstart']) document.addEventListener(type, event => event.preventDefault())
@@ -51,7 +52,7 @@ try {
 } catch { outgoingStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} } }
 const outgoing = scopedOutgoingVisits(outgoingStorage)
 let friendsRequest = 0, sending = false, noteTimer
-let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = false
+let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = true
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
 let evolving = false, evolveRetryAt = 0, levelingUp = false, hitKey = ''
@@ -719,9 +720,10 @@ await listen('daemon', ({ payload }) => {
   }
 })
 const initial = await invoke('desktop_state')
-screen = initial.hero?.screen ?? 'main'
-setStayStill(initial.hero?.still === true)
-setPaused(initial.hero?.show === false)
+const initialHero = heroSettings(initial.hero)
+screen = initialHero.screen
+setStayStill(initialHero.still)
+setPaused(!initialHero.show)
 const snapshot = initial.daemon?.snapshot
 if (snapshot) {
   localTokens = snapshot.localTokens ?? 0
@@ -733,10 +735,11 @@ if (firstHero) void setHero(firstHero)
 // A cached snapshot may predate the visit. Refresh it instead of waiting for the idle minute.
 if (initial.daemon?.connected) void invoke('daemon_request', { method: 'sync_now', params: {} }).catch(() => {})
 await listen('hero-settings', ({ payload }) => {
-  setStayStill(payload?.still === true)
-  const nextScreen = payload?.screen ?? 'main'
+  const next = heroSettings(payload)
+  setStayStill(next.still)
+  const nextScreen = next.screen
   if (screen !== nextScreen) { screen = nextScreen; workArea = undefined; lastPlaced = undefined; void invoke('hero_geometry', { screen }).then(value => { workArea = value.work_area; wake() }) }
-  setPaused(payload?.show === false)
+  setPaused(!next.show)
   if (paused) { if (timer) clearTimeout(timer); timer = undefined; void nativeWindow.hide(); visible = false }
   else { hidden = false; wake() }
 })

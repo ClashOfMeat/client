@@ -11,8 +11,14 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 pub struct HeroSettings {
     pub show: bool,
     pub screen: String,
-    #[serde(default)]
+    /// The hero stands still unless the user chose to let it walk. A settings file written before
+    /// this field existed has no `still`, and it also means still.
+    #[serde(default = "still_by_default")]
     pub still: bool,
+}
+
+fn still_by_default() -> bool {
+    true
 }
 
 impl Default for HeroSettings {
@@ -20,7 +26,7 @@ impl Default for HeroSettings {
         Self {
             show: true,
             screen: "main".into(),
-            still: false,
+            still: still_by_default(),
         }
     }
 }
@@ -222,7 +228,17 @@ fn displays(app: &tauri::AppHandle) -> Vec<Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::openable;
+    use super::{openable, HeroSettings};
+
+    #[test]
+    fn hero_stands_still_unless_walking_was_chosen() {
+        assert!(HeroSettings::default().still);
+        let old: HeroSettings = serde_json::from_str(r#"{"show":true,"screen":"main"}"#).unwrap();
+        assert!(old.still);
+        let walking: HeroSettings =
+            serde_json::from_str(r#"{"show":true,"screen":"main","still":false}"#).unwrap();
+        assert!(!walking.still);
+    }
 
     #[test]
     fn only_https_or_this_machine_opens() {
