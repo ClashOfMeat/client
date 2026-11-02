@@ -650,6 +650,11 @@ document.getElementById('settings').addEventListener('click', async () => {
   wake()
   await emit('overlay-control', { action: 'settings' })
 })
+document.getElementById('feedback').addEventListener('click', async () => {
+  menuOpen = false
+  wake()
+  await emit('overlay-control', { action: 'feedback' })
+})
 document.getElementById('quit').addEventListener('click', async () => {
   hidden = true
   menuOpen = false

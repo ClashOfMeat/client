@@ -43,6 +43,14 @@
       <h2>Hero</h2>
       <div class="hero-settings"><input id="show-hero" type="checkbox"><label for="show-hero">Show hero</label><input id="stay-still" type="checkbox"><label for="stay-still">Stop walking</label><label for="screen">Screen</label><select id="screen"><option value="main">Main screen</option><option value="cursor">Follow cursor</option></select></div>
     </section>
+    <section id="feedback-section" hidden>
+      <h2>Feedback</h2>
+      <form id="feedback-form" class="feedback-form">
+        <label for="feedback-message" class="muted">What should we fix, keep or add?</label>
+        <textarea id="feedback-message" rows="4" maxlength="2000" required></textarea>
+        <div class="feedback-actions"><button type="submit" id="feedback-send">Send</button><span id="feedback-status" class="muted" role="status"></span></div>
+      </form>
+    </section>
     <section class="about"><h2>About</h2><span id="about-line"></span><button id="about-action" hidden></button></section>
     <p id="error" class="error" role="alert" hidden></p>
   </main>

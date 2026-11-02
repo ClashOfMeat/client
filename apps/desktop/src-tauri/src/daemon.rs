@@ -309,7 +309,7 @@ pub fn send_with_params(method: &str, params: Value) -> Result<Value, String> {
         .set_read_timeout(Some(Duration::from_secs(
             if matches!(
                 method,
-                "pair_start" | "evolve" | "level_up" | "friends" | "send_visit"
+                "pair_start" | "evolve" | "level_up" | "friends" | "send_visit" | "send_feedback"
             ) {
                 30
             } else {
