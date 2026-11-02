@@ -167,13 +167,19 @@ impl Client {
         })
     }
 
-    pub fn pair_exchange(&self, pairing: &Pairing) -> Result<Option<Linked>, ApiError> {
-        let response = match self.post(
-            "/api/pairings/exchange",
-            &json!({
-                "id": pairing.id, "exchangeSecret": pairing.exchange_secret, "client": "collector"
-            }),
-        ) {
+    /// Polls for the player's approval, or, with the link page's `grant`, claims it at once.
+    pub fn pair_exchange(
+        &self,
+        pairing: &Pairing,
+        grant: Option<&str>,
+    ) -> Result<Option<Linked>, ApiError> {
+        let mut body = json!({
+            "id": pairing.id, "exchangeSecret": pairing.exchange_secret, "client": "collector"
+        });
+        if let Some(grant) = grant {
+            body["grant"] = json!(grant);
+        }
+        let response = match self.post("/api/pairings/exchange", &body) {
             Ok(response) => response,
             Err(ApiError::Status { status: 404, .. }) => return Ok(None),
             Err(error) => return Err(error),
@@ -685,6 +691,12 @@ fn device_platform() -> Value {
 impl Pairing {
     pub fn link(&self, origin: &str) -> String {
         format!("{origin}/link?code={}", self.code)
+    }
+
+    /// The link page for a browser on this computer: it sends its approval to `port` (see
+    /// `loopback`), so the player types nothing.
+    pub fn loopback_link(&self, origin: &str, port: u16) -> String {
+        format!("{origin}/link?p={}&port={port}", self.id)
     }
 }
 

@@ -271,3 +271,45 @@ fn uninstall_removes_only_its_app_symlink_and_data() {
     assert!(!bin.join("clashofmeat").exists());
     assert!(!fixture.home().join(".clashofmeat/desktop").exists());
 }
+
+#[test]
+fn install_points_to_connect_when_the_daemon_is_not_running() {
+    let home = tempfile::tempdir().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_clashofmeat"))
+        .args([
+            "install",
+            "--app",
+            "https://example.com",
+            "--no-launch-agent",
+        ])
+        .env("HOME", home.path())
+        .env("CLASHOFMEAT_NO_OPEN", "1")
+        .output()
+        .unwrap();
+    assert_success(&output);
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Run `clashofmeat connect`"));
+}
+
+#[test]
+fn uninstall_run_through_the_command_link_removes_the_app() {
+    let fixture = Fixture::new();
+    let home = fixture.home();
+    let app = home.join("Applications/Clash of Meat.app");
+    let exe = app.join("Contents/MacOS/clashofmeat");
+    fs::create_dir_all(exe.parent().unwrap()).unwrap();
+    fs::copy(env!("CARGO_BIN_EXE_clashofmeat"), &exe).unwrap();
+    let link = home.join(".local/bin/clashofmeat");
+    fs::create_dir_all(link.parent().unwrap()).unwrap();
+    symlink(&exe, &link).unwrap();
+    // The way the installer's PATH entry runs it: this executable's own path is the link
+    // that uninstall removes.
+    let output = Command::new(&link)
+        .arg("uninstall")
+        .env("HOME", home)
+        .env("CLASHOFMEAT_LAUNCHCTL", &fixture.launchctl)
+        .env("CLASHOFMEAT_LAUNCHCTL_LOG", &fixture.log)
+        .output()
+        .unwrap();
+    assert_success(&output);
+    assert!(!link.exists() && !app.exists());
+}

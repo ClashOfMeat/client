@@ -125,6 +125,8 @@ fn wait_for_daemon(env: &Env, log_dir: &Path) {
 }
 
 fn remove_mac_install(env: &Env) -> Result<()> {
+    // Before the link goes: run as `clashofmeat`, this executable's path is that link.
+    let running = running_app_path()?;
     let path = launch_agent_path(env);
     let target = format!("gui/{}/{}", uid()?, LABEL);
     if path.exists() {
@@ -141,7 +143,7 @@ fn remove_mac_install(env: &Env) -> Result<()> {
         }
     }
     let installed_app = env.home.join("Applications/Clash of Meat.app");
-    if running_app_path()?.as_deref() == Some(installed_app.as_path()) {
+    if running.is_some() && running == installed_app.canonicalize().ok() {
         fs::remove_dir_all(&installed_app)?;
         println!("Removed {}.", installed_app.display());
     } else if installed_app.exists() {

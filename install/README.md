@@ -32,7 +32,7 @@ For version `x.y.z`, the installer reads `${CLASHOFMEAT_RELEASES_URL:-https://gi
 }
 ```
 
-On macOS, `install.sh` reads only the two macOS entries (Linux uses each archive's `.sha256`, see below). `scripts/update-manifest.sh` writes this file during a release. Each tarball contains `Clash of Meat.app`. The installer checks the requested version, download size, SHA-256 and, when `minisign` is installed, the release signature before installing to `${CLASHOFMEAT_APPS_DIR:-$HOME/Applications}` and linking the CLI in `${CLASHOFMEAT_BIN_DIR:-$HOME/.local/bin}`. It then runs the app's `clashofmeat install` command.
+On macOS, `install.sh` reads only the two macOS entries (Linux uses each archive's `.sha256`, see below). `scripts/update-manifest.sh` writes this file during a release. Each tarball contains `Clash of Meat.app`. The installer checks the requested version, download size, SHA-256 and, when `minisign` is installed, the release signature before installing to `${CLASHOFMEAT_APPS_DIR:-$HOME/Applications}` and linking the CLI in `${CLASHOFMEAT_BIN_DIR:-$HOME/.local/bin}`. It then runs the app's `clashofmeat install` command, which sets up the background service and, when the computer isn't linked yet, waits for Enter, opens the app's link page and waits until the browser approves the computer (the daemon listens on `127.0.0.1` for that approval; from another device, the player types the code the terminal shows). Enter is read from `/dev/tty`, since stdin is the download under `curl | sh`; `--no-connect` skips linking, and `CLASHOFMEAT_NO_OPEN=1` keeps the browser closed. If the background service isn't reachable, the installer says to run `clashofmeat connect` later.
 
 ## What the installer checks
 

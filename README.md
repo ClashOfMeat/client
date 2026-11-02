@@ -25,14 +25,16 @@ It counts supported activity on your machine and sends content-free counts to yo
 Sign in to the Clash of Meat web app and open its setup page.
 
 - **Mac:** copy the install command from the setup page and run it in Terminal. It installs the app in
-  `~/Applications`, the `clashofmeat` command in `~/.local/bin`, and links the app to your account.
+  `~/Applications` and the `clashofmeat` command in `~/.local/bin`, then asks you to press
+  Enter: your browser opens, you sign in if needed, and the terminal confirms once the computer is linked to your
+  account. Nothing to type; from a browser on another device, type the code the terminal shows on the link page. Pass `--no-connect` to skip this step and link later with `clashofmeat connect`.
 - **Windows:** download the setup `.exe` from the setup page and run it. It installs for your user only.
 - **Linux:** run the same install command in a terminal. It installs the `clashofmeat` command in
   `~/.local/share/clashofmeat/bin` (linked from `~/.local/bin`), starts it as a systemd user service with a daily
   update check (`clashofmeat update`), and links it to your account. Without a systemd user session (some containers
   and WSL setups) it runs until you log out; start `clashofmeat daemon` from your startup scripts instead. Over SSH,
-  `loginctl enable-linger` keeps it running after you log out. On a server, approve the printed link on your phone or
-  laptop, or type the code at `<app>/link`; closing the terminal does not cancel it.
+  `loginctl enable-linger` keeps it running after you log out. On a server there is no Enter step: open
+  `<app>/link` on your phone or laptop and type the code the terminal shows; closing the terminal does not cancel it.
 
 To remove the client on a Mac or Linux, run `clashofmeat uninstall`. On Windows, uninstall it from Settings > Apps.
 
