@@ -28,16 +28,8 @@ test('the crest shows the leaderboard rank, never a score', () => {
   for (const rank of [0, -1, 1.5, NaN, undefined, null, '3']) assert.equal(flexLabel(rank), null)
 })
 
-test('hero moves during both middle poses and holds the final pose still for three seconds', () => {
+test('hero keeps a fixed draw size throughout all four Flex poses', () => {
   const normal = { dx: 0, dy: 0, width: 128, height: 128 }
-  assert.deepEqual(flexMotion(299), normal)
-  const moving = flexMotion(300)
-  assert.equal(moving.dy + moving.height, 128)
-  assert(moving.width > 128)
-  assert.deepEqual(flexMotion(424), moving)
-  assert.deepEqual(flexMotion(425), moving)
-  assert.deepEqual(flexMotion(549), moving)
-  assert.deepEqual(flexMotion(550), normal)
-  assert.deepEqual(flexMotion(3549), normal)
-  assert.deepEqual(flexMotion(FLEX_DURATION), { dx: 0, dy: 0, width: 128, height: 128 })
+  for (const elapsed of [0, 299, 300, 424, 425, 549, 550, 3549, FLEX_DURATION])
+    assert.deepEqual(flexMotion(elapsed), normal, `Flex draw at ${elapsed} ms`)
 })
