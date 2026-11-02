@@ -10,4 +10,5 @@ asset because its motion is authored into every hero's animation frames.
 
 `pixel-arrow.svg` and `pixel-chevron.svg` copy the web app's pixel back arrow
 (`PixelBackIcon`, mirrored for forward buttons) and its select chevron, at the
-app's colours.
+app's colours. `pixel-globe.svg` is drawn on the same 24px grid and palette for
+the buttons that open the web app.
