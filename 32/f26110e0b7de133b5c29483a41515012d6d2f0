@@ -1,0 +1,47 @@
+README.md
+  s_b411d5c2b0d367::t_98c9036e79112e 28-30,36-37
+apps/desktop/ui/settings.mjs
+  s_b411d5c2b0d367::t_229632d353a02e 158-159
+crates/cli/Cargo.toml
+  s_b411d5c2b0d367::t_19e8e10e07c8f7 29-31
+crates/cli/src/connect.rs
+  s_b411d5c2b0d367::t_df7e4efa6cd377 1-324
+crates/cli/src/install.rs
+  s_b411d5c2b0d367::t_3f47af5532a0f7 128-129,146
+crates/cli/src/main.rs
+  s_b411d5c2b0d367::t_3db0665ea54b6e 2,7,10,15,112,123
+crates/cli/src/term.rs
+  s_b411d5c2b0d367::t_fa1a3f0c85fdea 1-57
+crates/cli/tests/e2e.rs
+  s_b411d5c2b0d367::t_f2c70877df3b39 191-197
+crates/cli/tests/install.rs
+  s_b411d5c2b0d367::t_0e7d672fa1bf1e 274-315
+crates/daemon/src/lib.rs
+  s_b411d5c2b0d367::t_7bbd8b21bf8ee7 7
+crates/daemon/src/loopback.rs
+  s_b411d5c2b0d367::t_c6157d11922c38 1-155
+crates/daemon/src/run.rs
+  s_b411d5c2b0d367::t_6c66861f0fb7c5 22,129-134,190-191,998,1018-1019,1086-1110,1121-1152,1155-1157,1168,1170-1171,1272-1292
+crates/daemon/src/sync.rs
+  s_b411d5c2b0d367::t_dd9f0c2efaa61d 170-182,695-700
+crates/daemon/tests/sync.rs
+  s_b411d5c2b0d367::t_f4bf82eb558dfc 401-406,435-438,453
+install/README.md
+  s_b411d5c2b0d367::t_6a0fcc5b4fc389 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32f26110e0b7de133b5c29483a41515012d6d2f0",
+  "prompts": {},
+  "sessions": {
+    "s_b411d5c2b0d367": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "794ebb35-518c-4194-a663-14001c0b7430",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
