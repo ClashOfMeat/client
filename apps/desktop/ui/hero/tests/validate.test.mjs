@@ -45,6 +45,23 @@ test('PNG and animation validation retain sprite limits and mirrored frames', ()
   assert.equal(validateAnimation({ ...production, frames: Array(32).fill(detailed.repeat(2)) }), null)
 })
 
+test('authored Flex frames after a twelve-frame walk reach heroes and visits', () => {
+  const frames = Array(31).fill(png)
+  const authored = { ...animation, frames,
+    mirroredFrames: Object.fromEntries(frames.map((png, index) => [index, png])),
+    clips: { ...animation.clips,
+      walk: { frames: Array.from({ length: 12 }, (_, i) => 16 + i), durations: Array(12).fill(100) },
+      flex: { frames: [0, 28, 29, 30], durations: [300, 125, 125, 3000] } } }
+  const character = { id: uuid, png, animation: authored }
+  assert.deepEqual(validateCharacter(character).animation.clips.flex, authored.clips.flex)
+  const now = Date.parse('2026-11-02T12:00:00Z')
+  assert(validateVisit({ id: uuid, name: 'Squire', guild: null, emote: 'flex',
+    expiresAt: new Date(now + 60000).toISOString(), character }, now))
+  assert.equal(validateAnimation({ ...authored, frames: frames.slice(0, 30) }), null)
+  assert.equal(validateAnimation({ ...authored, clips: { ...authored.clips,
+    flex: { frames: [31], durations: [100] } } }), null)
+})
+
 test('character accepts uncapped level and XP and preserves shape checks', () => {
   const character = { id: uuid, png, animation, level: 30, xp: 2_000_000, nextLevelAt: 3_000_000, canLevelUp: true, heroId: 'hero_30' }
   assert.equal(validateCharacter(character).xp, 2_000_000)

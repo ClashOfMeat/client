@@ -16,7 +16,7 @@ export function validPng(png, limit = 64 * 1024) {
 }
 
 export function validateAnimation(value) {
-  if (!value || value.version !== 1 || !Array.isArray(value.frames) || ![20, 24, 28, 32].includes(value.frames.length) ||
+  if (!value || value.version !== 1 || !Array.isArray(value.frames) || ![20, 24, 28, 31, 32].includes(value.frames.length) ||
       value.frames.some(png => !validPng(png)) || value.frames.reduce((n, png) => n + png.length, 0) > 1024 * 1024 || !value.clips) return null
   const clips = {}
   for (const state of COMPANION_STATES) {
