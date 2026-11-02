@@ -1,0 +1,21 @@
+apps/desktop/ui/hero/tests/flex.test.mjs
+  s_4974f21a2d9593::t_fd0ecfd4c7e9ff 31,33-34
+apps/desktop/ui/hero/flex.mjs
+  s_4974f21a2d9593::t_718f2fb164529d 29-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5a4451308cd789b3d82109426ba4d77392b17bf8",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
