@@ -59,6 +59,16 @@ pub fn device_name() -> String {
             }
         }
     }
+    // The kernel's hostname, without running anything (some distributions ship no /bin/hostname).
+    #[cfg(target_os = "linux")]
+    for path in ["/proc/sys/kernel/hostname", "/etc/hostname"] {
+        if let Ok(name) = std::fs::read_to_string(path) {
+            let name = name.trim();
+            if !name.is_empty() {
+                return name.to_string();
+            }
+        }
+    }
     // Absolute on Unix, so a `hostname` earlier on PATH (the LaunchAgent's starts with Homebrew's
     // user-writable bin) is never run instead.
     Command::new(if cfg!(windows) {
@@ -71,7 +81,16 @@ pub fn device_name() -> String {
     .filter(|output| output.status.success())
     .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
     .filter(|name| !name.is_empty())
-    .unwrap_or_else(|| if cfg!(windows) { "PC" } else { "Mac" }.into())
+    .unwrap_or_else(|| {
+        if cfg!(windows) {
+            "PC"
+        } else if cfg!(target_os = "linux") {
+            "Linux"
+        } else {
+            "Mac"
+        }
+        .into()
+    })
 }
 
 /// Returns identifiers of detected built-in providers.

@@ -1,4 +1,4 @@
-# macOS desktop installer
+# Installer (macOS and Linux)
 
 The web app serves `install.sh` after replacing its single `__CLASHOFMEAT_APP_URL__` and `__CLASHOFMEAT_VERSION__` placeholders with its own URL and the stable `x.y.z` release. A release copy can also be run with `sh install/install.sh --app https://example.com --version 1.2.3`; `CLASHOFMEAT_APP_URL` supplies the app URL when `--app` is absent. Remaining arguments go to `clashofmeat install`.
 
@@ -18,8 +18,13 @@ For version `x.y.z`, the installer reads `${CLASHOFMEAT_RELEASES_URL:-https://gi
       "sha256": "<64 lowercase hex digits>",
       "size": 12345
     },
-    "x86_64-pc-windows-msvc": {
-      "file": "Clash.of.Meat_x.y.z_x64-setup.exe",
+    "x86_64-unknown-linux-musl": {
+      "file": "clashofmeat_x.y.z_linux-x86_64.tar.gz",
+      "sha256": "<64 lowercase hex digits>",
+      "size": 12345
+    },
+    "aarch64-unknown-linux-musl": {
+      "file": "clashofmeat_x.y.z_linux-aarch64.tar.gz",
       "sha256": "<64 lowercase hex digits>",
       "size": 12345
     }
@@ -27,7 +32,7 @@ For version `x.y.z`, the installer reads `${CLASHOFMEAT_RELEASES_URL:-https://gi
 }
 ```
 
-`install.sh` only reads the two macOS entries; Windows users download the `-setup.exe` directly (see [docs/building.md](../docs/building.md)). `scripts/update-manifest.sh` writes this file during a release. Each tarball contains `Clash of Meat.app`. The installer checks the requested version, download size, SHA-256 and, when `minisign` is installed, the release signature before installing to `${CLASHOFMEAT_APPS_DIR:-$HOME/Applications}` and linking the CLI in `${CLASHOFMEAT_BIN_DIR:-$HOME/.local/bin}`. It then runs the app's `clashofmeat install` command.
+On macOS, `install.sh` reads only the two macOS entries (Linux uses each archive's `.sha256`, see below). `scripts/update-manifest.sh` writes this file during a release. Each tarball contains `Clash of Meat.app`. The installer checks the requested version, download size, SHA-256 and, when `minisign` is installed, the release signature before installing to `${CLASHOFMEAT_APPS_DIR:-$HOME/Applications}` and linking the CLI in `${CLASHOFMEAT_BIN_DIR:-$HOME/.local/bin}`. It then runs the app's `clashofmeat install` command.
 
 ## What the installer checks
 
@@ -53,3 +58,14 @@ Run the local release-server test and shell syntax check with:
 node --test 'install/tests/*.test.mjs'
 sh -n install/install.sh
 ```
+
+## Linux
+
+On Linux (`uname -s` is `Linux`) the installer takes the `install_linux` branch. It does not read `manifest.json`
+(macOS's `plutil` is not there): it downloads `clashofmeat_<version>_linux-<x86_64|aarch64>.tar.gz` and its `.sha256`,
+checks that the checksum file names that archive and matches it (`sha256sum`, or `shasum`), checks the `.sig` with
+`minisign` when it is installed, then installs the `clashofmeat` binary in
+`${XDG_DATA_HOME:-~/.local/share}/clashofmeat/bin` (where `clashofmeat update` expects it), links it from
+`${CLASHOFMEAT_BIN_DIR:-$HOME/.local/bin}` and runs `clashofmeat install`, which sets up the systemd user service
+(see [docs/building.md](../docs/building.md), section 7). `CLASHOFMEAT_TEST_UNAME=Linux` runs this branch on any Unix
+for the installer tests.

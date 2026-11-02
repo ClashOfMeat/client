@@ -408,7 +408,17 @@ fn pairing_polls_and_uses_exact_exchange_shape() {
     let requests = server.finish();
     assert_eq!(
         requests[0].body,
-        json!({"device": "Paul's Mac", "tools": ["codex"]})
+        json!({
+            "device": {
+                "name": "Paul's Mac",
+                "platform": match std::env::consts::OS {
+                    "macos" => "darwin",
+                    "linux" => "linux",
+                    _ => "win32",
+                },
+            },
+            "tools": ["codex"],
+        })
     );
     for request in &requests {
         assert_eq!(request.headers["x-clashofmeat-client"], "desktop/0.1.0");

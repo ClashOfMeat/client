@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build one desktop installer (macOS .app.tar.gz or Windows NSIS -setup.exe), its .sha256 and, when a
-# signing key is set, its updater .sig. See docs/building.md.
+# Build one installer (macOS .app.tar.gz, Windows NSIS -setup.exe or the Linux CLI .tar.gz), its .sha256 and,
+# when a signing key is set, its updater .sig. See docs/building.md.
 set -euo pipefail
 
 die() { echo "package: $*" >&2; exit 1; }
@@ -14,6 +14,8 @@ case "$target" in
   aarch64-apple-darwin) os=macos; arch=aarch64 ;;
   x86_64-apple-darwin) os=macos; arch=x86_64 ;;
   x86_64-pc-windows-msvc) os=windows; arch=x64 ;;
+  x86_64-unknown-linux-musl) os=linux; arch=x86_64 ;;
+  aarch64-unknown-linux-musl) os=linux; arch=aarch64 ;;
   *) die "unsupported target: $target" ;;
 esac
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -65,7 +67,26 @@ elif [[ -n ${TAURI_SIGNING_PRIVATE_KEY_PATH:-} ]]; then
   sign=true
 fi
 
-if [[ $os == windows ]]; then
+if [[ $os == linux ]]; then
+  # Linux gets the CLI alone (daemon, systemd service, self-update), statically linked against musl so one
+  # build runs on any distribution. cargo-zigbuild cross-compiles it, C code included (bundled SQLite).
+  command -v cargo-zigbuild >/dev/null || die "cargo-zigbuild is missing: brew install zig && cargo install --locked cargo-zigbuild"
+  cargo zigbuild --release -p clashofmeat-cli --target "$target"
+  binary="${CARGO_TARGET_DIR:-$root/target}/$target/release/clashofmeat"
+  [[ -x $binary ]] || die "missing Linux CLI: $binary"
+  name="clashofmeat_${version}_linux-${arch}.tar.gz"
+  # One file, clashofmeat, at the archive root (crates/cli/src/update.rs and install/install.sh read it there),
+  # with fixed owner and time and no macOS metadata.
+  python3 - "$binary" "$out/$name" <<'PY'
+import sys, tarfile
+binary, archive = sys.argv[1:]
+with tarfile.open(archive, "w:gz", format=tarfile.USTAR_FORMAT) as tar:
+    info = tar.gettarinfo(binary, arcname="clashofmeat")
+    info.mode, info.uid, info.gid, info.uname, info.gname, info.mtime = 0o755, 0, 0, "", "", 0
+    with open(binary, "rb") as data:
+        tar.addfile(info, data)
+PY
+elif [[ $os == windows ]]; then
   command -v cargo-xwin >/dev/null || die "cargo-xwin is missing: cargo install --locked cargo-xwin"
   command -v makensis >/dev/null || die "makensis is missing: brew install nsis"
   # Homebrew keeps llvm (clang-cl, llvm-lib) and lld (lld-link) keg-only, so put both on PATH here.
@@ -86,37 +107,39 @@ else
   sidecar_src="$root/target/$target/release/clashofmeat"
   sidecar_name="clashofmeat-$target"
 fi
-sidecar_dir="$root/apps/desktop/src-tauri/binaries"
-mkdir -p "$sidecar_dir"
-cp "$sidecar_src" "$sidecar_dir/$sidecar_name"
-chmod 755 "$sidecar_dir/$sidecar_name"
+if [[ $os != linux ]]; then
+  sidecar_dir="$root/apps/desktop/src-tauri/binaries"
+  mkdir -p "$sidecar_dir"
+  cp "$sidecar_src" "$sidecar_dir/$sidecar_name"
+  chmod 755 "$sidecar_dir/$sidecar_name"
 
-# Keep signing keys out of Tauri's build; the finished artifact is signed below.
-(
-  unset TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PATH TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
-    TAURI_PRIVATE_KEY TAURI_PRIVATE_KEY_PATH TAURI_PRIVATE_KEY_PASSWORD
-  cd "$root/apps/desktop/src-tauri"
-  config=(--config "{\"version\":\"$version\"}")
-  if [[ -n $tauri_config ]]; then config+=(--config "$tauri_config"); fi
+  # Keep signing keys out of Tauri's build; the finished artifact is signed below.
+  (
+    unset TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PATH TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
+      TAURI_PRIVATE_KEY TAURI_PRIVATE_KEY_PATH TAURI_PRIVATE_KEY_PASSWORD
+    cd "$root/apps/desktop/src-tauri"
+    config=(--config "{\"version\":\"$version\"}")
+    if [[ -n $tauri_config ]]; then config+=(--config "$tauri_config"); fi
+    if [[ $os == windows ]]; then
+      cargo tauri build --runner cargo-xwin --target "$target" --bundles nsis "${config[@]}"
+    else
+      cargo tauri build --bundles app --target "$target" "${config[@]}"
+    fi
+  )
+
+  bundle="$root/apps/desktop/src-tauri/target/$target/release/bundle"
   if [[ $os == windows ]]; then
-    cargo tauri build --runner cargo-xwin --target "$target" --bundles nsis "${config[@]}"
+    setup="$bundle/nsis/Clash of Meat_${version}_${arch}-setup.exe"
+    [[ -s $setup ]] || die "missing NSIS installer: $setup"
+    name="Clash.of.Meat_${version}_${arch}-setup.exe"
+    cp "$setup" "$out/$name"
   else
-    cargo tauri build --bundles app --target "$target" "${config[@]}"
+    app="$bundle/macos/Clash of Meat.app"
+    [[ -x "$app/Contents/MacOS/clashofmeat" ]] || die "bundle lacks executable Contents/MacOS/clashofmeat: $app"
+    codesign --force --deep --sign - "$app"
+    name="Clash.of.Meat_${version}_${arch}.app.tar.gz"
+    COPYFILE_DISABLE=1 tar -czf "$out/$name" -C "$(dirname "$app")" "$(basename "$app")"
   fi
-)
-
-bundle="$root/apps/desktop/src-tauri/target/$target/release/bundle"
-if [[ $os == windows ]]; then
-  setup="$bundle/nsis/Clash of Meat_${version}_${arch}-setup.exe"
-  [[ -s $setup ]] || die "missing NSIS installer: $setup"
-  name="Clash.of.Meat_${version}_${arch}-setup.exe"
-  cp "$setup" "$out/$name"
-else
-  app="$bundle/macos/Clash of Meat.app"
-  [[ -x "$app/Contents/MacOS/clashofmeat" ]] || die "bundle lacks executable Contents/MacOS/clashofmeat: $app"
-  codesign --force --deep --sign - "$app"
-  name="Clash.of.Meat_${version}_${arch}.app.tar.gz"
-  COPYFILE_DISABLE=1 tar -czf "$out/$name" -C "$(dirname "$app")" "$(basename "$app")"
 fi
 hash=$(shasum -a 256 "$out/$name" | cut -d ' ' -f 1)
 printf '%s  %s\n' "$hash" "$name" >"$out/$name.sha256"

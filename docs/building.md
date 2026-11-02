@@ -1,15 +1,19 @@
 # Building and releasing Clash of Meat
 
 Releases run from GitHub Actions (section 6) with the scripts in `scripts/`; the same scripts also run by hand on a Mac.
-One Mac builds all three installers:
+One Mac builds every artifact:
 
 | Target | Installer | Who uses it |
 |---|---|---|
 | `aarch64-apple-darwin` | `Clash.of.Meat_<v>_aarch64.app.tar.gz` | Apple Silicon Macs |
 | `x86_64-apple-darwin` | `Clash.of.Meat_<v>_x86_64.app.tar.gz` | Intel Macs |
 | `x86_64-pc-windows-msvc` | `Clash.of.Meat_<v>_x64-setup.exe` (NSIS) | Windows x64 (ARM64 PCs run it under emulation) |
+| `x86_64-unknown-linux-musl` | `clashofmeat_<v>_linux-x86_64.tar.gz` (the CLI alone) | Linux x86_64 |
+| `aarch64-unknown-linux-musl` | `clashofmeat_<v>_linux-aarch64.tar.gz` (the CLI alone) | Linux arm64 |
 
-The Windows installer is cross-compiled on the Mac with `cargo-xwin`.
+The Windows installer is cross-compiled on the Mac with `cargo-xwin`, the Linux CLI with `cargo-zigbuild`. Linux gets
+no desktop app: the archive holds one static `clashofmeat` binary, which runs the daemon as a systemd user service and
+updates itself (`clashofmeat update`, section 7).
 
 The GitHub repo `ClashOfMeat/client` is public, so release downloads need no token.
 
@@ -18,7 +22,8 @@ The GitHub repo `ClashOfMeat/client` is public, so release downloads need no tok
 1. **Rust** (rustup) with the three targets:
 
    ```sh
-   rustup target add aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc
+   rustup target add aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc \
+     x86_64-unknown-linux-musl aarch64-unknown-linux-musl
    rustup component add clippy
    ```
 
@@ -53,9 +58,16 @@ The GitHub repo `ClashOfMeat/client` is public, so release downloads need no tok
    On first use, cargo-xwin downloads the Microsoft CRT and Windows SDK into its cache. By using it you accept
    Microsoft's license for those files.
 
-6. **Node.js** (any current LTS) for the UI and installer tests.
+6. **Zig and cargo-zigbuild** for the Linux builds:
 
-7. **GitHub CLI**, logged in with access to `ClashOfMeat/client`:
+   ```sh
+   brew install zig
+   cargo install --locked cargo-zigbuild
+   ```
+
+7. **Node.js** (any current LTS) for the UI and installer tests.
+
+8. **GitHub CLI**, logged in with access to `ClashOfMeat/client`:
 
    ```sh
    brew install gh
@@ -124,7 +136,11 @@ Examples:
 scripts/package.sh 0.1.0 aarch64-apple-darwin
 scripts/package.sh 0.1.0 x86_64-apple-darwin
 scripts/package.sh 0.1.0 x86_64-pc-windows-msvc --app https://clashofmeat.example
+scripts/package.sh 0.1.0 x86_64-unknown-linux-musl --app https://clashofmeat.example
 ```
+
+For the two Linux targets it only builds the CLI (`cargo zigbuild`) and packs it as `clashofmeat` at the root of
+`clashofmeat_<v>_linux-<arch>.tar.gz`; steps 1 to 3 below are skipped. Steps 4 and 5 are the same.
 
 What it does:
 
@@ -231,10 +247,7 @@ scripts/release.sh <version> --app https://<web app URL> [--min-version x.y.z] [
 - `--min-version` is optional. Use it only when older installed apps must update before they keep running.
 - `--security` marks the update as a security update in `update.json`.
 - `--mac-only` packages only `aarch64-apple-darwin` and `x86_64-apple-darwin`. `manifest.json` and `update.json`
-  then list only the two Mac entries, and the GitHub release has no Windows installer. Windows apps ask the web
-  app's `/api/clients/desktop/update`, which answers 204 (no update) when the release has no `windows-x86_64` entry.
-  A Windows app reading this `update.json` directly would instead fail its check (Tauri's "target not found") and
-  retry. Without the flag, all three targets are built.
+  then list only the two Mac entries, and the release has no Linux archives. Without it, all four targets are built.
 - `--dry-run` does everything except creating the GitHub release. Problems that would stop a real release (dirty
   tree, placeholder public key, missing signing key, gh not logged in) are reported and skipped instead.
 - `--out` changes the output directory (default `dist/<version>/`).
@@ -245,14 +258,15 @@ Release from a clean, pushed commit. The script:
    `desktop-v<version>` does not exist locally or on GitHub (tags are never reused), no release with that tag exists,
    and `HEAD` is on GitHub.
 2. Runs `scripts/check.sh`.
-3. Runs `scripts/package.sh` for `aarch64-apple-darwin`, `x86_64-apple-darwin` and `x86_64-pc-windows-msvc`, which
-   builds and signs each installer.
+3. Runs `scripts/package.sh` for `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-musl` and
+   `aarch64-unknown-linux-musl`, which builds and signs each artifact.
 4. Runs `scripts/update-manifest.sh` to check every checksum and signature and write:
    - `manifest.json`: file, sha256 and size per target. `install.sh` reads it.
-   - `update.json`: Tauri v2 updater static JSON with `darwin-aarch64`, `darwin-x86_64` and `windows-x86_64`
-     entries (URL and signature), plus `security` and the optional `min_version`.
+   - `update.json`: Tauri v2 updater static JSON with `darwin-aarch64` and `darwin-x86_64`
+     entries (URL and signature), plus `security` and the optional `min_version`. Its `linux-x86_64` and
+     `linux-aarch64` entries are the CLI archives, read by `clashofmeat update`; the Tauri app ignores them.
 5. Creates the GitHub release `desktop-v<version>` on `ClashOfMeat/client` at `HEAD` with the two Mac
-   archives, their `.sha256` and `.sig`, the Windows `-setup.exe` with its `.sha256` and `.sig`, and `install.sh`.
+   archives, their `.sha256` and `.sig`, the two Linux archives with theirs, and `install.sh`.
    Then it uploads `manifest.json` and `update.json` last, so nobody reads a manifest whose files are not there yet.
 
 Try a dry run first:
@@ -303,3 +317,26 @@ Windows has no LaunchAgent. The app starts the daemon itself, hidden, and regist
 The installer hooks are in `apps/desktop/src-tauri/windows/hooks.nsh`. Before an install or update they stop the
 running `clashofmeat.exe`, because the daemon holds the file open. On uninstall they run `clashofmeat.exe uninstall`
 and remove the sign-in entry.
+
+## 7. Linux
+
+Linux has no desktop app yet. `install.sh` (its `install_linux` branch) downloads `clashofmeat_<v>_linux-<arch>.tar.gz`,
+checks it against its `.sha256` (and its `.sig` when `minisign` is installed), puts the CLI in
+`${XDG_DATA_HOME:-~/.local/share}/clashofmeat/bin/clashofmeat`, links it from `~/.local/bin`, and runs
+`clashofmeat install`, which writes three systemd user units in `~/.config/systemd/user` (`crates/cli/src/linux.rs`):
+
+- `clashofmeat.service` runs `clashofmeat daemon` with `Restart=always`, logs to `~/.clashofmeat/logs/daemon.log`,
+  and keeps `PATH`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `GEMINI_CLI_HOME` as they were at install.
+- `clashofmeat-update.timer` runs `clashofmeat-update.service`, that is `clashofmeat update --quiet`, once a day.
+
+Without a systemd user session, `clashofmeat install` starts the daemon in its own session for now and says so.
+
+`clashofmeat update` (`crates/cli/src/update.rs`) asks the web app's `/api/clients/desktop/update?target=linux`, the
+same endpoint and channels as the desktop updater, takes the `linux-<arch>` entry of `update.json`, downloads it over
+https, checks its minisign signature against the updater key and that the signature's trusted comment names that file
+and version, then runs the new binary's `--version` before renaming it over the old one and restarting the service. It
+only replaces a CLI that `install.sh` put in place. Debug builds accept `CLASHOFMEAT_UPDATE_PUBKEY` and
+`http://127.0.0.1` downloads for the tests in `crates/cli/tests/linux.rs`; release builds never do.
+
+`clashofmeat uninstall` stops and removes the units, the CLI and its link. Installing also removes the old Node
+collector's `clashofmeat-collector` and `guildbyte-collector` units.

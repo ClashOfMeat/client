@@ -93,6 +93,10 @@ pub fn run(env: &Env, origin: &str) -> Result<()> {
             println!("Removed old collector LaunchAgent {}.", old_agent.display());
         }
     }
+    // On Linux it ran from a systemd user timer.
+    if cfg!(target_os = "linux") {
+        crate::linux::remove_legacy_units(env)?;
+    }
     // On Windows the Node collector ran as a scheduled task.
     #[cfg(windows)]
     for task in ["ClashOfMeatCollector", "GuildbyteCollector"] {

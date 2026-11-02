@@ -7,7 +7,9 @@ use std::process::{Command, Output};
 use clashofmeat_core::{Env, Store};
 use clashofmeat_daemon::{config, engine::Engine};
 use rusqlite::Connection;
-use serde_json::{json, Value};
+use serde_json::json;
+#[cfg(target_os = "macos")]
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 use time::OffsetDateTime;
@@ -61,6 +63,7 @@ impl Fixture {
             .unwrap()
     }
 
+    #[cfg(target_os = "macos")]
     fn plist(&self) -> PathBuf {
         self.home()
             .join("Library/LaunchAgents/com.clashofmeat.daemon.plist")
@@ -76,6 +79,8 @@ fn assert_success(output: &Output) {
     );
 }
 
+// The LaunchAgent is macOS only; tests/linux.rs covers the systemd service.
+#[cfg(target_os = "macos")]
 #[test]
 fn install_is_idempotent_and_uninstall_restores_cursor_hooks() {
     let fixture = Fixture::new();

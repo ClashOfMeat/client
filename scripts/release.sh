@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Check, package, sign and publish one desktop release (macOS arm64 + x86_64, Windows x64) as GitHub release
-# desktop-v<version>. Everything runs on this Mac; see docs/building.md. --mac-only skips the Windows installer.
+# Check, package, sign and publish one desktop release (macOS arm64 + x86_64, Linux CLI x86_64 + arm64) as GitHub
+# release desktop-v<version>. Everything runs on this Mac; see docs/building.md. --mac-only builds only the two Mac
+# archives.
 set -euo pipefail
 
 die() { echo "release: $*" >&2; exit 1; }
 note() { echo "release: $*"; }
 usage="usage: $0 <version> --app <url> [--min-version x.y.z] [--security] [--mac-only] [--dry-run] [--out DIR]"
 repo=ClashOfMeat/client
-targets=(aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc)
+targets=(aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-musl aarch64-unknown-linux-musl)
 placeholder=REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY
 
 (( $# >= 1 )) || die "$usage"
@@ -32,7 +33,7 @@ while (( $# )); do
     *) die "$usage" ;;
   esac
 done
-[[ -n $app ]] || die "--app <url> is required: the Windows installer runs 'clashofmeat install' without --app"
+[[ -n $app ]] || die "--app <url> is required: the release builds compile in the app address"
 app=${app%/}
 [[ $app == https://?* ]] || die "--app must be an https:// URL for a release: $app"
 if [[ -n $min_version ]]; then
@@ -83,6 +84,9 @@ else
   problem "could not check $repo for an existing $tag (gh not logged in)"
 fi
 
+[[ $mac_only == true ]] || { command -v cargo-zigbuild >/dev/null && command -v zig >/dev/null; } ||
+  problem "the Linux builds need cargo-zigbuild and zig: brew install zig && cargo install --locked cargo-zigbuild"
+
 note "checks"
 scripts/check.sh
 
@@ -94,15 +98,15 @@ for target in "${targets[@]}"; do
 done
 
 mac=("$dist/Clash.of.Meat_${version}_aarch64.app.tar.gz" "$dist/Clash.of.Meat_${version}_x86_64.app.tar.gz")
-win="$dist/Clash.of.Meat_${version}_x64-setup.exe"
+linux=("$dist/clashofmeat_${version}_linux-x86_64.tar.gz" "$dist/clashofmeat_${version}_linux-aarch64.tar.gz")
 assets=("${mac[@]}" "${mac[@]/%/.sha256}" "${mac[@]/%/.sig}")
 signed=("${mac[@]}")
 manifest_args=()
 if [[ $mac_only == true ]]; then
   manifest_args+=(--mac-only)
 else
-  assets+=("$win" "$win.sha256" "$win.sig")
-  signed+=("$win")
+  assets+=("${linux[@]}" "${linux[@]/%/.sha256}" "${linux[@]/%/.sig}")
+  signed+=("${linux[@]}")
 fi
 assets+=("install/install.sh#install.sh")
 unsigned=0

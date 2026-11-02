@@ -26,6 +26,11 @@ time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 walkdir = "2"
 crossbeam-channel = "0.5"
 tempfile = "3"
+libc = "0.2"
+flate2 = "1"
+tar = "0.4"
+minisign-verify = "0.2"
+base64 = "0.22"
 
 [profile.release]
 opt-level = "s"
