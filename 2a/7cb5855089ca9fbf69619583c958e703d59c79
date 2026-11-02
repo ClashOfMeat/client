@@ -1,0 +1,21 @@
+apps/desktop/ui/hero/validate.mjs
+  s_a50d8ed3a4a243::t_aa3d1cf2251d38 19
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_a50d8ed3a4a243::t_aa3d1cf2251d38 48-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a7cb5855089ca9fbf69619583c958e703d59c79",
+  "prompts": {},
+  "sessions": {
+    "s_a50d8ed3a4a243": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19c6f-cdb4-7f80-b9c2-90d26d5486b5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
