@@ -23,7 +23,9 @@ It counts supported activity on your machine and sends content-free counts to yo
 Sign in to the Clash of Meat web app and open its setup page.
 
 - **Mac:** copy the install command from the setup page and run it in Terminal. It installs the app in
-  `~/Applications`, the `clashofmeat` command in `~/.local/bin`, and links the app to your account.
+  `~/Applications` and the `clashofmeat` command in `~/.local/bin`, then asks you to press
+  Enter: your browser opens, you sign in if needed, and the terminal confirms once the computer is linked to your
+  account. Nothing to type; from a browser on another device, type the code the terminal shows on the link page. Pass `--no-connect` to skip this step and link later with `clashofmeat connect`.
 - **Windows:** download the setup `.exe` from the setup page and run it. It installs for your user only.
 
 To remove the client on a Mac, run `clashofmeat uninstall`. On Windows, uninstall it from Settings > Apps.

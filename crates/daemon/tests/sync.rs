@@ -398,8 +398,12 @@ fn pairing_polls_and_uses_exact_exchange_shape() {
         pairing.link(&server.origin),
         format!("{}/link?code=ABCDEF1234", server.origin)
     );
-    assert!(client.pair_exchange(&pairing).unwrap().is_none());
-    let linked = client.pair_exchange(&pairing).unwrap().unwrap();
+    assert_eq!(
+        pairing.loopback_link(&server.origin, 48213),
+        format!("{}/link?p={ID}&port=48213", server.origin)
+    );
+    assert!(client.pair_exchange(&pairing, None).unwrap().is_none());
+    let linked = client.pair_exchange(&pairing, Some("granted")).unwrap().unwrap();
     let mut store = Store::open_in_memory().unwrap();
     mark_paired(&mut store, &linked, now()).unwrap();
     mark_paired(&mut store, &linked, now() + time::Duration::hours(1)).unwrap();
@@ -418,7 +422,10 @@ fn pairing_polls_and_uses_exact_exchange_shape() {
         requests[1].body,
         json!({"id": ID, "exchangeSecret": "secret", "client": "collector"})
     );
-    assert_eq!(requests[2].body, requests[1].body);
+    assert_eq!(
+        requests[2].body,
+        json!({"id": ID, "exchangeSecret": "secret", "client": "collector", "grant": "granted"})
+    );
 }
 
 #[test]
@@ -433,7 +440,7 @@ fn pairing_rejects_declined_expired_and_bad_responses() {
         let client = client(&server);
         let pairing = client.pair_start("device", &[]).unwrap();
         assert!(
-            matches!(client.pair_exchange(&pairing), Err(ApiError::Status { status: 410, reason: Some(found), .. }) if found == reason)
+            matches!(client.pair_exchange(&pairing, None), Err(ApiError::Status { status: 410, reason: Some(found), .. }) if found == reason)
         );
         server.finish();
     }

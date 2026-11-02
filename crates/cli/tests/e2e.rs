@@ -188,8 +188,13 @@ fn binary_pairs_and_uploads_real_claude_activity() {
         "connect: {}",
         String::from_utf8_lossy(&linked.stderr)
     );
-    assert!(String::from_utf8_lossy(&linked.stdout)
-        .contains("Connected. Activity from now on is collected."));
+    let stdout = String::from_utf8_lossy(&linked.stdout);
+    assert!(stdout.contains("and type  ABCDE-F1234"), "{stdout}");
+    assert!(
+        stdout.contains("✔ Linked! Your hero is on its way."),
+        "{stdout}"
+    );
+
 
     let at = OffsetDateTime::now_utc().format(&Rfc3339).unwrap();
     let session = "123e4567-e89b-12d3-a456-426614174001";

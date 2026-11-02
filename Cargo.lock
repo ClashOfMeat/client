@@ -175,6 +175,7 @@ dependencies = [
  "clashofmeat-daemon",
  "clashofmeat-providers",
  "hex",
+ "libc",
  "rusqlite",
  "serde_json",
  "sha2",

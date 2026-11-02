@@ -1,15 +1,16 @@
 mod client;
+mod connect;
 mod hook;
 mod install;
 mod migrate;
+mod term;
 
-use std::process::{Command, ExitCode};
-use std::time::{Duration, Instant};
+use std::process::ExitCode;
 
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use clashofmeat_core::Env;
-use clashofmeat_daemon::{config, run};
+use clashofmeat_daemon::run;
 use serde_json::{json, Value};
 
 #[derive(Parser)]
@@ -101,7 +102,7 @@ fn execute(cli: Cli, env: &Env) -> Result<()> {
             app,
             no_open,
             force,
-        } => connect(env, cli.json, app, no_open, force),
+        } => connect::connect(env, cli.json, app, no_open, force),
         Action::Install {
             app,
             no_connect,
@@ -112,7 +113,7 @@ fn execute(cli: Cli, env: &Env) -> Result<()> {
                 .ok_or_else(|| anyhow!("pass --app <url>: this build has no default app"))?;
             install::install(env, &app, no_launch_agent)?;
             if !no_connect {
-                connect(env, cli.json, None, false, false)?;
+                connect::after_install(env, cli.json)?;
             }
             Ok(())
         }
@@ -154,86 +155,4 @@ fn print_status(status: &Value) {
             );
         }
     }
-}
-
-fn connect(
-    env: &Env,
-    json_output: bool,
-    app: Option<String>,
-    no_open: bool,
-    force: bool,
-) -> Result<()> {
-    let origin = app.as_deref().map(config::app_origin).transpose()?;
-    let mut client = client::Client::connect(env)?;
-    let status = client.request("status", json!({}))?;
-    if status["paired"] == true && !force {
-        if json_output {
-            println!("{status}");
-        } else {
-            println!(
-                "Clash of Meat is already connected to {}.",
-                status["app_url"].as_str().unwrap_or("the app")
-            );
-        }
-        return Ok(());
-    }
-    if status["paired"] == true {
-        // Re-pairing: revoke the old token on the app that issued it, before any new address.
-        clashofmeat_daemon::sync::revoke_installation(env, env!("CARGO_PKG_VERSION"))?;
-    }
-    if let Some(origin) = origin {
-        config::update_config(env, |config| config.app_url = Some(origin))?;
-    }
-    let mut events = client::Client::connect(env)?;
-    events.subscribe()?;
-    let pairing = client.request("pair_start", json!({}))?;
-    let link = pairing["link"]
-        .as_str()
-        .ok_or_else(|| anyhow!("Missing pairing link"))?;
-    let code = pairing["code"]
-        .as_str()
-        .ok_or_else(|| anyhow!("Missing pairing code"))?;
-    if json_output {
-        println!("{pairing}");
-    } else {
-        let grouped = if code.len() == 10 {
-            format!("{}-{}", &code[..5], &code[5..])
-        } else {
-            code.to_owned()
-        };
-        println!("Open this link to connect Clash of Meat:\n  {link}\nYour code is {grouped}. Check that your browser shows the same code.");
-    }
-    if !no_open && std::env::var("CLASHOFMEAT_NO_OPEN").as_deref() != Ok("1") {
-        let _ = Command::new("/usr/bin/open").arg(link).spawn();
-    }
-    let deadline = Instant::now() + Duration::from_secs(600);
-    while Instant::now() < deadline {
-        if let Some(event) = events.next_event(Duration::from_secs(1))? {
-            match event["event"].as_str() {
-                Some("paired") => {
-                    if json_output {
-                        println!("{}", event["data"]);
-                    } else {
-                        println!("Connected. Activity from now on is collected.");
-                    }
-                    return Ok(());
-                }
-                Some("pair_failed") => {
-                    let reason = event["data"]["reason"].as_str().unwrap_or("unknown");
-                    let message = match reason {
-                        "declined" => "Clash of Meat: Connection refused in the browser.",
-                        "expired" => "Clash of Meat: This code expired. Run the command again.",
-                        _ => event["data"]["message"]
-                            .as_str()
-                            .unwrap_or("Connection failed."),
-                    };
-                    return Err(anyhow!("{message}"));
-                }
-                _ => {}
-            }
-        }
-    }
-    Err(anyhow!(
-        "Clash of Meat: This code expired. Run the command again."
-    ))
 }
