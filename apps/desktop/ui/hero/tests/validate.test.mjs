@@ -28,7 +28,7 @@ test('PNG and animation validation retain sprite limits and mirrored frames', ()
   assert(validateAnimation(animation))
   const extended = { ...animation, frames: Array(28).fill(png), clips: { ...animation.clips, walk: { frames: [20, 21, 22, 23, 24, 25, 26, 27], durations: Array(8).fill(100) } }, mirroredFrames: { 27: png } }
   assert(validateAnimation(extended))
-  assert.equal(validateAnimation({ ...extended, frames: Array(29).fill(png) }), null)
+  assert.equal(validateAnimation({ ...animation, frames: Array(15).fill(png) }), null)
   for (const mirroredFrames of [{ 27: png }, { 2: 'bad' }, { 20: png }, [], { other: png }])
     assert.equal(validateAnimation({ ...animation, mirroredFrames }), null)
   assert.deepEqual(validateAnimation({ ...animation, mirroredFrames: { 2: png } }).mirroredFrames, { 2: png })
@@ -58,6 +58,13 @@ test('authored Flex frames after a twelve-frame walk reach heroes and visits', (
   assert(validateVisit({ id: uuid, name: 'Squire', guild: null, emote: 'flex',
     expiresAt: new Date(now + 60000).toISOString(), character }, now))
   assert.equal(validateAnimation({ ...authored, frames: frames.slice(0, 30) }), null)
+  // Any walk length with Flex: none (19), eight (27) or sixteen (35) frames.
+  for (const walk of [0, 8, 16]) {
+    const total = 16 + walk + 3
+    assert(validateAnimation({ ...authored, frames: Array(total).fill(png), mirroredFrames: undefined, clips: { ...authored.clips,
+      walk: walk ? { frames: Array.from({ length: walk }, (_, i) => 16 + i), durations: Array(walk).fill(100) } : animation.clips.walk,
+      flex: { frames: [0, total - 3, total - 2, total - 1], durations: [300, 125, 125, 3000] } } }), `${total} frames`)
+  }
   assert.equal(validateAnimation({ ...authored, clips: { ...authored.clips,
     flex: { frames: [31], durations: [100] } } }), null)
 })
