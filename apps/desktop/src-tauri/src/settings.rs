@@ -11,8 +11,14 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 pub struct HeroSettings {
     pub show: bool,
     pub screen: String,
-    #[serde(default)]
+    /// The hero stands still unless the user chose to let it walk. A settings file written before
+    /// this field existed has no `still`, and it also means still.
+    #[serde(default = "still_by_default")]
     pub still: bool,
+}
+
+fn still_by_default() -> bool {
+    true
 }
 
 impl Default for HeroSettings {
@@ -20,7 +26,7 @@ impl Default for HeroSettings {
         Self {
             show: true,
             screen: "main".into(),
-            still: false,
+            still: still_by_default(),
         }
     }
 }
@@ -75,13 +81,30 @@ pub fn set(app: &tauri::AppHandle, next: HeroSettings) -> Result<HeroSettings, S
 }
 
 pub fn show(app: &tauri::AppHandle) -> tauri::Result<()> {
+    open(app, None)
+}
+
+/// Opens the settings window on its Feedback section (the hero menu's "Send feedback…").
+pub fn show_feedback(app: &tauri::AppHandle) -> tauri::Result<()> {
+    open(app, Some("feedback"))
+}
+
+/// A window that is already open is told the section by event; a new one reads it at startup.
+fn open(app: &tauri::AppHandle, section: Option<&str>) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("settings") {
         window.show()?;
         window.set_focus()?;
+        if let Some(section) = section {
+            app.emit_to("settings", "settings-section", section)?;
+        }
         return Ok(());
     }
     let window =
         WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+            .initialization_script(format!(
+                "window.__CLASHOFMEAT_SECTION__ = {};",
+                serde_json::to_string(&section).unwrap_or_else(|_| "null".into())
+            ))
             .title("Clash of Meat")
             .inner_size(420.0, 520.0)
             .min_inner_size(420.0, 520.0)
@@ -136,6 +159,7 @@ pub fn daemon_request(
             | "level_up"
             | "friends"
             | "send_visit"
+            | "send_feedback"
             | "visit_status"
             | "visit_done"
     ) {
@@ -222,7 +246,17 @@ fn displays(app: &tauri::AppHandle) -> Vec<Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::openable;
+    use super::{openable, HeroSettings};
+
+    #[test]
+    fn hero_stands_still_unless_walking_was_chosen() {
+        assert!(HeroSettings::default().still);
+        let old: HeroSettings = serde_json::from_str(r#"{"show":true,"screen":"main"}"#).unwrap();
+        assert!(old.still);
+        let walking: HeroSettings =
+            serde_json::from_str(r#"{"show":true,"screen":"main","still":false}"#).unwrap();
+        assert!(!walking.still);
+    }
 
     #[test]
     fn only_https_or_this_machine_opens() {

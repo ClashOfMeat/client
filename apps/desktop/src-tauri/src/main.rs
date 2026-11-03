@@ -78,6 +78,11 @@ fn main() {
                             eprintln!("settings window: {error}");
                         }
                     }
+                    Some("feedback") => {
+                        if let Err(error) = settings::show_feedback(&control) {
+                            eprintln!("settings window: {error}");
+                        }
+                    }
                     Some("quit") => control.exit(0),
                     _ => {}
                 }

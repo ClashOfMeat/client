@@ -280,6 +280,11 @@ impl Client {
         )
     }
 
+    /// Sends a feedback note to the Clash of Meat team. The server trims it and stores it as is.
+    pub fn send_feedback(&self, message: &str, page: &str) -> Result<Value, ApiError> {
+        self.post("/api/feedback", &json!({"message": message, "page": page}))
+    }
+
     /// Checks whether an outbound visit is still awaiting its recipient's playback.
     pub fn visit_status(&self, id: &str) -> Result<Value, ApiError> {
         self.get(&format!("/api/companion/visit-status?visitId={id}"))
