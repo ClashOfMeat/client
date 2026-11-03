@@ -1,10 +1,10 @@
 # Bronze Flex crest
 
 The Flex effect uses the clean circular Bronze crest in
-`apps/desktop/ui/assets/flex-fx/bronze-clean-source.png`. The shipped
-`bronze.png` beside it is a 180 × 2400 sheet of twelve 180 × 200 frames.
+`docs/art/bronze-clean-source.png`, outside the desktop bundle. The shipped
+`apps/desktop/ui/assets/flex-fx/bronze.png` is a 180 × 2400 sheet of twelve 180 × 200 frames.
 Frames 0, 10 and 11 are transparent. Frames 1–9 scale and bounce the crest;
-the score is drawn by `overlay.mjs` at a 153px baseline for Bronze.
+the leaderboard rank is drawn by `overlay.mjs` at a 153px baseline for Bronze.
 
 The source came from built-in ImageGen result
 `01a18854-fe3d-7cc3-893c-147cd91daa4a/exec-2d3af5dc-5e31-4951-b133-2116f860e98b.png`
