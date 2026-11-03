@@ -50,6 +50,11 @@ button:disabled { opacity: .5; cursor: default; }
   .about span.security { color: #e0ae63; }
 }
 
+.feedback-form { display: grid; gap: 6px; }
+#feedback-message { width: 100%; resize: vertical; padding: 6px; font: inherit; color: inherit; background: transparent; border: 1px solid #777; border-radius: 4px; }
+.feedback-actions { display: flex; align-items: center; gap: 10px; }
+#feedback-status.error { margin: 0; }
+
 #account-folder-form { display: grid; gap: 6px; margin: 12px 0; }
 #account-folder { width: 100%; box-sizing: border-box; padding: 6px; color: inherit; background: transparent; border: 1px solid #777; border-radius: 4px; }
 .account-folder { display: flex; align-items: center; gap: 8px; margin-top: 8px; }

@@ -857,6 +857,45 @@ fn send_visit_posts_the_target_emote_and_request_id_and_keeps_the_server_message
 }
 
 #[test]
+fn send_feedback_posts_the_message_with_the_installation_token_and_keeps_the_server_message() {
+    let server = Server::start(vec![
+        Reply::ok(json!({"id": ID})),
+        Reply::error(
+            429,
+            json!({"error": "Too many attempts. Try again in 30 s."}),
+        ),
+    ]);
+    let client = client(&server);
+    assert_eq!(
+        client
+            .send_feedback("More bosses please", "desktop settings")
+            .unwrap()["id"],
+        ID
+    );
+    let Err(ApiError::Status { status, detail, .. }) =
+        client.send_feedback("Again", "desktop settings")
+    else {
+        panic!("expected a status error");
+    };
+    assert_eq!(
+        (status, detail.as_deref()),
+        (429, Some("Too many attempts. Try again in 30 s."))
+    );
+    let requests = server.finish();
+    assert_eq!(requests[0].method, "POST");
+    assert_eq!(requests[0].path, "/api/feedback");
+    assert_eq!(
+        requests[0].body,
+        json!({"message": "More bosses please", "page": "desktop settings"})
+    );
+    assert_eq!(
+        requests[0].headers["authorization"],
+        format!("Bearer {TOKEN}")
+    );
+    assert_eq!(requests[0].headers["x-clashofmeat-client"], "desktop/0.1.0");
+}
+
+#[test]
 fn companion_session_is_created_once() {
     let mut store = Store::open_in_memory().unwrap();
     let session = companion_session(&mut store).unwrap();

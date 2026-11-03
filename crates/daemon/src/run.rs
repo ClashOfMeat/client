@@ -708,6 +708,24 @@ fn handle_request(
                     .map_err(visit_wording)
             });
         }
+        "send_feedback" => {
+            let Some(message) = params
+                .get("message")
+                .and_then(Value::as_str)
+                .and_then(feedback_message)
+            else {
+                return Some((
+                    reply,
+                    Err(SocketError::new(
+                        "bad_request",
+                        "Write your feedback first (up to 2000 characters).",
+                    )),
+                ));
+            };
+            return friend_request(opts, store, reply, move |client| {
+                client.send_feedback(&message, "desktop settings")
+            });
+        }
         "visit_status" => match params.get("id").and_then(Value::as_str) {
             Some(id) if clashofmeat_core::ids::is_uuid(id) => {
                 let id = id.to_owned();
@@ -868,6 +886,13 @@ fn visit_wording(mut error: sync::ApiError) -> sync::ApiError {
         }
     }
     error
+}
+
+/// The trimmed feedback text, or `None` when it is empty or longer than the server's 2000
+/// characters (counted in UTF-16 units, as the web app counts them).
+fn feedback_message(text: &str) -> Option<String> {
+    let text = text.trim();
+    (!text.is_empty() && text.encode_utf16().count() <= 2000).then(|| text.to_owned())
 }
 
 /// Keeps the server's own words ("Gab's app isn't running") so the overlay can show them.
@@ -1304,4 +1329,22 @@ fn make_client(
         None => None,
     };
     sync::Client::new(&url, token, version).map_err(internal)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::feedback_message;
+
+    #[test]
+    fn feedback_is_trimmed_required_and_capped_at_2000_characters() {
+        assert_eq!(
+            feedback_message("  Nice hero  ").as_deref(),
+            Some("Nice hero")
+        );
+        assert_eq!(feedback_message(" \n\t "), None);
+        assert!(feedback_message(&"x".repeat(2000)).is_some());
+        assert_eq!(feedback_message(&"x".repeat(2001)), None);
+        // An emoji is two UTF-16 units, as the web app counts it.
+        assert_eq!(feedback_message(&"🍖".repeat(1001)), None);
+    }
 }

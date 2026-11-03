@@ -71,3 +71,13 @@ export function settingsView(status, snapshot, heartbeat, { connected = true, no
     hero: heartbeat ?? snapshot?.hero ?? null,
   }
 }
+
+export const FEEDBACK_MAX_LENGTH = 2000
+
+/** The trimmed note to send, or why it can't be sent. The app counts characters as JavaScript does. */
+export function feedbackDraft(text = '') {
+  const message = String(text).trim()
+  if (!message) return { message, error: 'Write your feedback first.' }
+  if (message.length > FEEDBACK_MAX_LENGTH) return { message, error: `Feedback is limited to ${FEEDBACK_MAX_LENGTH} characters.` }
+  return { message, error: null }
+}
