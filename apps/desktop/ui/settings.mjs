@@ -1,10 +1,11 @@
 import { feedbackDraft, settingsView } from './settings/view.mjs'
+import { heroSettings } from './settings/hero.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen } = window.__TAURI__.event
 const $ = id => document.getElementById(id)
 let daemon = { connected: false, status: null, snapshot: null, heartbeat: null }
-let hero = { show: true, screen: 'main', still: false }
+let hero = heroSettings()
 let displays = []
 let device = 'This Mac'
 let updater = {}
@@ -216,7 +217,7 @@ $('required-retry').addEventListener('click', updateAction)
 
 const initial = await invoke('desktop_state')
 daemon = initial.daemon
-hero = initial.hero
+hero = heroSettings(initial.hero)
 displays = initial.displays
 device = initial.device
 updater = initial.updater ?? {}
@@ -242,7 +243,7 @@ await listen('daemon', ({ payload }) => {
   }
   render()
 })
-await listen('hero-settings', ({ payload }) => { hero = payload; render() })
+await listen('hero-settings', ({ payload }) => { hero = heroSettings(payload); render() })
 await listen('updater', ({ payload }) => { updater = payload; render() })
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void refresh() })
 setInterval(refresh, 60_000)

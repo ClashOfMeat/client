@@ -1,7 +1,8 @@
 # Clash of Meat desktop client
 
 Clash of Meat turns the work of your AI coding agents into a game. This repo is the desktop client. It puts a small
-hero on your screen that walks along the bottom edge while your agents work, and it counts the tokens they use.
+hero on your screen, at the bottom edge, while your agents work, and it counts the tokens they use. The hero stands
+still by default; "Start walking" in its menu, or unticking "Stop walking" in Settings, lets it walk.
 
 The client reads the local session files of these agents:
 
