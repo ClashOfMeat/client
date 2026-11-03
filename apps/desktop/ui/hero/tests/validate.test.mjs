@@ -56,7 +56,7 @@ test('character accepts uncapped level and XP and preserves shape checks', () =>
   assert.equal(validateCharacter(character).xp, 2_000_000)
   assert.equal(validateCharacter({ ...character, xp: null, nextLevelAt: null }).nextLevelAt, null)
   assert(validateCharacter({ ...character, xp: Number.MAX_SAFE_INTEGER, nextLevelAt: 0 }))
-  for (const bad of [{ level: 0 }, { level: 1.5 }, { xp: -1 }, { xp: Number.MAX_SAFE_INTEGER + 1 }, { nextLevelAt: -1 }, { canLevelUp: 1 }, { heroId: 'bad-id' }, { png: 'bad' }, { id: 'bad' }])
+  for (const bad of [{ level: 0 }, { level: 1.5 }, { xp: -1 }, { xp: Number.MAX_SAFE_INTEGER + 1 }, { nextLevelAt: -1 }, { canLevelUp: 1 }, { heroId: 'bad.id' }, { png: 'bad' }, { id: 'bad' }])
     assert.equal(validateCharacter({ ...character, ...bad }), null)
 })
 
@@ -99,8 +99,18 @@ test('level-up and visit validation preserve bounds without a level cap', () => 
 test('character keeps a display name and rejects a bad one', () => {
   const character = { id: uuid, png, name: 'Framework Familiar' }
   assert.equal(validateCharacter(character).name, 'Framework Familiar')
-  assert.equal(validateCharacter({ ...character, name: 'x'.repeat(81) }), null)
+  assert.equal(validateCharacter({ ...character, name: 'x'.repeat(120) }).name.length, 120)
+  assert.equal(validateCharacter({ ...character, name: 'x'.repeat(121) }), null)
   assert.equal(validateCharacter({ ...character, name: 7 }), null)
+})
+
+test('hero identity accepts the game definition key and name limits', () => {
+  const character = { id: uuid, png, heroId: 'a-new_hero', name: 'H'.repeat(120) }
+  assert.equal(validateCharacter(character).heroId, character.heroId)
+  assert(validateCharacter({ ...character, heroId: 'h'.repeat(64) }))
+  assert.equal(validateCharacter({ ...character, heroId: 'h'.repeat(65) }), null)
+  for (const heroId of ['Hero', 'hero/name', '', 'hero name'])
+    assert.equal(validateCharacter({ ...character, heroId }), null)
 })
 
 test('character keeps its evolution stage and rejects a bad one', () => {
