@@ -47,7 +47,7 @@ export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
 }
 
 // Where a visitor stands in the fixed window. Keep the full 84px separation
-// between sprite origins even when the 240px window crops transparent margins;
+// between sprite origins even when a narrow window crops transparent margins;
 // clamping it to the remaining room crowds the visible bodies near the center.
 export function visitPlace(spriteX, windowWidth, sprite = 128, gap = 84) {
   const right = windowWidth - sprite - spriteX

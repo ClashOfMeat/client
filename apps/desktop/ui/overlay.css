@@ -76,7 +76,7 @@ button[hidden] { display: none; }
 .friends-pager .pixel-arrow { width: 16px; height: 16px; }
 #friends-page { min-width: 38px; text-align: center; color: var(--muted); font-size: 13px; }
 
-/* "from <name>" above a friend's visiting hero. */
+/* Player name above a friend's visiting hero. */
 .visit-label { position: absolute; padding: 1px 6px 2px; border: 1px solid #80644599; border-radius: 3px; background: #241a14cc;
   color: var(--title); font: 700 12px/1.2 "Alegreya Sans", sans-serif; white-space: nowrap; pointer-events: none; }
 .visit-label[hidden] { display: none; }

@@ -346,7 +346,7 @@ async function setHero(data, heartbeat = false) {
       visitor = visit
       visitorStarted = now
       visitSpot = null
-      visitLabel.textContent = `from ${visit.name}`
+      visitLabel.textContent = visit.name
     } else if (visitor?.id !== visit.id) visitDone(visit.id)
   }
   if (character && animation) {

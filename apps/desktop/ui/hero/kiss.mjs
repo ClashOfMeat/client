@@ -5,7 +5,7 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 const heartSize = rise => Math.round((52 + Math.round(4 * Math.sin(Math.PI * rise))) * HEART_SCALE)
 
 // Keep the large heart beside the whole sprite, including every skin's head and hands.
-// A centered 128px sprite has 56px of room on either side of the 240px overlay.
+// The side room depends on the active overlay width.
 export function kissHeartPlace(spriteX, spriteY, windowWidth, facing, elapsed) {
   const rise = clamp((elapsed - 520) / 450, 0, 1)
   const sideRoom = Math.floor((windowWidth - SPRITE_SIZE) / 2)
@@ -23,7 +23,7 @@ export function kissHeartPlace(spriteX, spriteY, windowWidth, facing, elapsed) {
 }
 
 // Center the visiting heart between the two heroes, independently of which side
-// the visitor enters from. Their 128px cells overlap in the fixed 240px window,
+// the visitor enters from. Their 128px cells may overlap in a narrow window,
 // but their visible bodies leave room between the faces for the 75% heart.
 export function visitorKissHeartPlace(hostX, visitorX, spriteY, windowWidth, elapsed) {
   const rise = clamp((elapsed - 520) / 450, 0, 1)

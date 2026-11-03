@@ -36,7 +36,7 @@ export function flexMotion() {
 export const FLEX_DROP = 30
 
 // The large crest is centered above the hero's head. Keep the whole effect in
-// the 240px overlay window even when the hero stands at a screen edge.
+// the overlay window even when the hero stands at a screen edge.
 export function flexPlace(spriteX, spriteY, windowWidth = 240) {
   return {
     x: Math.max(0, Math.min(windowWidth - FLEX_WIDTH, spriteX + 64 - FLEX_WIDTH / 2)),
@@ -44,7 +44,7 @@ export function flexPlace(spriteX, spriteY, windowWidth = 240) {
   }
 }
 
-// A visiting hero can stand near the edge of the 240px window. The outer
+// A visiting hero can stand near the edge of the overlay window. The outer
 // particles may leave it, but the badge itself must stay over the sender.
 export function visitorFlexPlace(spriteX, spriteY, league = 'bronze') {
   const width = Math.round(FLEX_WIDTH * VISITOR_FLEX_SCALE)

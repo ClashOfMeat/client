@@ -14,7 +14,7 @@ export function visitTracker(limit = 50) {
   }
 }
 
-// Left edge of the "from <name>" label: centred over the visitor and kept inside the window,
+// Left edge of the player-name label: centred over the visitor and kept inside the window,
 // or null while the visitor is outside it.
 export function visitLabelLeft(visitorX, labelWidth, windowWidth, sprite = 128) {
   const center = visitorX + sprite / 2

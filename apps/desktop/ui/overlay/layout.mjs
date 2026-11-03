@@ -4,7 +4,7 @@ const clamp = (n, min, max) => Math.min(max, Math.max(min, n))
 // feet above the ground while the hero is carried or falling, up to its head touching the top.
 export function windowRect(x, { workArea, sprite = 128, bubble = false, lift = 0 } = {}) {
   const size = Math.max(1, sprite)
-  const width = Math.min(workArea.width, bubble ? 240 : 160)
+  const width = Math.min(workArea.width, bubble ? 360 : 160)
   const height = Math.min(workArea.height, bubble ? 380 : 160)
   const spriteLeft = workArea.x + clamp(x, 0, Math.max(0, workArea.width - size))
   const wanted = spriteLeft - (width - size) / 2
