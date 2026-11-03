@@ -360,6 +360,10 @@ fn main_loop(
                     local.refresh(&store);
                     view["localTokens"] = json!(local.pending);
                     view["localTodayTokens"] = json!(local.today);
+                    // Private inbox text lives only in the live event, never in the artwork cache.
+                    if let Some(notifications) = heartbeat.get("notifications") {
+                        view["notifications"] = notifications.clone();
+                    }
                     broadcast(&mut subscribers, "heartbeat", view);
                 }
             }
@@ -682,6 +686,18 @@ fn handle_request(
             return None;
         }
         "friends" => return friend_request(opts, store, reply, |client| client.friends()),
+        "notifications_read" => match params.get("id").and_then(Value::as_str) {
+            Some(id) if id.parse::<i64>().is_ok_and(|id| id > 0) => {
+                let id = id.to_owned();
+                return friend_request(opts, store, reply, move |client| {
+                    client.read_notification(&id)
+                });
+            }
+            _ => Err(SocketError::new(
+                "bad_request",
+                "id must be a notification ID",
+            )),
+        },
         "send_visit" => {
             let target = params
                 .get("target")

@@ -158,6 +158,7 @@ pub fn daemon_request(
             | "evolve"
             | "level_up"
             | "friends"
+            | "notifications_read"
             | "send_visit"
             | "send_feedback"
             | "visit_status"

@@ -267,6 +267,14 @@ impl Client {
         Ok(json!({ "friends": friends }))
     }
 
+    /// Marks one private notification read and returns the server's refreshed inbox.
+    pub fn read_notification(&self, id: &str) -> Result<Value, ApiError> {
+        self.post(
+            "/api/installations/notifications/read",
+            &json!({ "id": id }),
+        )
+    }
+
     /// Sends the player's hero to a friend's screen to play one emote.
     pub fn send_visit(
         &self,

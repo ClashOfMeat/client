@@ -19,6 +19,7 @@ document.getSelection()?.removeAllRanges()
 import { friendRows, friendPage, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
 import { xpBar } from './overlay/xp-bar.mjs'
+import { notificationSnapshot, bellCount, notificationIcon, bellPosition } from './overlay/notifications.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen, emit } = window.__TAURI__.event
@@ -36,6 +37,11 @@ const friendsPager = document.getElementById('friends-pager')
 const friendsPrev = document.getElementById('friends-prev')
 const friendsNext = document.getElementById('friends-next')
 const friendsPageLabel = document.getElementById('friends-page')
+const notificationBell = document.getElementById('notification-bell')
+const notificationCount = document.getElementById('notification-count')
+const notificationsPanel = document.getElementById('notifications')
+const notificationsList = document.getElementById('notifications-list')
+const notificationsNote = document.getElementById('notifications-note')
 const visitLabel = document.getElementById('visit-label')
 const stillButton = document.getElementById('still')
 const EMOTE_LABELS = { flex: 'Flex', kiss: 'Kiss', angry: 'Angry' }
@@ -58,6 +64,7 @@ try {
 const outgoing = scopedOutgoingVisits(outgoingStorage)
 let friendsRequest = 0, sending = false, noteTimer
 let friends = [], friendsPageIndex = 0
+let inbox = null, inboxOwner = null, notificationBusy = false, notificationError = '', inboxEpoch = 0
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = true
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
@@ -186,8 +193,100 @@ function emoteButton(name) {
 function showFriends(open) {
   card.hidden = open
   friendsPanel.hidden = !open
+  notificationsPanel.hidden = true
   if (open) void loadFriends()
   else friendsRequest++
+}
+
+function showNotifications(open) {
+  card.hidden = open
+  friendsPanel.hidden = true
+  notificationsPanel.hidden = !open
+  friendsRequest++
+  if (open) {
+    renderNotifications()
+    void invoke('daemon_request', { method: 'sync_now', params: {} }).catch(() => {})
+  }
+}
+
+function receiveNotifications(value) {
+  const next = notificationSnapshot(value)
+  if (!next) return
+  inbox = next
+  notificationError = ''
+  renderNotifications()
+}
+
+function notificationHeartbeat(data) {
+  const owner = data?.player?.handle
+  if (typeof owner === 'string' && inboxOwner !== null && inboxOwner !== owner) {
+    inboxEpoch++
+    inbox = null
+    notificationError = ''
+    renderNotifications()
+  }
+  if (typeof owner === 'string') inboxOwner = owner
+  if (data && Object.hasOwn(data, 'notifications')) receiveNotifications(data.notifications)
+}
+
+function renderNotifications() {
+  const count = inbox?.attention.unread ?? 0
+  const badge = bellCount(count)
+  notificationCount.hidden = !badge
+  notificationCount.textContent = badge
+  notificationBell.setAttribute('aria-label', count ? `Notifications, ${count} needing attention` : 'Notifications')
+  notificationsList.replaceChildren(...(inbox?.items ?? []).map(notificationRow))
+  const message = notificationError || (!inbox ? 'Notifications will appear after the next sync.'
+    : inbox.items.length ? '' : "You're all caught up.")
+  notificationsNote.hidden = !message
+  notificationsNote.textContent = message
+  notificationsNote.classList.toggle('error', Boolean(notificationError))
+  if (!notificationsPanel.hidden) wake()
+}
+
+function notificationRow(item) {
+  const row = document.createElement('button')
+  row.type = 'button'
+  row.className = 'notification-row'
+  const icon = document.createElement('img')
+  icon.className = 'notification-icon'
+  icon.src = notificationIcon(item.kind)
+  icon.alt = ''
+  const copy = document.createElement('span')
+  copy.className = 'notification-copy'
+  copy.append(item.sentence)
+  const time = document.createElement('time')
+  time.dateTime = item.at
+  time.textContent = new Date(item.at).toLocaleString('en-US')
+  copy.append(time)
+  row.append(icon, copy)
+  if (!item.read || item.claimable) {
+    const dot = document.createElement('span')
+    dot.className = 'notification-dot'
+    dot.setAttribute('aria-label', item.claimable ? 'Reward to claim' : 'Unread')
+    row.append(dot)
+  }
+  row.addEventListener('click', () => void openNotification(item))
+  return row
+}
+
+async function openNotification(item) {
+  if (notificationBusy) return
+  notificationBusy = true
+  const epoch = inboxEpoch
+  try {
+    const next = await invoke('daemon_request', { method: 'notifications_read', params: { id: item.id } })
+    if (epoch === inboxEpoch) receiveNotifications(next)
+  }
+  catch (error) { if (epoch === inboxEpoch) { notificationError = errorText(error); renderNotifications() } }
+  try {
+    if (epoch === inboxEpoch) {
+      await invoke('open_app', { path: item.href })
+      statsOpen = false
+      wake()
+    }
+  } catch (error) { if (epoch === inboxEpoch) { notificationError = errorText(error); renderNotifications() } }
+  notificationBusy = false
 }
 
 function note(text, { error = false, emote } = {}) {
@@ -458,7 +557,10 @@ function deadline(now, pose) {
 
 async function draw() {
   timer = undefined
-  if (!character || !animation || !workArea || hidden || paused) return
+  if (!character || !animation || !workArea || hidden || paused) {
+    notificationBell.hidden = true
+    return
+  }
   const now = Date.now()
   if (fall) {
     const step = fallPose(fall.from, now - fall.startedAt)
@@ -501,6 +603,7 @@ async function draw() {
   if (away && !leaving && !visitor) {
     stats.hidden = true
     menu.hidden = true
+    notificationBell.hidden = true
     visitLabel.hidden = true
     updateHitRegions()
     if (visible) { await nativeWindow.hide(); visible = false }
@@ -572,6 +675,12 @@ async function draw() {
   if (!away && character.canLevelUp === true && !evolving && !auraPlaying) void evolve()
   stats.hidden = away || !statsOpen || menuOpen
   menu.hidden = away || !menuOpen
+  notificationBell.hidden = away
+  if (!away) {
+    const at = bellPosition(rect)
+    notificationBell.style.left = `${at.left}px`
+    notificationBell.style.top = `${at.top}px`
+  }
   updateHitRegions()
   const next = deadline(now, leaving ?? pose)
   if (Number.isFinite(next)) timer = setTimeout(draw, next)
@@ -580,7 +689,7 @@ async function draw() {
 // Only these rectangles take clicks; the rest of the window lets them through (overlay.rs).
 function updateHitRegions() {
   const regions = outgoing.away() ? [] : drag ? [[0, 0, rect.width, rect.height]] : [[rect.spriteX + 8, rect.spriteY + 8, 112, 120]]
-  for (const element of [stats, menu]) {
+  for (const element of [notificationBell, stats, menu]) {
     if (element.hidden) continue
     const box = element.getBoundingClientRect()
     regions.push([box.left, box.top, box.width, box.height])
@@ -676,6 +785,20 @@ document.getElementById('open-app').addEventListener('click', async () => {
 })
 document.getElementById('send-friend').addEventListener('click', () => { showFriends(true); wake() })
 document.getElementById('friends-back').addEventListener('click', () => { showFriends(false); wake() })
+notificationBell.addEventListener('pointerdown', event => event.stopPropagation())
+notificationBell.addEventListener('click', () => {
+  if (outgoing.away()) return
+  const closing = statsOpen && !notificationsPanel.hidden
+  statsOpen = !closing
+  menuOpen = false
+  showNotifications(!closing)
+  wake()
+})
+document.getElementById('notifications-back').addEventListener('click', () => { showNotifications(false); wake() })
+document.getElementById('notifications-all').addEventListener('click', async () => {
+  try { await invoke('open_app', { path: '/notifications' }); statsOpen = false; wake() }
+  catch (error) { notificationError = errorText(error); renderNotifications() }
+})
 friendsPrev.addEventListener('click', () => turnFriendsPage(-1))
 friendsNext.addEventListener('click', () => turnFriendsPage(1))
 friendsOpenApp.addEventListener('click', async () => {
@@ -745,12 +868,14 @@ await listen('daemon', ({ payload }) => {
     localTokens = payload.data?.localTokens ?? 0
     localTodayTokens = payload.data?.localTodayTokens ?? 0
     normaliseActivity(payload.data?.activity)
+    notificationHeartbeat(payload.data?.hero)
     void setHero(payload.data?.hero)
   } else if (payload?.kind === 'event') {
     if (payload.data?.event === 'activity') normaliseActivity(payload.data.data)
     if (payload.data?.event === 'heartbeat') {
       localTokens = payload.data.data?.localTokens ?? 0
       localTodayTokens = payload.data.data?.localTodayTokens ?? localTodayTokens
+      notificationHeartbeat(payload.data.data)
       void setHero(payload.data.data, true)
     }
     if (payload.data?.event === 'local_tokens') {
@@ -759,6 +884,11 @@ await listen('daemon', ({ payload }) => {
       updateStats()
     }
   } else if (payload?.kind === 'status' && payload.data?.connected === false) {
+    inboxEpoch++
+    inbox = null
+    inboxOwner = null
+    notificationError = ''
+    renderNotifications()
     normaliseActivity({ busy: false, sessions: [] })
   }
 })
@@ -774,7 +904,7 @@ if (snapshot) {
 }
 if (snapshot) normaliseActivity(snapshot.activity)
 const firstHero = initial.daemon?.heartbeat ?? snapshot?.hero
-if (firstHero) void setHero(firstHero)
+if (firstHero) { notificationHeartbeat(firstHero); void setHero(firstHero) }
 // A cached snapshot may predate the visit. Refresh it instead of waiting for the idle minute.
 if (initial.daemon?.connected) void invoke('daemon_request', { method: 'sync_now', params: {} }).catch(() => {})
 await listen('hero-settings', ({ payload }) => {

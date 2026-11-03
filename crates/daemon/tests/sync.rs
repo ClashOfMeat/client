@@ -403,7 +403,10 @@ fn pairing_polls_and_uses_exact_exchange_shape() {
         format!("{}/link?p={ID}&port=48213", server.origin)
     );
     assert!(client.pair_exchange(&pairing, None).unwrap().is_none());
-    let linked = client.pair_exchange(&pairing, Some("granted")).unwrap().unwrap();
+    let linked = client
+        .pair_exchange(&pairing, Some("granted"))
+        .unwrap()
+        .unwrap();
     let mut store = Store::open_in_memory().unwrap();
     mark_paired(&mut store, &linked, now()).unwrap();
     mark_paired(&mut store, &linked, now() + time::Duration::hours(1)).unwrap();
@@ -813,6 +816,105 @@ fn friends_are_fetched_with_the_installation_token_and_cleaned() {
         format!("Bearer {TOKEN}")
     );
     assert_eq!(requests[0].headers["x-clashofmeat-client"], "desktop/0.1.0");
+}
+
+#[test]
+fn reading_notification_posts_one_id_and_returns_the_refreshed_inbox() {
+    let snapshot =
+        json!({"attention": {"unread": 1}, "items": [{"id": "8", "message": "Reward waiting"}]});
+    let server = Server::start(vec![Reply::ok(snapshot.clone())]);
+    assert_eq!(client(&server).read_notification("8").unwrap(), snapshot);
+    let requests = server.finish();
+    assert_eq!(requests[0].method, "POST");
+    assert_eq!(requests[0].path, "/api/installations/notifications/read");
+    assert_eq!(requests[0].body, json!({"id": "8"}));
+    assert_eq!(
+        requests[0].headers["authorization"],
+        format!("Bearer {TOKEN}")
+    );
+    assert_eq!(requests[0].headers["x-clashofmeat-client"], "desktop/0.1.0");
+}
+
+#[test]
+fn daemon_forwards_notification_snapshot_live_and_does_not_cache_its_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let env = Env::for_home(dir.path());
+    let notifications =
+        json!({"attention": {"unread": 1}, "items": [{"id": "8", "message": "private message"}]});
+    let server = Server::start(vec![
+        Reply::ok(notifications.clone()),
+        Reply::ok(
+            json!({"connected": true, "character": {"id": "hero"}, "notifications": notifications}),
+        ),
+    ]);
+    update_config(&env, |config| config.app_url = Some(server.origin.clone())).unwrap();
+    let mut store = Store::open(store_path(&env)).unwrap();
+    store.set_meta("installation.token", TOKEN).unwrap();
+    drop(store);
+    let handle = run::start(RunOptions {
+        env,
+        version: "0.1.0".into(),
+    })
+    .unwrap();
+    let mut subscriber = UnixStream::connect(handle.socket_path()).unwrap();
+    subscriber
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    let mut subscriber_reader = BufReader::new(subscriber.try_clone().unwrap());
+    assert_eq!(
+        socket_request(&mut subscriber, &mut subscriber_reader, 1, "subscribe")["result"]
+            ["subscribed"],
+        true
+    );
+    let mut command = UnixStream::connect(handle.socket_path()).unwrap();
+    command
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    let mut command_reader = BufReader::new(command.try_clone().unwrap());
+    assert_eq!(
+        socket_call(
+            &mut command,
+            &mut command_reader,
+            2,
+            "notifications_read",
+            json!({"id": "bad"})
+        )["error"]["code"],
+        "bad_request"
+    );
+    assert_eq!(
+        socket_call(
+            &mut command,
+            &mut command_reader,
+            3,
+            "notifications_read",
+            json!({"id": "8"})
+        )["result"]["items"][0]["message"],
+        "private message"
+    );
+    assert_eq!(
+        socket_call(&mut command, &mut command_reader, 4, "sync_now", json!({}))["result"]
+            ["queued"],
+        true
+    );
+    let mut heartbeat = None;
+    for _ in 0..2 {
+        let mut line = String::new();
+        subscriber_reader.read_line(&mut line).unwrap();
+        let event: Value = serde_json::from_str(&line).unwrap();
+        if event["event"] == "heartbeat" {
+            heartbeat = Some(event["data"].clone());
+        }
+    }
+    assert_eq!(
+        heartbeat.unwrap()["notifications"]["items"][0]["message"],
+        "private message"
+    );
+    let cache = std::fs::read_to_string(dir.path().join(".clashofmeat/hero/cache.json")).unwrap();
+    assert!(!cache.contains("private message"));
+    let requests = server.finish();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0].path, "/api/installations/notifications/read");
+    handle.stop().unwrap();
 }
 
 #[test]

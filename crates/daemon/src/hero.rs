@@ -99,4 +99,18 @@ mod tests {
             heartbeat["outgoingVisit"]
         );
     }
+
+    #[test]
+    fn notification_text_is_not_written_to_the_hero_cache() {
+        let heartbeat = json!({
+            "character": {"id": "hero"},
+            "notifications": {"attention": {"unread": 1}, "items": [{"message": "private message"}]}
+        });
+        let view = hero_view(&heartbeat);
+        assert!(view.get("notifications").is_none());
+        let home = tempfile::tempdir().unwrap();
+        save_cache(home.path(), &view).unwrap();
+        let bytes = std::fs::read(home.path().join("hero/cache.json")).unwrap();
+        assert!(!String::from_utf8_lossy(&bytes).contains("private message"));
+    }
 }

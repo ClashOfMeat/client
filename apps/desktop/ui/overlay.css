@@ -16,6 +16,11 @@ html, body, * { -webkit-user-select: none; -webkit-touch-callout: none; }
 img, canvas { -webkit-user-drag: none; }
 ::selection { background: transparent; }
 #hero { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
+#notification-bell { position: absolute; z-index: 2; width: 30px; height: 30px; padding: 3px; display: grid; place-items: center; }
+#notification-bell img { width: 22px; height: 22px; image-rendering: pixelated; pointer-events: none; }
+#notification-bell[hidden], #notification-count[hidden] { display: none; }
+#notification-count { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; padding: 1px 3px;
+  border: 1px solid var(--panel); border-radius: 9px; background: #f05b55; color: #fff; font: 700 11px/14px "Alegreya Sans", sans-serif; text-align: center; }
 
 /* Sits just above the hero's head (the sprite is the window's bottom 128 px), whatever its height. */
 .bubble { position: absolute; bottom: 132px; left: 4px; right: 4px; max-height: calc(100% - 136px); overflow: hidden;
@@ -52,6 +57,21 @@ button[hidden] { display: none; }
 /* The friend panel takes the card's place in the same bubble; a long list scrolls. */
 #stats:not([hidden]) { display: flex; flex-direction: column; }
 .friends:not([hidden]) { display: flex; flex-direction: column; min-height: 0; }
+.notifications:not([hidden]) { display: flex; flex-direction: column; min-height: 0; }
+.notifications-note { margin-top: 8px; color: var(--muted); font-size: 13px; }
+.notifications-note.error { color: #f0a58c; }
+.notifications-list { margin-top: 6px; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.notification-row { display: flex; align-items: flex-start; gap: 7px; width: 100%; padding: 7px 2px; text-align: left;
+  border: 0; border-top: 1px solid #80644544; border-radius: 0; background: transparent; box-shadow: none; font-weight: 400; line-height: 1.3; }
+.notification-row:first-child { border-top: 0; }
+.notification-row:hover:not(:disabled), .notification-row:focus-visible { background: #f1d18f0a; }
+.notification-row:active:not(:disabled) { transform: none; box-shadow: none; }
+.notification-icon { flex: none; width: 27px; height: 27px; object-fit: contain; image-rendering: pixelated; }
+.notification-icon[src$=".svg"] { image-rendering: auto; }
+.notification-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.notification-copy time { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+.notification-dot { flex: none; width: 7px; height: 7px; margin-top: 7px; border-radius: 50%; background: #f05b55; }
+.notifications .wide { flex: none; }
 .friends-head { display: flex; align-items: center; gap: 6px; font: 15px/1.2 Righteous, Georgia, serif; color: var(--title); }
 .back { width: 24px; height: 22px; padding: 0; display: grid; place-items: center; }
 /* The web app's pixel back arrow (BackLink), mirrored to point forward like the app's forward links. */
