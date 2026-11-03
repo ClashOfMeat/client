@@ -558,7 +558,7 @@ async function draw() {
     // heart between the two heroes.
     drawEmoteEffect(v.state, visitElapsed, v.frame, visitorX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, visitorX)
     const left = visitLabelLeft(visitorX + v.offset, visitLabel.offsetWidth, rect.width)
-    visitLabel.hidden = left === null || !visitLabelVisible(now - visitorStarted)
+    visitLabel.hidden = left === null || !visitLabelVisible(now - visitorStarted, visitDuration(visitAnimation, visitor.emote))
     visitLabel.style.left = `${left ?? 0}px`
     visitLabel.style.top = `${rect.spriteY - 4}px`
   }

@@ -32,9 +32,10 @@ export function visitDuration(animation, emote = 'kiss') {
   return WALK_IN + emoteMs + WALK_OUT
 }
 
-// Identify the sender during arrival, then clear the label for the emote and exit.
-export function visitLabelVisible(elapsed) {
-  return Number.isFinite(elapsed) && elapsed >= 0 && elapsed < WALK_IN
+// Identify the sender during both walks, keeping the emote itself clear.
+export function visitLabelVisible(elapsed, duration) {
+  return Number.isFinite(elapsed) && Number.isFinite(duration) && elapsed >= 0 && elapsed < duration &&
+    (elapsed < WALK_IN || elapsed >= duration - WALK_OUT)
 }
 
 export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
