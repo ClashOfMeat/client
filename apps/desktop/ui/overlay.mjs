@@ -1,12 +1,12 @@
 import { heroActivity } from './hero/activity.mjs'
 import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
-import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace, visitDuration } from './hero/effects.mjs'
+import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitDuration } from './hero/effects.mjs'
 import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES, leagueOrBronze } from './hero/validate.mjs'
 import { flexPhase, flexDelay, flexLabel, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT, FLEX_WIDTH } from './hero/flex.mjs'
 import { kissHeartPlace, visitorKissHeartPlace } from './hero/kiss.mjs'
-import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
+import { visitTracker, visitLabelLeft, visitAnchor, anchoredRect, edgeFade } from './hero/visit.mjs'
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
 import { beginDeparture, departurePose } from './hero/departure.mjs'
 import { windowRect } from './overlay/layout.mjs'
@@ -45,7 +45,8 @@ let workArea, animation, character, progression, player
 // This machine's effective tokens the last heartbeat did not include yet (see overlay/predict.mjs).
 let localTokens = 0
 let localTodayTokens = 0
-let aura, auraStarted = 0, gained, visitor, visitorStarted = 0, departure = null
+// visitSpot pins the window and the visitor where the visitor arrived (see visitAnchor).
+let aura, auraStarted = 0, gained, visitor, visitorStarted = 0, visitSpot = null, departure = null
 const visits = visitTracker()
 let outgoingStorage
 try {
@@ -343,6 +344,7 @@ async function setHero(data, heartbeat = false) {
     if (visits.first(visit.id)) {
       visitor = visit
       visitorStarted = now
+      visitSpot = null
       visitLabel.textContent = `from ${visit.name}`
     } else if (visitor?.id !== visit.id) visitDone(visit.id)
   }
@@ -458,15 +460,23 @@ async function draw() {
     visitDone(visitor.id)
     visitor = null
   }
+  // A carried hero takes its visitor along; the visit is pinned again where it is let go.
+  if (!visitor || drag?.moved) visitSpot = null
   let away = outgoing.away(now)
   if (!away) departure = null
   let leaving = away && departure ? departurePose(departure, now) : null
   if (leaving?.done) { departure = null; leaving = null }
   const patrolWidth = Math.max(0, workArea.width - 128)
-  const pose = activity.snapshot(now, { width: patrolWidth, still: stayStill || statsOpen || menuOpen || away })
+  const pose = activity.snapshot(now, { width: patrolWidth, still: stayStill || statsOpen || menuOpen || away || Boolean(visitor) })
   // One fixed size: the window only moves, so opening the card never resizes it (no flash).
   const boundedX = Math.max(0, Math.min(patrolWidth, leaving?.x ?? pose.x))
-  const nextRect = windowRect(boundedX, { workArea, bubble: true, lift })
+  const heroRect = windowRect(boundedX, { workArea, bubble: true, lift })
+  if (visitor && !visitSpot && !drag?.moved) {
+    // The host stops where it is to greet the visitor, and the window stays here until the visit ends.
+    if (!leaving) activity.drag(pose.x, now)
+    visitSpot = visitAnchor(heroRect)
+  }
+  const nextRect = visitSpot ? anchoredRect(heroRect, visitSpot) : heroRect
   const changed = !lastPlaced || Math.abs(nextRect.x - lastPlaced.x) >= 1 || nextRect.y !== lastPlaced.y || nextRect.width !== lastPlaced.width || nextRect.height !== lastPlaced.height
   rect = nextRect
   if (changed) {
@@ -514,22 +524,27 @@ async function draw() {
     const chosen = frameImage(animation, frame, active.facing)
     const motion = active.state === 'flex' ? flexMotion(active.elapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
     const exitOffset = leaving ? leaving.x - boundedX : 0
-    drawImage(chosen.png ?? character.png, rect.spriteX + exitOffset + motion.dx, rect.spriteY + motion.dy, motion.width, chosen.flip, leaving?.opacity ?? 1, motion.height)
+    const hostX = rect.spriteX + exitOffset
+    // In a window pinned for a visitor, a host leaving the window fades at its edge.
+    const opacity = (leaving?.opacity ?? 1) * (visitSpot ? edgeFade(hostX, rect.width) : 1)
+    drawImage(chosen.png ?? character.png, hostX + motion.dx, rect.spriteY + motion.dy, motion.width, chosen.flip, opacity, motion.height)
     if (!leaving) drawEmoteEffect(active.state, active.elapsed, frame, rect.spriteX, rect.spriteY, active.facing, player?.league, player?.leagueRank)
   }
   visitLabel.hidden = !visitor
   if (visitor) {
     const visitAnimation = visitor.character.animation
-    const place = visitPlace(rect.spriteX, rect.width)
+    // Drawn from where the host stood when the visitor arrived, not from where the host is now.
+    const place = visitSpot ?? visitAnchor(rect)
+    const visitorX = place.spriteX
     const v = visitPose(visitAnimation, now - visitorStarted, place.stand, place.edge, visitor.emote)
     const frame = frameImage(visitAnimation, v.frame, v.facing)
     const visitElapsed = now - visitorStarted - 1500
     const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
-    drawImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
+    drawImage(frame.png, visitorX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
     // Visits carry the baked Kiss frame (the server sends no bare one), so its small lip heart stays;
     // the large heart sits away from the host instead of covering it.
-    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, true)
-    const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)
+    drawEmoteEffect(v.state, visitElapsed, v.frame, visitorX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, true)
+    const left = visitLabelLeft(visitorX + v.offset, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null
     visitLabel.style.left = `${left ?? 0}px`
     visitLabel.style.top = `${rect.spriteY - 4}px`
@@ -768,7 +783,7 @@ await listen('screen-click', ({ payload }) => {
     wake()
     return
   }
-  if (!rect || !character || outgoing.away() || paused || hidden || stayStill || drag || fall) return
+  if (!rect || !character || outgoing.away() || paused || hidden || stayStill || drag || fall || visitor) return
   if (aura && Date.now() - auraStarted < aura.durationMs) return
   const dx = payload.x - (rect.spriteX + 64), dy = payload.y - (rect.spriteY + 64)
   if (Math.hypot(dx, dy) > 260) return
