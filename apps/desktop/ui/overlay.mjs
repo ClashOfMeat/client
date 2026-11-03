@@ -15,7 +15,7 @@ import { heroSettings } from './settings/hero.mjs'
 // The hero window has no text to select or images to drag; a selection there could never be cleared (see overlay.css).
 for (const type of ['selectstart', 'dragstart']) document.addEventListener(type, event => event.preventDefault())
 document.getSelection()?.removeAllRanges()
-import { friendRows, errorText } from './overlay/friends.mjs'
+import { friendRows, friendPage, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
 import { xpBar } from './overlay/xp-bar.mjs'
 
@@ -26,12 +26,15 @@ const canvas = document.getElementById('hero')
 const ctx = canvas.getContext('2d')
 const stats = document.getElementById('stats')
 const menu = document.getElementById('menu')
-const emotes = document.getElementById('emotes')
 const card = document.getElementById('card')
 const friendsPanel = document.getElementById('friends')
 const friendsList = document.getElementById('friends-list')
 const friendsNote = document.getElementById('friends-note')
 const friendsOpenApp = document.getElementById('friends-open')
+const friendsPager = document.getElementById('friends-pager')
+const friendsPrev = document.getElementById('friends-prev')
+const friendsNext = document.getElementById('friends-next')
+const friendsPageLabel = document.getElementById('friends-page')
 const visitLabel = document.getElementById('visit-label')
 const stillButton = document.getElementById('still')
 const EMOTE_LABELS = { flex: 'Flex', kiss: 'Kiss', angry: 'Angry' }
@@ -52,6 +55,7 @@ try {
 } catch { outgoingStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} } }
 const outgoing = scopedOutgoingVisits(outgoingStorage)
 let friendsRequest = 0, sending = false, noteTimer
+let friends = [], friendsPageIndex = 0
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = true
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
@@ -176,20 +180,6 @@ function emoteButton(name) {
   return button
 }
 
-function updateEmotes() {
-  emotes.replaceChildren()
-  for (const name of VISIT_EMOTES) {
-    if (!animation) continue
-    const button = emoteButton(name)
-    button.addEventListener('click', () => {
-      statsOpen = false
-      activity.emote(name, Date.now(), animation.clips[name].durations.reduce((sum, ms) => sum + ms, 0))
-      wake()
-    })
-    emotes.append(button)
-  }
-}
-
 // The friend panel replaces the card in the same bubble; opening it fetches the list each time.
 function showFriends(open) {
   card.hidden = open
@@ -215,7 +205,9 @@ function note(text, { error = false, emote } = {}) {
 
 async function loadFriends() {
   const current = ++friendsRequest
-  friendsList.replaceChildren()
+  friends = []
+  friendsPageIndex = 0
+  renderFriends()
   friendsOpenApp.hidden = true
   note('Loading friends…')
   let rows
@@ -228,7 +220,26 @@ async function loadFriends() {
   if (current !== friendsRequest) return
   note(rows.length ? null : 'No friends yet — add some on Clash of Meat')
   friendsOpenApp.hidden = rows.length > 0
-  for (const friend of rows) friendsList.append(friendRow(friend))
+  friends = rows
+  renderFriends()
+  wake()
+}
+
+// One page of the list at a time; the pager only shows when there is more than one page.
+function renderFriends() {
+  const { rows, page, pages } = friendPage(friends, friendsPageIndex)
+  friendsPageIndex = page
+  friendsList.replaceChildren(...rows.map(friendRow))
+  friendsPager.hidden = pages < 2
+  friendsPageLabel.textContent = `${page + 1} / ${pages}`
+  friendsPrev.disabled = page === 0
+  friendsNext.disabled = page >= pages - 1
+}
+
+function turnFriendsPage(step) {
+  if (sending) return
+  friendsPageIndex += step
+  renderFriends()
   wake()
 }
 
@@ -310,13 +321,10 @@ async function setHero(data, heartbeat = false) {
     now = Date.now()
   }
   const previous = character
-  const previousAnimation = animation
-  const previousLeague = leagueOrBronze(player?.league)
   character = candidate
   animation = nextAnimation
   progression = data?.progression ?? null
   player = data?.player ?? null
-  if (animation !== previousAnimation || leagueOrBronze(player?.league) !== previousLeague) updateEmotes()
   effectImage(`./assets/flex-fx/${leagueOrBronze(player?.league)}.png`)
   effectImage('./assets/emote-kiss.png')
   effectImage('./assets/angry-mark.png')
@@ -640,6 +648,8 @@ document.getElementById('open-app').addEventListener('click', async () => {
 })
 document.getElementById('send-friend').addEventListener('click', () => { showFriends(true); wake() })
 document.getElementById('friends-back').addEventListener('click', () => { showFriends(false); wake() })
+friendsPrev.addEventListener('click', () => turnFriendsPage(-1))
+friendsNext.addEventListener('click', () => turnFriendsPage(1))
 friendsOpenApp.addEventListener('click', async () => {
   statsOpen = false
   wake()

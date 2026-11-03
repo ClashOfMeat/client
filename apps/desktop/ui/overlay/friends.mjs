@@ -11,6 +11,15 @@ export function friendRows(value) {
   return [...rows.filter(friend => friend.online), ...rows.filter(friend => !friend.online)]
 }
 
+// Five rows fit the bubble without scrolling. A page past the end (the list shrank) falls back to the last one.
+export const FRIENDS_PER_PAGE = 5
+
+export function friendPage(rows, page, size = FRIENDS_PER_PAGE) {
+  const pages = Math.max(1, Math.ceil(rows.length / size))
+  const current = Math.min(Math.max(0, Number.isInteger(page) ? page : 0), pages - 1)
+  return { rows: rows.slice(current * size, (current + 1) * size), page: current, pages }
+}
+
 // A failed daemon request rejects with the server's message ("Gab's app isn't running.").
 export function errorText(error) {
   const text = typeof error === 'string' ? error : error?.message

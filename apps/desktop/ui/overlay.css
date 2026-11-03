@@ -44,13 +44,10 @@ button:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 2
 button:disabled { opacity: .5; cursor: default; }
 button[hidden] { display: none; }
 
-.emotes { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
-.emotes button { width: 36px; height: 36px; padding: 3px; display: grid; place-items: center; }
 .wide { display: block; width: 100%; margin-top: 7px; padding: 8px 9px; }
-.card-actions { display: flex; align-items: stretch; gap: 6px; margin-top: 7px; }
+.card-actions { display: flex; align-items: stretch; gap: 6px; margin-top: 9px; }
 .card-actions #send-friend { flex: 1; min-width: 0; margin-top: 0; }
 .card-actions #open-app { flex: 0 0 38px; padding: 0; display: grid; place-items: center; }
-.emotes img { width: 26px; height: 26px; image-rendering: pixelated; pointer-events: none; }
 
 /* The friend panel takes the card's place in the same bubble; a long list scrolls. */
 #stats:not([hidden]) { display: flex; flex-direction: column; }
@@ -74,6 +71,10 @@ button[hidden] { display: none; }
 .friend.offline .who::before { content: "○"; color: var(--muted); }
 .friend button { width: 24px; height: 24px; padding: 2px; display: grid; place-items: center; flex: none; }
 .friend img { width: 16px; height: 16px; image-rendering: pixelated; pointer-events: none; }
+.friends-pager:not([hidden]) { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px; flex: none; }
+.friends-pager button { width: 26px; height: 24px; padding: 0; display: grid; place-items: center; }
+.friends-pager .pixel-arrow { width: 16px; height: 16px; }
+#friends-page { min-width: 38px; text-align: center; color: var(--muted); font-size: 13px; }
 
 /* "from <name>" above a friend's visiting hero. */
 .visit-label { position: absolute; padding: 1px 6px 2px; border: 1px solid #80644599; border-radius: 3px; background: #241a14cc;
