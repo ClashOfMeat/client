@@ -1,6 +1,6 @@
 import { heroActivity } from './hero/activity.mjs'
 import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
-import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitDuration } from './hero/effects.mjs'
+import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitDuration, visitLabelVisible } from './hero/effects.mjs'
 import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES, leagueOrBronze } from './hero/validate.mjs'
@@ -543,7 +543,7 @@ async function draw() {
     drawHeroImage(chosen.png ?? character.png, hostX + motion.dx, rect.spriteY + motion.dy, character.displayScale, chosen.flip, opacity, motion.width, motion.height)
     if (!leaving) drawEmoteEffect(active.state, active.elapsed, frame, rect.spriteX, rect.spriteY, active.facing, player?.league, player?.leagueRank)
   }
-  visitLabel.hidden = !visitor
+  visitLabel.hidden = true
   if (visitor) {
     const visitAnimation = visitor.character.animation
     // Drawn from where the host stood when the visitor arrived, not from where the host is now.
@@ -558,7 +558,7 @@ async function draw() {
     // heart between the two heroes.
     drawEmoteEffect(v.state, visitElapsed, v.frame, visitorX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, visitorX)
     const left = visitLabelLeft(visitorX + v.offset, visitLabel.offsetWidth, rect.width)
-    visitLabel.hidden = left === null
+    visitLabel.hidden = left === null || !visitLabelVisible(now - visitorStarted)
     visitLabel.style.left = `${left ?? 0}px`
     visitLabel.style.top = `${rect.spriteY - 4}px`
   }

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace, visitDuration } from '../effects.mjs'
+import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace, visitDuration, visitLabelVisible } from '../effects.mjs'
 
 const animation = { clips: { idle: { frames: [0], durations: [100] }, walk: { frames: [0, 1, 2], durations: [100, 200, 100] }, kiss: { frames: [0, 1, 2], durations: [100, 200, 100] } } }
 const aura = { durations: [80, ...Array(16).fill(90), 120] }
@@ -55,6 +55,14 @@ test('a visitor plays flex once between walking in and out, or holds a kiss or a
   assert.equal(visitDuration(animation, 'angry'), 8000)
   assert.equal(visitPose(animation, 3000, 84, 240, 'angry').state, 'angry')
   assert.equal(visitPose(animation, 3000, 84, 240).state, 'kiss')
+})
+
+test('sender name shows on arrival and stays hidden during the emote and exit', () => {
+  assert.equal(visitLabelVisible(0), true)
+  assert.equal(visitLabelVisible(1499), true)
+  assert.equal(visitLabelVisible(1500), false)
+  assert.equal(visitLabelVisible(3000), false)
+  assert.equal(visitLabelVisible(7000), false)
 })
 
 test('a visitor stands beside the host on the side of the window with room', () => {
