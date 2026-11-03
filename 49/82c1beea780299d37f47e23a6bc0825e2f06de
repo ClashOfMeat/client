@@ -1,0 +1,19 @@
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_78512b2e469a7b 522-523
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4982c1beea780299d37f47e23a6bc0825e2f06de",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+README.md
+  s_17caec12047d7f::t_b00145b4cb38d0 4-5
+apps/desktop/src-tauri/src/settings.rs
+  s_17caec12047d7f::t_fa2f9756b0628d 14-16,20-23,29,249-259
+apps/desktop/ui/overlay.html
+  s_17caec12047d7f::t_8dbcd8055c4f5f 34
+apps/desktop/ui/overlay.mjs
+  s_17caec12047d7f::t_777d6ffadbba9f 13,55,728-731,743-745,747
+apps/desktop/ui/settings.mjs
+  s_17caec12047d7f::t_7b265c9b60563d 2,8,220,246
+apps/desktop/ui/settings/hero.mjs
+  s_17caec12047d7f::t_068cda1c7b6d01 1-9
+apps/desktop/ui/settings/tests/hero.test.mjs
+  s_17caec12047d7f::t_227c17212dfe2a 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "305ac2a1791df2f63b1d9bfda22c6f101e52724e",
+  "prompts": {},
+  "sessions": {
+    "s_17caec12047d7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b139aec1-639c-4a6d-a41a-4c40b7159eb1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}

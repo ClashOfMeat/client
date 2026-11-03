@@ -1,0 +1,30 @@
+apps/desktop/ui/hero/tests/flex.test.mjs
+  s_4974f21a2d9593::t_1cbb1957eb80c1 3,25,29-31
+  s_4974f21a2d9593::t_4032fe75d45850 26-27
+  s_4974f21a2d9593::t_9d2e27b7dbcec9 28
+  s_4974f21a2d9593::t_2f1cc3812477ed 32-33
+apps/desktop/ui/hero/flex.mjs
+  s_4974f21a2d9593::t_a8dbc7e731c856 7,50-51,53,55-56
+  s_4974f21a2d9593::t_9d2e27b7dbcec9 49,54
+  s_4974f21a2d9593::t_06f9dbd3fa5f5c 47-48,52,57-63
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_06f9dbd3fa5f5c 7,395-396,412,414-415
+  s_4974f21a2d9593::t_a8dbc7e731c856 398-400,411,413
+  s_4974f21a2d9593::t_9d2e27b7dbcec9 397
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3624d73a852d1a6f368bca6edb433a3bb3301cce",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}

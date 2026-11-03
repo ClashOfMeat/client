@@ -1,0 +1,59 @@
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_dbc59114604c80 14,19,35-38,59-60,209-211,224-243,659-660,672-676,746-749,761-763,765
+README.md
+  s_4974f21a2d9593::t_4cdfea82d13776 4-5,82-83
+apps/desktop/src-tauri/src/daemon.rs
+  s_4974f21a2d9593::t_8f7fcc4e403baf 312
+apps/desktop/src-tauri/src/main.rs
+  s_4974f21a2d9593::t_acc56ae6102095 81-85
+apps/desktop/src-tauri/src/settings.rs
+  s_4974f21a2d9593::t_fd99e3a4eb1c46 14-16,20-23,29,84-93,97-99,104-107,162,249-259
+apps/desktop/ui/overlay.css
+  s_4974f21a2d9593::t_bc9b24a3d90a7d 48,74-77
+apps/desktop/ui/overlay.html
+  s_4974f21a2d9593::t_3c3e50a192428c 20,28-32,38,40
+apps/desktop/ui/overlay/friends.mjs
+  s_4974f21a2d9593::t_692acfe23b2f2c 14-22
+apps/desktop/ui/overlay/tests/friends.test.mjs
+  s_4974f21a2d9593::t_089e85841b4a14 3,28-39
+apps/desktop/ui/overlay/tests/xp-bar.test.mjs
+  s_4974f21a2d9593::t_db72db12c87618 15-16,21
+apps/desktop/ui/overlay/xp-bar.mjs
+  s_4974f21a2d9593::t_52faa2d248344e 20
+apps/desktop/ui/settings.css
+  s_4974f21a2d9593::t_4e1a1504cc0c54 53-57
+apps/desktop/ui/settings.html
+  s_4974f21a2d9593::t_aa97154c874500 46-53
+apps/desktop/ui/settings.mjs
+  s_4974f21a2d9593::t_c5d1c8e3ee3f97 1-2,8,150-175,220,225-226,246
+apps/desktop/ui/settings/hero.mjs
+  s_4974f21a2d9593::t_8770b54b6f4e31 1-9
+apps/desktop/ui/settings/tests/hero.test.mjs
+  s_4974f21a2d9593::t_4670d9444f480b 1-16
+apps/desktop/ui/settings/tests/view.test.mjs
+  s_4974f21a2d9593::t_7e104b2e0796e2 3,54-60
+apps/desktop/ui/settings/view.mjs
+  s_4974f21a2d9593::t_0e8c73b8be9b63 74-83
+crates/daemon/src/run.rs
+  s_4974f21a2d9593::t_68660feb0a34da 711-728,891-897,1333-1350
+crates/daemon/src/sync.rs
+  s_4974f21a2d9593::t_783661d9c9e48a 283-287
+crates/daemon/tests/sync.rs
+  s_4974f21a2d9593::t_2fadfef450f2df 859-897
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e102a92353cd036a7e45e32ef2bff8b1a583528c",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
