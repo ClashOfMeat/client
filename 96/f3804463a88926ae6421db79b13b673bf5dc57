@@ -1,0 +1,29 @@
+scripts/check.sh
+  s_a50d8ed3a4a243::t_0a811f1543a6d1 15-18
+scripts/check-hero-emote-payload.mjs
+  s_a50d8ed3a4a243::t_f23526f71c4af3 1,4,8,13-18,25-27,29,33
+apps/desktop/ui/hero/validate.mjs
+  s_a50d8ed3a4a243::t_7a058370b545de 38,40
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_a50d8ed3a4a243::t_ab3bc3e8734cd2 57,100-101,105-111
+  s_a50d8ed3a4a243::t_01605aaafde1b2 112-113
+docs/bronze-flex-effect.md
+  s_a50d8ed3a4a243::t_b87efb43220c4b 4-5
+  s_a50d8ed3a4a243::t_45cf680d05bbaf 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96f3804463a88926ae6421db79b13b673bf5dc57",
+  "prompts": {},
+  "sessions": {
+    "s_a50d8ed3a4a243": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a19c6f-cdb4-7f80-b9c2-90d26d5486b5",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
