@@ -4,7 +4,7 @@ import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace, visitDuration
 import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
 import { validateAnimation, validateCharacter, validateLevelUp, validateVisit, VISIT_EMOTES, leagueOrBronze } from './hero/validate.mjs'
-import { flexPhase, flexDelay, flexLabel, flexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT, FLEX_WIDTH } from './hero/flex.mjs'
+import { flexPhase, flexDelay, flexLabel, flexLabelMaxWidth, flexPlace, visitorFlexPlace, flexMotion, FLEX_DURATION, FLEX_HEIGHT, FLEX_WIDTH } from './hero/flex.mjs'
 import { kissHeartPlace, visitorKissHeartPlace } from './hero/kiss.mjs'
 import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
@@ -392,8 +392,12 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
     if (phase < 0) return
     const sheet = effectImage(`./assets/flex-fx/${leagueOrBronze(league)}.png`)
     if (!sheet) return
-    const place = flexPlace(spriteX, spriteY, rect.width)
-    ctx.drawImage(sheet, 0, phase * FLEX_HEIGHT, FLEX_WIDTH, FLEX_HEIGHT, place.x, place.y, FLEX_WIDTH, FLEX_HEIGHT)
+    const place = hostSpriteX === null
+      ? flexPlace(spriteX, spriteY, rect.width)
+      : visitorFlexPlace(spriteX, spriteY, leagueOrBronze(league))
+    const width = place.width ?? FLEX_WIDTH
+    const height = place.height ?? FLEX_HEIGHT
+    ctx.drawImage(sheet, 0, phase * FLEX_HEIGHT, FLEX_WIDTH, FLEX_HEIGHT, place.x, place.y, width, height)
     const label = flexLabel(leagueRank)
     if (phase >= 1 && phase <= 9 && label) {
       ctx.save()
@@ -404,10 +408,11 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
       ctx.lineWidth = 4
       ctx.strokeStyle = '#241a14'
       ctx.fillStyle = '#fff1cc'
-      const center = place.x + FLEX_WIDTH / 2
-      const baseline = place.y + (leagueOrBronze(league) === 'bronze' ? 153 : 172)
-      ctx.strokeText(label, center, baseline, FLEX_WIDTH - 16)
-      ctx.fillText(label, center, baseline, FLEX_WIDTH - 16)
+      const center = place.x + width / 2
+      const textWidth = flexLabelMaxWidth(center, rect.width)
+      const baseline = place.y + (leagueOrBronze(league) === 'bronze' ? 153 : 172) * (height / FLEX_HEIGHT)
+      ctx.strokeText(label, center, baseline, textWidth)
+      ctx.fillText(label, center, baseline, textWidth)
       ctx.restore()
     }
   } else if (state === 'kiss' && frame === 8) {

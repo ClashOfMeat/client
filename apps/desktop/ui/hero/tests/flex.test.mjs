@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { FLEX_DELAYS, FLEX_DURATION, flexDelay, flexLabel, flexMotion, flexPhase, flexPlace } from '../flex.mjs'
+import { FLEX_DELAYS, FLEX_DURATION, flexDelay, flexLabel, flexLabelMaxWidth, flexMotion, flexPhase, flexPlace, visitorFlexPlace } from '../flex.mjs'
 
 test('rank crest plays all twelve phases and leaves after the final lift', () => {
   assert.equal(FLEX_DURATION, 3550)
@@ -20,6 +20,15 @@ test('rank crest sits close above the sprite and inside the overlay at both scre
   assert.deepEqual(flexPlace(0, 252), { x: 0, y: 82 })
   assert.deepEqual(flexPlace(56, 252), { x: 30, y: 82 })
   assert.deepEqual(flexPlace(112, 252), { x: 60, y: 82 })
+})
+
+test('visiting Flex badge follows the sending hero instead of clamping between the pair', () => {
+  assert.deepEqual(visitorFlexPlace(140, 252), { x: 132, y: 122, width: 144, height: 160 })
+  assert.deepEqual(visitorFlexPlace(28, 252), { x: 20, y: 122, width: 144, height: 160 })
+  assert.deepEqual(visitorFlexPlace(140, 252, 'goose'), { x: 132, y: 104, width: 144, height: 160 })
+  assert.equal(flexPlace(140, 252).x, 60)
+  assert.equal(flexLabelMaxWidth(204, 240), 72)
+  assert.equal(flexLabelMaxWidth(120, 240), 164)
 })
 
 test('the crest shows the leaderboard rank, never a score', () => {

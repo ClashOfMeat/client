@@ -4,6 +4,7 @@ export const FLEX_DELAYS = [300, 250, 100, 100, 100, 100, 100, 100, 100, 2150, 1
 export const FLEX_DURATION = FLEX_DELAYS.reduce((sum, delay) => sum + delay, 0)
 export const FLEX_WIDTH = 180
 export const FLEX_HEIGHT = 200
+export const VISITOR_FLEX_SCALE = 0.8
 const NORMAL = { dx: 0, dy: 0, width: 128, height: 128 }
 
 export function flexPhase(elapsed) {
@@ -41,6 +42,23 @@ export function flexPlace(spriteX, spriteY, windowWidth = 240) {
     x: Math.max(0, Math.min(windowWidth - FLEX_WIDTH, spriteX + 64 - FLEX_WIDTH / 2)),
     y: spriteY - FLEX_HEIGHT + FLEX_DROP,
   }
+}
+
+// A visiting hero can stand near the edge of the 240px window. The outer
+// particles may leave it, but the badge itself must stay over the sender.
+export function visitorFlexPlace(spriteX, spriteY, league = 'bronze') {
+  const width = Math.round(FLEX_WIDTH * VISITOR_FLEX_SCALE)
+  const height = Math.round(FLEX_HEIGHT * VISITOR_FLEX_SCALE)
+  return {
+    x: spriteX + 64 - width / 2,
+    y: spriteY - FLEX_HEIGHT + FLEX_DROP + FLEX_HEIGHT - height - (league === 'bronze' ? 0 : 18),
+    width,
+    height,
+  }
+}
+
+export function flexLabelMaxWidth(center, windowWidth = 240) {
+  return Math.max(0, Math.min(FLEX_WIDTH - 16, 2 * Math.min(center, windowWidth - center)))
 }
 
 // The crest shows the player's leaderboard rank, or nothing while the server sends none.
