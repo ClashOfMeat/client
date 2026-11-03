@@ -1,0 +1,28 @@
+apps/desktop/ui/overlay.mjs
+  s_96f91b15a1e2c0::t_a3b241a3797676 266,278-281,289
+docs/plans/2026-11-03-desktop-notification-inbox.md
+  s_96f91b15a1e2c0::t_e5ccd0908bd70b 8
+  s_96f91b15a1e2c0::t_ed5bf14c0261e0 26
+  s_96f91b15a1e2c0::t_cbb5c800befc1f 1-7,9-15,17-25,27-32
+  s_96f91b15a1e2c0::t_66128e4e7cb387 16
+README.md
+  s_96f91b15a1e2c0::t_3b2434c5a22e5b 48-51,86
+.gitignore
+  s_96f91b15a1e2c0::t_d3932c207a216e 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6446c33ff2f997af96bb24de17a5407102022522",
+  "prompts": {},
+  "sessions": {
+    "s_96f91b15a1e2c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a264-d10b-7c63-a6fb-3f78223f5956",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
