@@ -17,7 +17,7 @@ export function xpBar(character, xp) {
   const into = xp - floor
   if (Number.isSafeInteger(xp) && Number.isSafeInteger(next) && span > 0) {
     const shown = Math.max(0, Math.min(into, span))
-    return { state: 'progress', level, count: `${compactAmount(shown)}/${compactAmount(span)}`, fill: shown / span * 100 }
+    return { state: 'progress', level, count: `${compactAmount(shown)}/${compactAmount(span)} XP`, fill: shown / span * 100 }
   }
   if (Number.isSafeInteger(xp) && (next === null || span <= 0)) {
     return { state: 'max', level, count: `Max · ${compactAmount(xp)} XP`, fill: 100 }
