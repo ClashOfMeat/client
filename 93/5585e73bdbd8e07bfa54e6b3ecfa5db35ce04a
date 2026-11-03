@@ -1,0 +1,33 @@
+apps/desktop/ui/hero/README.md
+  s_3c65b42bf834d6::t_480c44ca3499a6 7-8
+apps/desktop/ui/hero/effects.mjs
+  s_3c65b42bf834d6::t_725c99abfe6843 2-4,27-29,31-32,36-39,43
+apps/desktop/ui/hero/hero-contract.mjs
+  s_3c65b42bf834d6::t_cc430d1af4d69c 1-42
+apps/desktop/ui/hero/tests/effects.test.mjs
+  s_3c65b42bf834d6::t_0b9eeb2b4563a2 46,55-56
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_3c65b42bf834d6::t_dfe674f0652cdf 3-4,8,12-19,21-22,25,29-38,44-46,48-49,82,92-93
+apps/desktop/ui/hero/validate.mjs
+  s_3c65b42bf834d6::t_386a3aa1e0eca5 1-4,19-24,26-27,75,77
+apps/desktop/ui/overlay.mjs
+  s_3c65b42bf834d6::t_bd6c6940b2e4c8 181,557,559
+crates/daemon/examples/fake/sprite.rs
+  s_3c65b42bf834d6::t_9eca6addfbf7bb 8-9,11-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "935585e73bdbd8e07bfa54e6b3ecfa5db35ce04a",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}

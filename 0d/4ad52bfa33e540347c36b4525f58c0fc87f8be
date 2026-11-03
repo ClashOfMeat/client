@@ -1,0 +1,21 @@
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_3c65b42bf834d6::t_8120bceaf7da94 31,61-67
+apps/desktop/ui/hero/validate.mjs
+  s_3c65b42bf834d6::t_8120bceaf7da94 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d4ad52bfa33e540347c36b4525f58c0fc87f8be",
+  "prompts": {},
+  "sessions": {
+    "s_3c65b42bf834d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9180c6be-74a3-48c3-8d33-9785dafbd0ee",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
