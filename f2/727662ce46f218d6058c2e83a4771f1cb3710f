@@ -1,0 +1,45 @@
+README.md
+  s_b239ee4661587f::t_659984df34e8c1 73-74
+apps/desktop/src-tauri/src/daemon.rs
+  s_b239ee4661587f::t_2f0b6daa6b27a4 312
+apps/desktop/src-tauri/src/main.rs
+  s_b239ee4661587f::t_ab9cc90a58a2ef 81-85
+apps/desktop/src-tauri/src/settings.rs
+  s_b239ee4661587f::t_418c3a78faa972 78-87,91-93,98-101,156
+apps/desktop/ui/overlay.html
+  s_b239ee4661587f::t_ee19942dec5dc5 36
+apps/desktop/ui/overlay.mjs
+  s_b239ee4661587f::t_035ef8c1a05c5f 653-657
+apps/desktop/ui/settings.css
+  s_b239ee4661587f::t_212ae9f4e931d3 53-57
+apps/desktop/ui/settings.html
+  s_b239ee4661587f::t_9a4449f77028be 46-53
+apps/desktop/ui/settings.mjs
+  s_b239ee4661587f::t_9fc2aa34e1c97c 1,149-174,224-225
+apps/desktop/ui/settings/tests/view.test.mjs
+  s_b239ee4661587f::t_da4e492a90563d 3,54-60
+apps/desktop/ui/settings/view.mjs
+  s_b239ee4661587f::t_9cabc9edea1be3 74-83
+crates/daemon/src/run.rs
+  s_b239ee4661587f::t_ffa5cfcaed80e8 711-728,891-897,1333-1350
+crates/daemon/src/sync.rs
+  s_b239ee4661587f::t_7b942dfe0c4781 281-285
+crates/daemon/tests/sync.rs
+  s_b239ee4661587f::t_c9936d66c61793 848-886
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f2727662ce46f218d6058c2e83a4771f1cb3710f",
+  "prompts": {},
+  "sessions": {
+    "s_b239ee4661587f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d43ec2d-3462-4239-84f1-84c90fc0f5a3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
