@@ -44,6 +44,8 @@ test('an animation is 31 frames each way and plays the contract clips', () => {
 test('a visitor brings the same art and one of the three emotes', () => {
   const character = { id: uuid, png, animation }
   assert.deepEqual(validateCharacter(character).animation.clips.flex, HERO_CONTRACT.clips.flex)
+  assert.equal(validateCharacter({ ...character, displayScale: 1.12 }).displayScale, 1.12)
+  assert.equal(validateCharacter({ ...character, displayScale: Infinity }).displayScale, undefined)
   const now = Date.parse('2026-11-02T12:00:00Z')
   for (const emote of VISIT_EMOTES)
     assert.equal(validateVisit({ id: uuid, name: 'Squire', guild: null, emote, expiresAt: new Date(now + 60000).toISOString(), character }, now).emote, emote)

@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { windowRect, formatTokens } from '../layout.mjs'
+import { visitPlace } from '../../hero/effects.mjs'
+import { heroDrawRect } from '../../hero/display.mjs'
 
 const workArea = { x: 100, y: 50, width: 1000, height: 700 }
 
@@ -19,9 +21,19 @@ test('bubble grows upward and preserves sprite position, including edges', () =>
     const expanded = windowRect(x, { workArea, bubble: true })
     assert.equal(expanded.x + expanded.spriteX, compact.x + compact.spriteX)
     assert.equal(expanded.y + expanded.spriteY, compact.y + compact.spriteY)
-    assert.equal(expanded.width, 240)
+    assert.equal(expanded.width, 360)
     assert.equal(expanded.height, 380)
     assert(expanded.x >= 100 && expanded.x + expanded.width <= 1100)
+  }
+})
+
+test('centered visit fits two enlarged heroes inside the bubble', () => {
+  const rect = windowRect(256, { workArea: { x: 0, y: 0, width: 640, height: 380 }, bubble: true })
+  const visitor = visitPlace(rect.spriteX, rect.width)
+  for (const x of [rect.spriteX, rect.spriteX + visitor.stand]) {
+    const drawn = heroDrawRect(x, rect.spriteY, 1.4)
+    assert(drawn.x >= 0)
+    assert(drawn.x + drawn.width <= rect.width)
   }
 })
 

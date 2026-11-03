@@ -5,11 +5,11 @@ These browser ES modules also run in Node 22. They hold no timers or DOM state, 
 | Module | Job |
 | --- | --- |
 | `hero-contract.mjs` | The hero contract: a verbatim copy of ClashOfMeat/app `packages/core/src/heroes/hero-contract.json` (see `docs/hero-contract.md` there). 31 frames per hero in a fixed order, the clip table, the three emotes and the visit timing. Change it only together with the app. |
-| `validate.mjs` | Check heartbeat PNGs, the hero animation against the contract (attaching the contract's clips), characters, level-up effects, and visits. Levels and safe-integer XP have no game cap. |
+| `validate.mjs` | Check heartbeat PNGs, the hero animation against the contract (attaching the contract's clips), characters, level-up effects, and visits. Levels and safe-integer XP have no game cap. An optional `character.displayScale` from the app sizes both the local hero and a visiting friend; older payloads use 1. |
 | `activity.mjs` | Turn daemon `activity` reports into the hero pose and pixel position. `update` takes `{busy, sessions}`; `snapshot` takes the overlay's available travel width and current time. `drag` and `preview` change the pose without timers. |
 | `frames.mjs` | Pick clip frames, time the next frame boundary, and choose an authored mirrored PNG or a canvas flip. |
 | `effects.mjs` | Detect XP gains and compute bubble, level-up, and visitor poses. Visitor offsets and bubble `dy` are pixels. |
-| `visit.mjs` | Play each friend visit once (the server re-sends it until acknowledged) and place its "from <name>" label. |
+| `visit.mjs` | Play each friend visit once (the server re-sends it until acknowledged) and place its player-name label. |
 | `outgoing.mjs` | Keep the sender's hero away for each accepted outbound visit ID until playback, failure, or expiry. Ignore stale heartbeats after a terminal result. |
 
 On each daemon activity event, call `hero.update(activity, now)`. On a heartbeat, validate the character, animation, level-up and visit payloads, then call `xpGain(previous, current, now)`. Render `hero.snapshot(now, { width: screenWidth - spriteWidth, paused, canMirror })`; call `companionFrame`, `frameImage`, and the active effect functions for the image. Schedule the next render for the earlier of the next movement step (at most about 12 frames per second), `frameDelay`, or an effect/state deadline. A held `sleep` or `kiss` frame returns `Infinity`, so stop the timer when nothing else is moving. Recompute on daemon events, drag, pause, and display changes.

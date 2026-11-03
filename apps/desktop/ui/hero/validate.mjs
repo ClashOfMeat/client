@@ -1,4 +1,5 @@
 import { HERO_CONTRACT } from './hero-contract.mjs'
+import { safeDisplayScale } from './display.mjs'
 
 export const VISIT_EMOTES = HERO_CONTRACT.emotes
 export const COMPANION_STATES = HERO_CONTRACT.states
@@ -39,6 +40,7 @@ export function validateCharacter(character) {
   if (character.evolution != null && (!Number.isInteger(character.evolution) || character.evolution < 1 || character.evolution > 99)) return null
   if (character.heroId !== undefined && (typeof character.heroId !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(character.heroId))) return null
   return { id: character.id, png: character.png,
+    ...(safeDisplayScale(character.displayScale) === character.displayScale ? { displayScale: character.displayScale } : {}),
     ...(character.xp !== undefined ? { xp: character.xp } : {}),
     ...(character.levelFloor !== undefined ? { levelFloor: character.levelFloor } : {}),
     ...(character.nextLevelAt !== undefined ? { nextLevelAt: character.nextLevelAt } : {}),

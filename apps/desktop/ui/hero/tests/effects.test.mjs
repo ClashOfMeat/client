@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace, visitDuration } from '../effects.mjs'
+import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitPlace, visitDuration, visitLabelVisible } from '../effects.mjs'
 
 const animation = { clips: { idle: { frames: [0], durations: [100] }, walk: { frames: [0, 1, 2], durations: [100, 200, 100] }, kiss: { frames: [0, 1, 2], durations: [100, 200, 100] } } }
 const aura = { durations: [80, ...Array(16).fill(90), 120] }
@@ -57,8 +57,24 @@ test('a visitor plays flex once between walking in and out, or holds a kiss or a
   assert.equal(visitPose(animation, 3000, 84, 240).state, 'kiss')
 })
 
+test('sender name shows during arrival and exit, but not during the emote', () => {
+  const kissDuration = visitDuration(animation, 'kiss')
+  assert.equal(visitLabelVisible(0, kissDuration), true)
+  assert.equal(visitLabelVisible(1499, kissDuration), true)
+  assert.equal(visitLabelVisible(1500, kissDuration), false)
+  assert.equal(visitLabelVisible(6499, kissDuration), false)
+  assert.equal(visitLabelVisible(6500, kissDuration), true)
+  assert.equal(visitLabelVisible(7999, kissDuration), true)
+  assert.equal(visitLabelVisible(8000, kissDuration), false)
+  const flexing = { clips: { ...animation.clips, flex: { frames: [5, 6, 7, 8], durations: [300, 125, 125, 3000] } } }
+  const flexDuration = visitDuration(flexing, 'flex')
+  assert.equal(visitLabelVisible(5049, flexDuration), false)
+  assert.equal(visitLabelVisible(5050, flexDuration), true)
+})
+
 test('a visitor stands beside the host on the side of the window with room', () => {
-  assert.deepEqual(visitPlace(56, 240), { stand: 56, edge: 184 })
+  assert.deepEqual(visitPlace(56, 240), { stand: 84, edge: 184 })
   assert.deepEqual(visitPlace(20, 240), { stand: 84, edge: 220 })
+  assert.deepEqual(visitPlace(60, 240), { stand: -84, edge: -188 })
   assert.deepEqual(visitPlace(112, 240), { stand: -84, edge: -240 })
 })
