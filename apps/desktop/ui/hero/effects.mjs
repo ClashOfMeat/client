@@ -1,4 +1,7 @@
 import { companionFrame } from './frames.mjs'
+import { HERO_CONTRACT } from './hero-contract.mjs'
+
+const { walkInMs: WALK_IN, walkOutMs: WALK_OUT, emoteMs: EMOTE_MS } = HERO_CONTRACT.visit
 
 // The plugin counts the positive XP difference on the same character, including
 // level changes. The server does not provide the intervening level thresholds.
@@ -21,24 +24,23 @@ export function levelUpFrame(effect, elapsed) {
   return frame
 }
 
-// Offsets are pixels from the host hero: the visitor walks in from `edge` to `stand` beside it,
-// plays its emote (or a kiss when its animation lacks that clip) turned towards the host, and walks
-// back out. It always faces the way it walks; base frames face right.
+// The visit choreography of the hero contract. Offsets are pixels from the host hero: the visitor walks in from
+// `edge` to `stand` beside it, plays its emote turned towards the host (one Flex clip, or a held Kiss or Angry), and
+// walks back out. It always faces the way it walks; base frames face right.
 export function visitDuration(animation, emote = 'kiss') {
-  const flex = emote === 'flex' && animation?.clips?.flex
-  const emoteMs = flex ? flex.durations.reduce((sum, ms) => sum + ms, 0) : 5000
-  return 1500 + emoteMs + 1500
+  const emoteMs = emote === 'flex' ? animation.clips.flex.durations.reduce((sum, ms) => sum + ms, 0) : EMOTE_MS[emote]
+  return WALK_IN + emoteMs + WALK_OUT
 }
 
 export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
-  const leaveAt = visitDuration(animation, emote) - 1500
-  const arriving = elapsed < 1500, leaving = elapsed >= leaveAt
-  const state = arriving || leaving ? 'walk' : animation?.clips?.[emote] ? emote : 'kiss'
-  const progress = arriving ? Math.max(0, elapsed) / 1500 : leaving ? Math.min(1, (elapsed - leaveAt) / 1500) : 0
+  const leaveAt = visitDuration(animation, emote) - WALK_OUT
+  const arriving = elapsed < WALK_IN, leaving = elapsed >= leaveAt
+  const state = arriving || leaving ? 'walk' : emote
+  const progress = arriving ? Math.max(0, elapsed) / WALK_IN : leaving ? Math.min(1, (elapsed - leaveAt) / WALK_OUT) : 0
   const inward = edge > stand ? 'left' : 'right', outward = inward === 'left' ? 'right' : 'left'
   const clip = animation?.clips?.[state]
   const duration = clip?.durations.reduce((sum, ms) => sum + ms, 0) ?? 0
-  const clipElapsed = state === 'flex' && duration ? Math.min(elapsed - 1500, duration - 1) : arriving || leaving ? elapsed : elapsed - 1500
+  const clipElapsed = state === 'flex' && duration ? Math.min(elapsed - WALK_IN, duration - 1) : arriving || leaving ? elapsed : elapsed - WALK_IN
   return { frame: companionFrame(animation, state, clipElapsed), state,
     facing: arriving ? inward : leaving ? outward : stand > 0 ? 'left' : 'right',
     offset: arriving ? edge + (stand - edge) * progress : leaving ? stand + (edge - stand) * progress : stand }
