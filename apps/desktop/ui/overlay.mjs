@@ -263,6 +263,7 @@ function notificationRow(item) {
   if (!item.read || item.claimable) {
     const dot = document.createElement('span')
     dot.className = 'notification-dot'
+    dot.setAttribute('role', 'img')
     dot.setAttribute('aria-label', item.claimable ? 'Reward to claim' : 'Unread')
     row.append(dot)
   }
@@ -274,11 +275,10 @@ async function openNotification(item) {
   if (notificationBusy) return
   notificationBusy = true
   const epoch = inboxEpoch
-  try {
-    const next = await invoke('daemon_request', { method: 'notifications_read', params: { id: item.id } })
-    if (epoch === inboxEpoch) receiveNotifications(next)
-  }
-  catch (error) { if (epoch === inboxEpoch) { notificationError = errorText(error); renderNotifications() } }
+  // The web inbox acknowledges in the background; opening the destination should not wait on the network.
+  const read = invoke('daemon_request', { method: 'notifications_read', params: { id: item.id } })
+    .then(next => { if (epoch === inboxEpoch) receiveNotifications(next) })
+    .catch(error => { if (epoch === inboxEpoch) { notificationError = errorText(error); renderNotifications() } })
   try {
     if (epoch === inboxEpoch) {
       await invoke('open_app', { path: item.href })
@@ -286,6 +286,7 @@ async function openNotification(item) {
       wake()
     }
   } catch (error) { if (epoch === inboxEpoch) { notificationError = errorText(error); renderNotifications() } }
+  await read
   notificationBusy = false
 }
 

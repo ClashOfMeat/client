@@ -45,6 +45,10 @@ In client Settings, expand **Additional accounts** and add the local folder used
 
 On a Mac or Linux, if your default account lives elsewhere through `CLAUDE_CONFIG_DIR`, `CODEX_HOME` or `GEMINI_CLI_HOME`, have those variables set in the shell that runs the install command: the background service keeps the values it had then. After changing them, run `clashofmeat install` again, or add the folders under **Additional accounts**.
 
+## Notifications
+
+When the hero is on screen, a bell follows it. Click the bell to see your ten newest unread notifications, including rewards you have read but still need to claim. Clicking a notification opens its destination in the web app. **View all in Clash of Meat** opens the full notification history. The bell and inbox disappear when the hero is hidden or the desktop app is quit; the background collector still runs.
+
 ## Privacy
 
 The client reads agent session files, but it never uploads their content. It keeps a local database of counts and
@@ -79,6 +83,7 @@ What it sends, and where (every request goes to the Clash of Meat web app it was
 - **The live channel** (`GET /api/live`): an open connection that tells the client when something changed on the web.
 - **Hero actions** (`/api/companion/evolve`, `/level-up`, `/friends`, `/kiss`): the character ID and level, the old and
   new level, and a friend's handle and emote when you send your hero to visit.
+- **Notification reads** (`POST /api/installations/notifications/read`, only when you open an inbox item): that item's notification ID. The web app returns the refreshed inbox. Notification messages stay in memory in the desktop UI and are not written to the hero art cache.
 - **Feedback** (`POST /api/feedback`, only when you press Send under Settings > Feedback, also reachable from the
   hero's right-click menu): the text you wrote and `desktop settings` as where it came from.
 - **Update checks** (`GET /api/clients/desktop/update`, at launch and every hour; a verified update installs itself and relaunches the app): the platform, the architecture and the current
