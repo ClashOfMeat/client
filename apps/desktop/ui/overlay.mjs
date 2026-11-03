@@ -10,6 +10,7 @@ import { visitTracker, visitLabelLeft } from './hero/visit.mjs'
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
 import { beginDeparture, departurePose } from './hero/departure.mjs'
 import { windowRect } from './overlay/layout.mjs'
+import { heroDrawRect } from './hero/display.mjs'
 
 // The hero window has no text to select or images to drag; a selection there could never be cleared (see overlay.css).
 for (const type of ['selectstart', 'dragstart']) document.addEventListener(type, event => event.preventDefault())
@@ -371,6 +372,11 @@ function drawImage(png, x, y, size, flip = false, opacity = 1, height = size) {
   ctx.restore()
 }
 
+function drawHeroImage(png, x, y, scale, flip = false, opacity = 1, width = 128, height = 128) {
+  const place = heroDrawRect(x, y, scale, width, height)
+  drawImage(png, place.x, place.y, place.width, flip, opacity, place.height)
+}
+
 function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league, leagueRank, hostSpriteX = null) {
   if (state === 'flex') {
     const phase = flexPhase(elapsed)
@@ -507,7 +513,7 @@ async function draw() {
     const chosen = frameImage(animation, frame, active.facing)
     const motion = active.state === 'flex' ? flexMotion(active.elapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
     const exitOffset = leaving ? leaving.x - boundedX : 0
-    drawImage(chosen.png ?? character.png, rect.spriteX + exitOffset + motion.dx, rect.spriteY + motion.dy, motion.width, chosen.flip, leaving?.opacity ?? 1, motion.height)
+    drawHeroImage(chosen.png ?? character.png, rect.spriteX + exitOffset + motion.dx, rect.spriteY + motion.dy, character.displayScale, chosen.flip, leaving?.opacity ?? 1, motion.width, motion.height)
     if (!leaving) drawEmoteEffect(active.state, active.elapsed, frame, rect.spriteX, rect.spriteY, active.facing, player?.league, player?.leagueRank)
   }
   visitLabel.hidden = !visitor
@@ -518,7 +524,7 @@ async function draw() {
     const frame = frameImage(visitAnimation, v.frame, v.facing)
     const visitElapsed = now - visitorStarted - 1500
     const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
-    drawImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
+    drawHeroImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, visitor.character.displayScale, frame.flip, 1, motion.width, motion.height)
     // Contract v2 sends the bare Kiss frame for visitors; draw its one shared
     // heart between the two heroes.
     drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, rect.spriteX)

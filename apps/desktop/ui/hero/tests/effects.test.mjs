@@ -58,7 +58,8 @@ test('a visitor plays flex once between walking in and out, or holds a kiss or a
 })
 
 test('a visitor stands beside the host on the side of the window with room', () => {
-  assert.deepEqual(visitPlace(56, 240), { stand: 56, edge: 184 })
+  assert.deepEqual(visitPlace(56, 240), { stand: 84, edge: 184 })
   assert.deepEqual(visitPlace(20, 240), { stand: 84, edge: 220 })
+  assert.deepEqual(visitPlace(60, 240), { stand: -84, edge: -188 })
   assert.deepEqual(visitPlace(112, 240), { stand: -84, edge: -240 })
 })

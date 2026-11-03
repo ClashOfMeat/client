@@ -724,7 +724,7 @@ fn heartbeat_reuses_unchanged_art_and_stores_it_without_frames() {
     let server = Server::start(vec![
         Reply::ok(full_character(revision)),
         Reply::ok(
-            json!({"character": {"id": ID, "level": 3, "artRevision": revision, "artUnchanged": true}}),
+            json!({"character": {"id": ID, "level": 3, "displayScale": 1.12, "artRevision": revision, "artUnchanged": true}}),
         ),
     ]);
     let client = client(&server);
@@ -734,6 +734,7 @@ fn heartbeat_reuses_unchanged_art_and_stores_it_without_frames() {
     let second = sync_once_with_art(&client, &mut store, now(), &mut art);
     let character = &second.heartbeat.unwrap()["character"];
     assert_eq!(character["level"], 3);
+    assert_eq!(character["displayScale"], 1.12);
     assert_eq!(character["png"], "iVBOR");
     assert_eq!(character["animation"], json!({"frames": ["a"]}));
     assert!(character.get("artUnchanged").is_none());
