@@ -28,7 +28,7 @@ test('PNG and animation validation retain sprite limits and mirrored frames', ()
   assert(validateAnimation(animation))
   const extended = { ...animation, frames: Array(28).fill(png), clips: { ...animation.clips, walk: { frames: [20, 21, 22, 23, 24, 25, 26, 27], durations: Array(8).fill(100) } }, mirroredFrames: { 27: png } }
   assert(validateAnimation(extended))
-  assert.equal(validateAnimation({ ...extended, frames: Array(29).fill(png) }), null)
+  assert.equal(validateAnimation({ ...animation, frames: Array(15).fill(png) }), null)
   for (const mirroredFrames of [{ 27: png }, { 2: 'bad' }, { 20: png }, [], { other: png }])
     assert.equal(validateAnimation({ ...animation, mirroredFrames }), null)
   assert.deepEqual(validateAnimation({ ...animation, mirroredFrames: { 2: png } }).mirroredFrames, { 2: png })
@@ -43,6 +43,30 @@ test('PNG and animation validation retain sprite limits and mirrored frames', ()
   const detailed = btoa(atob(png) + '\0'.repeat(21000))
   assert(validateAnimation({ ...production, frames: Array(24).fill(detailed) }))
   assert.equal(validateAnimation({ ...production, frames: Array(32).fill(detailed.repeat(2)) }), null)
+})
+
+test('authored Flex frames after a twelve-frame walk reach heroes and visits', () => {
+  const frames = Array(31).fill(png)
+  const authored = { ...animation, frames,
+    mirroredFrames: Object.fromEntries(frames.map((png, index) => [index, png])),
+    clips: { ...animation.clips,
+      walk: { frames: Array.from({ length: 12 }, (_, i) => 16 + i), durations: Array(12).fill(100) },
+      flex: { frames: [0, 28, 29, 30], durations: [300, 125, 125, 3000] } } }
+  const character = { id: uuid, png, animation: authored }
+  assert.deepEqual(validateCharacter(character).animation.clips.flex, authored.clips.flex)
+  const now = Date.parse('2026-11-02T12:00:00Z')
+  assert(validateVisit({ id: uuid, name: 'Squire', guild: null, emote: 'flex',
+    expiresAt: new Date(now + 60000).toISOString(), character }, now))
+  assert.equal(validateAnimation({ ...authored, frames: frames.slice(0, 30) }), null)
+  // Any walk length with Flex: none (19), eight (27) or sixteen (35) frames.
+  for (const walk of [0, 8, 16]) {
+    const total = 16 + walk + 3
+    assert(validateAnimation({ ...authored, frames: Array(total).fill(png), mirroredFrames: undefined, clips: { ...authored.clips,
+      walk: walk ? { frames: Array.from({ length: walk }, (_, i) => 16 + i), durations: Array(walk).fill(100) } : animation.clips.walk,
+      flex: { frames: [0, total - 3, total - 2, total - 1], durations: [300, 125, 125, 3000] } } }), `${total} frames`)
+  }
+  assert.equal(validateAnimation({ ...authored, clips: { ...authored.clips,
+    flex: { frames: [31], durations: [100] } } }), null)
 })
 
 test('character accepts uncapped level and XP and preserves shape checks', () => {

@@ -16,7 +16,8 @@ export function validPng(png, limit = 64 * 1024) {
 }
 
 export function validateAnimation(value) {
-  if (!value || value.version !== 1 || !Array.isArray(value.frames) || ![20, 24, 28, 32].includes(value.frames.length) ||
+  // At least the 16-frame base sheet; walk and Flex frames vary per look, so the PNG and total size limits bound the rest.
+  if (!value || value.version !== 1 || !Array.isArray(value.frames) || value.frames.length < 16 ||
       value.frames.some(png => !validPng(png)) || value.frames.reduce((n, png) => n + png.length, 0) > 1024 * 1024 || !value.clips) return null
   const clips = {}
   for (const state of COMPANION_STATES) {
