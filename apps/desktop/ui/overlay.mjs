@@ -519,8 +519,8 @@ async function draw() {
     const visitElapsed = now - visitorStarted - 1500
     const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
     drawImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
-    // Visits carry the baked Kiss frame (the server sends no bare one), so its
-    // small lip heart stays; the large heart appears between the two heroes.
+    // Contract v2 sends the bare Kiss frame for visitors; draw its one shared
+    // heart between the two heroes.
     drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, rect.spriteX)
     const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null
