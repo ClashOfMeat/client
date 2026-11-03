@@ -371,7 +371,7 @@ function drawImage(png, x, y, size, flip = false, opacity = 1, height = size) {
   ctx.restore()
 }
 
-function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league, leagueRank, visiting = false) {
+function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league, leagueRank, hostSpriteX = null) {
   if (state === 'flex') {
     const phase = flexPhase(elapsed)
     if (phase < 0) return
@@ -398,7 +398,9 @@ function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league
   } else if (state === 'kiss' && frame === 8) {
     const heart = effectImage('./assets/emote-kiss.png')
     if (!heart) return
-    const place = (visiting ? visitorKissHeartPlace : kissHeartPlace)(spriteX, spriteY, rect.width, facing, elapsed)
+    const place = hostSpriteX === null
+      ? kissHeartPlace(spriteX, spriteY, rect.width, facing, elapsed)
+      : visitorKissHeartPlace(hostSpriteX, spriteX, spriteY, rect.width, elapsed)
     if (!place) return
     ctx.drawImage(heart, place.x, place.y, place.size, place.size)
   } else if (state === 'angry' && frame === 12) {
@@ -517,9 +519,9 @@ async function draw() {
     const visitElapsed = now - visitorStarted - 1500
     const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
     drawImage(frame.png, rect.spriteX + v.offset + motion.dx, rect.spriteY + motion.dy, motion.width, frame.flip, 1, motion.height)
-    // Visits carry the baked Kiss frame (the server sends no bare one), so its small lip heart stays;
-    // the large heart sits away from the host instead of covering it.
-    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, true)
+    // Visits carry the baked Kiss frame (the server sends no bare one), so its
+    // small lip heart stays; the large heart appears between the two heroes.
+    drawEmoteEffect(v.state, visitElapsed, v.frame, rect.spriteX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, rect.spriteX)
     const left = visitLabelLeft(rect.spriteX + v.offset, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null
     visitLabel.style.left = `${left ?? 0}px`

@@ -39,28 +39,25 @@ test('Kiss heart pulses at 75% of its previous size', () => {
   assert.deepEqual([520, 632, 745, 857, 970].map(elapsed => kissHeartPlace(56, 252, 240, 'right', elapsed).size), [39, 41, 42, 41, 39])
 })
 
-test('a visitor\'s large Kiss heart sits on its far side, clear of the host and its name label', () => {
+test('a visiting Kiss heart stays centered between both heroes from either side', () => {
   for (const hostX of [0, 20, 56, 84, 112]) {
     const { stand } = visitPlace(hostX, 240)
     const visitorX = hostX + stand
-    const facing = stand > 0 ? 'left' : 'right'
     for (const elapsed of [520, 745, 970]) {
-      const heart = visitorKissHeartPlace(visitorX, 252, 240, facing, elapsed)
+      const heart = visitorKissHeartPlace(hostX, visitorX, 252, 240, elapsed)
       const at = `${hostX}/${elapsed}`
       assert(heart.x >= 0 && heart.x + heart.size <= 240 && heart.y >= 0, `${at}: clipped`)
-      assert(!overlaps(heart, { x: hostX, y: 252, width: 128, height: 128 }), `${at}: covers the host`)
-      assert(heart.y + heart.size <= 252 - 4, `${at}: covers the "from" label`)
-      const away = heart.x + heart.size / 2 - (visitorX + 64)
-      assert(stand > 0 ? away > 0 : away < 0, `${at}: on the host's side`)
+      const midpoint = (hostX + visitorX) / 2 + 64
+      assert(Math.abs(heart.x + heart.size / 2 - midpoint) <= 0.5, `${at}: not between the heroes`)
+      assert(heart.y >= 252 + 16, `${at}: overlaps the visitor label`)
       assert(heart.size >= 39 && heart.size <= 42)
     }
   }
 })
 
-test('a visitor\'s large Kiss heart goes beside it when the window has room, and rises', () => {
-  assert.deepEqual(visitorKissHeartPlace(112, 252, 400, 'left', 520), { x: 240, y: 260, size: 39 })
-  assert.deepEqual(visitorKissHeartPlace(112, 252, 240, 'left', 520), { x: 201, y: 207, size: 39 })
-  assert.deepEqual(visitorKissHeartPlace(28, 252, 240, 'right', 520), { x: 28, y: 207, size: 39 })
-  assert(visitorKissHeartPlace(112, 252, 240, 'left', 970).y < 207)
-  assert.equal(visitorKissHeartPlace(112, 20, 240, 'left', 970).y, 0)
+test('the visiting heart rises between the faces and clamps to a narrow window', () => {
+  assert.deepEqual(visitorKissHeartPlace(28, 112, 252, 240, 520), { x: 115, y: 280, size: 39 })
+  assert.deepEqual(visitorKissHeartPlace(112, 28, 252, 240, 520), { x: 115, y: 280, size: 39 })
+  assert.deepEqual(visitorKissHeartPlace(28, 112, 252, 240, 970), { x: 115, y: 268, size: 39 })
+  assert.deepEqual(visitorKissHeartPlace(0, 84, 20, 24, 970), { x: 0, y: 36, size: 24 })
 })
