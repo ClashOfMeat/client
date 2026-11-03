@@ -1,0 +1,23 @@
+apps/desktop/ui/hero/kiss.mjs
+  s_4974f21a2d9593::t_917b36caa9d4af 25-28,32-37
+apps/desktop/ui/hero/tests/kiss.test.mjs
+  s_4974f21a2d9593::t_6d9e103a28e9db 42,47,50-52,58-62
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_917b36caa9d4af 374,401-403,522-524
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17c70353b8b4e4b876426488337db73445300a25",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
