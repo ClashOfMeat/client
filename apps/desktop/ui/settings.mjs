@@ -1,4 +1,4 @@
-import { settingsView } from './settings/view.mjs'
+import { feedbackDraft, settingsView } from './settings/view.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen } = window.__TAURI__.event
@@ -146,6 +146,32 @@ $('account-folder-form').addEventListener('submit', async event => {
   } catch (reason) { error(reason) }
 })
 
+let sendingFeedback = false
+function feedbackStatus(text, failed = false) {
+  $('feedback-status').textContent = text
+  $('feedback-status').classList.toggle('error', failed)
+}
+$('feedback-form').addEventListener('submit', async event => {
+  event.preventDefault()
+  if (sendingFeedback) return
+  const draft = feedbackDraft($('feedback-message').value)
+  if (draft.error) { feedbackStatus(draft.error, true); $('feedback-message').focus(); return }
+  sendingFeedback = true
+  $('feedback-send').disabled = true
+  feedbackStatus('Sending…')
+  try {
+    await request('send_feedback', { message: draft.message })
+    $('feedback-message').value = ''
+    feedbackStatus('Thanks! Your feedback was sent.')
+  } catch (reason) { feedbackStatus(String(reason), true) }
+  finally { sendingFeedback = false; $('feedback-send').disabled = false }
+})
+function showSection(section) {
+  if (section !== 'feedback' || $('feedback-section').hidden) return
+  $('feedback-section').scrollIntoView({ block: 'center' })
+  $('feedback-message').focus()
+}
+
 $('sync').addEventListener('click', async () => {
   try { error(''); await request('sync_now'); await refresh() } catch (reason) { error(reason) }
 })
@@ -195,6 +221,8 @@ displays = initial.displays
 device = initial.device
 updater = initial.updater ?? {}
 render()
+showSection(window.__CLASHOFMEAT_SECTION__)
+await listen('settings-section', ({ payload }) => showSection(payload))
 await listen('daemon', ({ payload }) => {
   if (payload.kind === 'snapshot') daemon.snapshot = payload.data
   if (payload.kind === 'status') {

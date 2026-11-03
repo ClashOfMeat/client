@@ -75,13 +75,30 @@ pub fn set(app: &tauri::AppHandle, next: HeroSettings) -> Result<HeroSettings, S
 }
 
 pub fn show(app: &tauri::AppHandle) -> tauri::Result<()> {
+    open(app, None)
+}
+
+/// Opens the settings window on its Feedback section (the hero menu's "Send feedback…").
+pub fn show_feedback(app: &tauri::AppHandle) -> tauri::Result<()> {
+    open(app, Some("feedback"))
+}
+
+/// A window that is already open is told the section by event; a new one reads it at startup.
+fn open(app: &tauri::AppHandle, section: Option<&str>) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("settings") {
         window.show()?;
         window.set_focus()?;
+        if let Some(section) = section {
+            app.emit_to("settings", "settings-section", section)?;
+        }
         return Ok(());
     }
     let window =
         WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+            .initialization_script(format!(
+                "window.__CLASHOFMEAT_SECTION__ = {};",
+                serde_json::to_string(&section).unwrap_or_else(|_| "null".into())
+            ))
             .title("Clash of Meat")
             .inner_size(420.0, 520.0)
             .min_inner_size(420.0, 520.0)
@@ -136,6 +153,7 @@ pub fn daemon_request(
             | "level_up"
             | "friends"
             | "send_visit"
+            | "send_feedback"
             | "visit_status"
             | "visit_done"
     ) {

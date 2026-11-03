@@ -78,6 +78,8 @@ What it sends, and where (every request goes to the Clash of Meat web app it was
 - **The live channel** (`GET /api/live`): an open connection that tells the client when something changed on the web.
 - **Hero actions** (`/api/companion/evolve`, `/level-up`, `/friends`, `/kiss`): the character ID and level, the old and
   new level, and a friend's handle and emote when you send your hero to visit.
+- **Feedback** (`POST /api/feedback`, only when you press Send under Settings > Feedback, also reachable from the
+  hero's right-click menu): the text you wrote and `desktop settings` as where it came from.
 - **Update checks** (`GET /api/clients/desktop/update`, at launch and every hour; a verified update installs itself and relaunches the app): the platform, the architecture and the current
   version. Update downloads come from this repo's GitHub releases and carry no token.
 - **Disconnecting** (`DELETE /api/installations/self`): `clashofmeat uninstall` and `clashofmeat connect --force`

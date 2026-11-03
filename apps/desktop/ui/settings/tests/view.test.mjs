@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { relativeSyncTime, providerView, settingsView, updateView } from '../view.mjs'
+import { feedbackDraft, relativeSyncTime, providerView, settingsView, updateView } from '../view.mjs'
 
 test('update view covers optional, security, failure, and blocked states', () => {
   const base = { current: '0.1.0', available: '0.2.0' }
@@ -50,4 +50,11 @@ test('settings view hides token column until a provider supplies it', () => {
 test('provider map totals and unsupported Cursor usage stay truthful', () => {
   assert.equal(settingsView({ today_tokens: { codex: 1000, "claude-code": 2500 } }, null, null).totalTokens, '4k')
   assert.equal(providerView({ id: 'cursor', tokens_available: false, today_tokens: 0 }, new Set(), true).tokens, 'not available')
+})
+
+test('feedback drafts are trimmed, required and capped at 2000 characters', () => {
+  assert.deepEqual(feedbackDraft('  More bosses  '), { message: 'More bosses', error: null })
+  assert.equal(feedbackDraft('   ').error, 'Write your feedback first.')
+  assert.equal(feedbackDraft('x'.repeat(2000)).error, null)
+  assert.equal(feedbackDraft('x'.repeat(2001)).error, 'Feedback is limited to 2000 characters.')
 })
