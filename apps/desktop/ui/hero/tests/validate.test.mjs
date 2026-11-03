@@ -4,21 +4,18 @@ import { COMPANION_STATES, LEAGUES, validPng, validateAnimation, validateCharact
 
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
 const uuid = '12345678-1234-1234-1234-123456789abc'
-const animation = { version: 1, frames: Array(20).fill(png), clips: Object.fromEntries(COMPANION_STATES.map(state => [state, { frames: [0, 1, 2], durations: [100, 200, 100] }])) }
+const animation = { version: 1, frames: Array(31).fill(png), clips: Object.fromEntries(COMPANION_STATES.map(state => [state, { frames: [0, 1, 2], durations: [100, 200, 100] }])) }
 const aura = { id: 'preview', heroId: 'hero', version: 1, fromLevel: 1, toLevel: 30,
   frames: Array(18).fill(png), durations: [80, ...Array(16).fill(90), 120], durationMs: 1640 }
 
-test('older server art without Flex and Grab still gives the desktop a hero', () => {
-  const clips = { ...animation.clips }
-  delete clips.flex
-  delete clips.grab
-  for (const name of ['wave', 'laugh', 'victory']) clips[name] = { frames: [0], durations: [100] }
-  const olderAnimation = { ...animation, clips }
-  const character = { id: uuid, png, animation: olderAnimation }
-  assert(validateAnimation(olderAnimation))
-  assert(validateCharacter(character).animation)
-  assert.equal(validateAnimation({ ...olderAnimation, clips: { ...clips, flex: { frames: [999], durations: [100] } } }), null)
-  assert.equal(validateAnimation({ ...olderAnimation, clips: { ...clips, idle: undefined } }), null)
+test('every hero has the same 31 frames and every emote and animation', () => {
+  assert(validateAnimation({ ...animation, clips: { ...animation.clips, wave: { frames: [0], durations: [100] } } }), 'extra clips are ignored')
+  for (const state of COMPANION_STATES) {
+    const clips = { ...animation.clips }
+    delete clips[state]
+    assert.equal(validateAnimation({ ...animation, clips }), null, state)
+  }
+  for (const count of [15, 20, 28, 30, 32]) assert.equal(validateAnimation({ ...animation, frames: Array(count).fill(png) }), null, `${count} frames`)
 })
 
 test('PNG and animation validation retain sprite limits and mirrored frames', () => {
@@ -26,23 +23,17 @@ test('PNG and animation validation retain sprite limits and mirrored frames', ()
   assert.equal(validPng('bad'), false)
   assert.equal(validPng(png, 10), false)
   assert(validateAnimation(animation))
-  const extended = { ...animation, frames: Array(28).fill(png), clips: { ...animation.clips, walk: { frames: [20, 21, 22, 23, 24, 25, 26, 27], durations: Array(8).fill(100) } }, mirroredFrames: { 27: png } }
-  assert(validateAnimation(extended))
-  assert.equal(validateAnimation({ ...animation, frames: Array(15).fill(png) }), null)
-  for (const mirroredFrames of [{ 27: png }, { 2: 'bad' }, { 20: png }, [], { other: png }])
+  assert(validateAnimation({ ...animation, mirroredFrames: { 30: png } }))
+  for (const mirroredFrames of [{ 31: png }, { 2: 'bad' }, { 40: png }, [], { other: png }])
     assert.equal(validateAnimation({ ...animation, mirroredFrames }), null)
   assert.deepEqual(validateAnimation({ ...animation, mirroredFrames: { 2: png } }).mirroredFrames, { 2: png })
   assert.equal(validateAnimation({ ...animation, frames: ['bad'] }), null)
-  assert.equal(validateAnimation({ ...animation, clips: { ...animation.clips, walk: { frames: [20], durations: [100] } } }), null)
+  assert.equal(validateAnimation({ ...animation, clips: { ...animation.clips, walk: { frames: [31], durations: [100] } } }), null)
   assert.equal(validateAnimation({ ...animation, clips: { ...animation.clips, talk: { frames: [1], durations: [0] } } }), null)
   assert.equal(validateAnimation({ ...animation, clips: { ...animation.clips, sit: { frames: [1, 2], durations: [100] } } }), null)
-  const production = { ...animation, frames: Array(24).fill(png), clips: { ...animation.clips, walk: { frames: [16, 17, 18, 19, 20, 21, 22, 23], durations: Array(8).fill(100) } } }
-  assert(validateAnimation(production))
-  assert(validateAnimation({ ...production, frames: Array(28).fill(png), clips: { ...production.clips, walk: { frames: Array.from({ length: 12 }, (_, i) => 16 + i), durations: Array(12).fill(100) } } }))
-  assert(validateAnimation({ ...production, frames: Array(32).fill(png) }))
   const detailed = btoa(atob(png) + '\0'.repeat(21000))
-  assert(validateAnimation({ ...production, frames: Array(24).fill(detailed) }))
-  assert.equal(validateAnimation({ ...production, frames: Array(32).fill(detailed.repeat(2)) }), null)
+  assert(validateAnimation({ ...animation, frames: Array(31).fill(detailed) }))
+  assert.equal(validateAnimation({ ...animation, frames: Array(31).fill(detailed.repeat(2)) }), null)
 })
 
 test('authored Flex frames after a twelve-frame walk reach heroes and visits', () => {
@@ -58,13 +49,6 @@ test('authored Flex frames after a twelve-frame walk reach heroes and visits', (
   assert(validateVisit({ id: uuid, name: 'Squire', guild: null, emote: 'flex',
     expiresAt: new Date(now + 60000).toISOString(), character }, now))
   assert.equal(validateAnimation({ ...authored, frames: frames.slice(0, 30) }), null)
-  // Any walk length with Flex: none (19), eight (27) or sixteen (35) frames.
-  for (const walk of [0, 8, 16]) {
-    const total = 16 + walk + 3
-    assert(validateAnimation({ ...authored, frames: Array(total).fill(png), mirroredFrames: undefined, clips: { ...authored.clips,
-      walk: walk ? { frames: Array.from({ length: walk }, (_, i) => 16 + i), durations: Array(walk).fill(100) } : animation.clips.walk,
-      flex: { frames: [0, total - 3, total - 2, total - 1], durations: [300, 125, 125, 3000] } } }), `${total} frames`)
-  }
   assert.equal(validateAnimation({ ...authored, clips: { ...authored.clips,
     flex: { frames: [31], durations: [100] } } }), null)
 })

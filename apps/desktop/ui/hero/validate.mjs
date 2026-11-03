@@ -1,6 +1,7 @@
 export const VISIT_EMOTES = ['flex', 'kiss', 'angry']
 export const COMPANION_STATES = ['idle', 'walk', 'sit', 'talk', 'kiss', 'angry', 'flex', 'grab', 'sleep']
-const OPTIONAL_COMPANION_STATES = new Set(['flex', 'grab'])
+// Every hero has the same frames: 16 poses, a 12-frame walk and 3 Flex frames.
+export const HERO_FRAMES = 31
 export const LEAGUES = ['bronze', 'silver', 'gold', 'crystal', 'mythic', 'legend', 'goose']
 export const leagueOrBronze = value => LEAGUES.includes(value) ? value : 'bronze'
 
@@ -16,13 +17,11 @@ export function validPng(png, limit = 64 * 1024) {
 }
 
 export function validateAnimation(value) {
-  // At least the 16-frame base sheet; walk and Flex frames vary per look, so the PNG and total size limits bound the rest.
-  if (!value || value.version !== 1 || !Array.isArray(value.frames) || value.frames.length < 16 ||
+  if (!value || value.version !== 1 || !Array.isArray(value.frames) || value.frames.length !== HERO_FRAMES ||
       value.frames.some(png => !validPng(png)) || value.frames.reduce((n, png) => n + png.length, 0) > 1024 * 1024 || !value.clips) return null
   const clips = {}
   for (const state of COMPANION_STATES) {
     const clip = value.clips[state]
-    if (!clip && OPTIONAL_COMPANION_STATES.has(state) && !Object.hasOwn(value.clips, state)) continue
     if (!clip || !Array.isArray(clip.frames) || !Array.isArray(clip.durations) || !clip.frames.length || clip.frames.length > 24 ||
         clip.frames.length !== clip.durations.length || clip.frames.some(i => !Number.isInteger(i) || i < 0 || i >= value.frames.length) ||
         clip.durations.some(ms => !Number.isFinite(ms) || ms < 60 || ms > 10000)) return null
