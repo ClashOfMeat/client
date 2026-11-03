@@ -1,56 +1,52 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { COMPANION_STATES, LEAGUES, validPng, validateAnimation, validateCharacter, validateLevelUp, validateVisit } from '../validate.mjs'
+import { COMPANION_STATES, LEAGUES, VISIT_EMOTES, validPng, validateAnimation, validateCharacter, validateLevelUp, validateVisit } from '../validate.mjs'
+import { HERO_CONTRACT } from '../hero-contract.mjs'
 
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
 const uuid = '12345678-1234-1234-1234-123456789abc'
-const animation = { version: 1, frames: Array(31).fill(png), clips: Object.fromEntries(COMPANION_STATES.map(state => [state, { frames: [0, 1, 2], durations: [100, 200, 100] }])) }
+const animation = { version: 2, frames: Array(31).fill(png), mirroredFrames: Array(31).fill(png) }
 const aura = { id: 'preview', heroId: 'hero', version: 1, fromLevel: 1, toLevel: 30,
   frames: Array(18).fill(png), durations: [80, ...Array(16).fill(90), 120], durationMs: 1640 }
 
-test('every hero has the same 31 frames and every emote and animation', () => {
-  assert(validateAnimation({ ...animation, clips: { ...animation.clips, wave: { frames: [0], durations: [100] } } }), 'extra clips are ignored')
-  for (const state of COMPANION_STATES) {
-    const clips = { ...animation.clips }
-    delete clips[state]
-    assert.equal(validateAnimation({ ...animation, clips }), null, state)
+test('the hero contract: 31 frames, nine animations, three emotes, every clip inside the frames', () => {
+  assert.equal(HERO_CONTRACT.version, 2)
+  assert.deepEqual(COMPANION_STATES, ['idle', 'walk', 'sit', 'talk', 'kiss', 'angry', 'flex', 'grab', 'sleep'])
+  assert.deepEqual(VISIT_EMOTES, ['flex', 'kiss', 'angry'])
+  assert.deepEqual(Object.keys(HERO_CONTRACT.clips).sort(), [...COMPANION_STATES].sort())
+  for (const [state, clip] of Object.entries(HERO_CONTRACT.clips)) {
+    assert.equal(clip.frames.length, clip.durations.length, state)
+    assert(clip.frames.every(index => Number.isInteger(index) && index >= 0 && index < HERO_CONTRACT.frames.total), state)
   }
-  for (const count of [15, 20, 28, 30, 32]) assert.equal(validateAnimation({ ...animation, frames: Array(count).fill(png) }), null, `${count} frames`)
+  assert.deepEqual(HERO_CONTRACT.clips.walk.frames, Array.from({ length: 12 }, (_, i) => 16 + i))
+  assert.deepEqual(HERO_CONTRACT.clips.flex.frames, [0, 28, 29, 30])
 })
 
-test('PNG and animation validation retain sprite limits and mirrored frames', () => {
+test('an animation is 31 frames each way and plays the contract clips', () => {
   assert(validPng(png))
   assert.equal(validPng('bad'), false)
   assert.equal(validPng(png, 10), false)
-  assert(validateAnimation(animation))
-  assert(validateAnimation({ ...animation, mirroredFrames: { 30: png } }))
-  for (const mirroredFrames of [{ 31: png }, { 2: 'bad' }, { 40: png }, [], { other: png }])
-    assert.equal(validateAnimation({ ...animation, mirroredFrames }), null)
-  assert.deepEqual(validateAnimation({ ...animation, mirroredFrames: { 2: png } }).mirroredFrames, { 2: png })
-  assert.equal(validateAnimation({ ...animation, frames: ['bad'] }), null)
-  assert.equal(validateAnimation({ ...animation, clips: { ...animation.clips, walk: { frames: [31], durations: [100] } } }), null)
-  assert.equal(validateAnimation({ ...animation, clips: { ...animation.clips, talk: { frames: [1], durations: [0] } } }), null)
-  assert.equal(validateAnimation({ ...animation, clips: { ...animation.clips, sit: { frames: [1, 2], durations: [100] } } }), null)
+  const valid = validateAnimation(animation)
+  assert.deepEqual(valid, { ...animation, clips: HERO_CONTRACT.clips })
+  assert.strictEqual(validateAnimation({ ...animation, clips: { idle: { frames: [99], durations: [1] } } }).clips, HERO_CONTRACT.clips,
+    'the server never chooses the clips')
+  for (const count of [15, 20, 28, 30, 32]) {
+    assert.equal(validateAnimation({ ...animation, frames: Array(count).fill(png) }), null, `${count} frames`)
+    assert.equal(validateAnimation({ ...animation, mirroredFrames: Array(count).fill(png) }), null, `${count} mirrored frames`)
+  }
+  for (const broken of [{ version: 1 }, { mirroredFrames: undefined }, { mirroredFrames: { 0: png } }, { frames: [...animation.frames.slice(1), 'bad'] }])
+    assert.equal(validateAnimation({ ...animation, ...broken }), null, JSON.stringify(Object.keys(broken)))
   const detailed = btoa(atob(png) + '\0'.repeat(21000))
   assert(validateAnimation({ ...animation, frames: Array(31).fill(detailed) }))
   assert.equal(validateAnimation({ ...animation, frames: Array(31).fill(detailed.repeat(2)) }), null)
 })
 
-test('authored Flex frames after a twelve-frame walk reach heroes and visits', () => {
-  const frames = Array(31).fill(png)
-  const authored = { ...animation, frames,
-    mirroredFrames: Object.fromEntries(frames.map((png, index) => [index, png])),
-    clips: { ...animation.clips,
-      walk: { frames: Array.from({ length: 12 }, (_, i) => 16 + i), durations: Array(12).fill(100) },
-      flex: { frames: [0, 28, 29, 30], durations: [300, 125, 125, 3000] } } }
-  const character = { id: uuid, png, animation: authored }
-  assert.deepEqual(validateCharacter(character).animation.clips.flex, authored.clips.flex)
+test('a visitor brings the same art and one of the three emotes', () => {
+  const character = { id: uuid, png, animation }
+  assert.deepEqual(validateCharacter(character).animation.clips.flex, HERO_CONTRACT.clips.flex)
   const now = Date.parse('2026-11-02T12:00:00Z')
-  assert(validateVisit({ id: uuid, name: 'Squire', guild: null, emote: 'flex',
-    expiresAt: new Date(now + 60000).toISOString(), character }, now))
-  assert.equal(validateAnimation({ ...authored, frames: frames.slice(0, 30) }), null)
-  assert.equal(validateAnimation({ ...authored, clips: { ...authored.clips,
-    flex: { frames: [31], durations: [100] } } }), null)
+  for (const emote of VISIT_EMOTES)
+    assert.equal(validateVisit({ id: uuid, name: 'Squire', guild: null, emote, expiresAt: new Date(now + 60000).toISOString(), character }, now).emote, emote)
 })
 
 test('character accepts uncapped level and XP and preserves shape checks', () => {
@@ -83,7 +79,7 @@ test('level-up and visit validation preserve bounds without a level cap', () => 
   assert.equal(validateLevelUp({ ...expanded, renderScale: 1 }), null)
   assert.equal(validateLevelUp({ ...expanded, frames: Array(18).fill(larger) }), null)
   const now = Date.parse('2026-10-20T12:00:00Z')
-  const visit = { id: uuid, name: 'A\nB', guild: null, expiresAt: new Date(now + 60000).toISOString(), character: { id: uuid, png, animation } }
+  const visit = { id: uuid, name: 'A\nB', guild: null, emote: 'kiss', expiresAt: new Date(now + 60000).toISOString(), character: { id: uuid, png, animation } }
   assert.equal(validateVisit(visit, now).name, 'AB')
   assert.equal(validateVisit({ ...visit, expiresAt: new Date(now + 300001).toISOString() }, now), null)
   assert.equal(validateVisit({ ...visit, character: { id: uuid, png } }, now), null)
@@ -93,9 +89,8 @@ test('level-up and visit validation preserve bounds without a level cap', () => 
   assert.equal(validateVisit({ ...visit, emote: 'flex', league: 'goose', leagueRank: 12 }, now).leagueRank, 12)
   for (const leagueRank of [0, -1, 1.5, '12']) assert.equal(validateVisit({ ...visit, emote: 'flex', leagueRank }, now).leagueRank, undefined)
   assert.equal(validateVisit({ ...visit, emote: 'flex' }, now).leagueRank, undefined)
-  assert.equal(validateVisit({ ...visit, emote: 'wave', league: 'unknown' }, now).league, 'bronze')
-  assert.equal(validateVisit({ ...visit, emote: 'wave' }, now).emote, 'kiss')
-  assert.equal(validateVisit({ ...visit, emote: 'dance' }, now).emote, 'kiss')
+  assert.equal(validateVisit({ ...visit, league: 'unknown' }, now).league, 'bronze')
+  for (const emote of [undefined, 'wave', 'dance']) assert.equal(validateVisit({ ...visit, emote }, now), null, `${emote} is not an emote`)
   assert.equal(LEAGUES.length, 7)
 })
 

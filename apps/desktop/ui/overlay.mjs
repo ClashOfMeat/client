@@ -178,7 +178,7 @@ function emoteButton(name) {
 function updateEmotes() {
   emotes.replaceChildren()
   for (const name of VISIT_EMOTES) {
-    if (!animation?.clips[name]) continue
+    if (!animation) continue
     const button = emoteButton(name)
     button.addEventListener('click', () => {
       statsOpen = false
@@ -554,9 +554,9 @@ function updateHitRegions() {
   void invoke('hero_hit', { regions }).catch(error => console.error('hero hit regions:', error))
 }
 
-// Plays one of the hero's clips, if this hero has it.
+// Plays one of the contract's clips once the hero's art has arrived.
 function play(name, at, durationMs) {
-  if (animation?.clips[name]) activity.emote(name, at, durationMs)
+  if (animation) activity.emote(name, at, durationMs)
 }
 
 function wake() {

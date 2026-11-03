@@ -1,7 +1,7 @@
-export const VISIT_EMOTES = ['flex', 'kiss', 'angry']
-export const COMPANION_STATES = ['idle', 'walk', 'sit', 'talk', 'kiss', 'angry', 'flex', 'grab', 'sleep']
-// Every hero has the same frames: 16 poses, a 12-frame walk and 3 Flex frames.
-export const HERO_FRAMES = 31
+import { HERO_CONTRACT } from './hero-contract.mjs'
+
+export const VISIT_EMOTES = HERO_CONTRACT.emotes
+export const COMPANION_STATES = HERO_CONTRACT.states
 export const LEAGUES = ['bronze', 'silver', 'gold', 'crystal', 'mythic', 'legend', 'goose']
 export const leagueOrBronze = value => LEAGUES.includes(value) ? value : 'bronze'
 
@@ -16,26 +16,15 @@ export function validPng(png, limit = 64 * 1024) {
   catch { return false }
 }
 
+const { frames: FRAMES, limits: LIMITS } = HERO_CONTRACT
+const validFrames = list => Array.isArray(list) && list.length === FRAMES.total &&
+  list.every(png => validPng(png, LIMITS.pngBase64)) && list.reduce((n, png) => n + png.length, 0) <= LIMITS.framesBase64
+
+// The hero contract (hero-contract.mjs): 31 frames each way in a fixed order, facing right and left. The server sends
+// art only; the clips are the contract's, attached here so the rest of the desktop reads them from the animation.
 export function validateAnimation(value) {
-  if (!value || value.version !== 1 || !Array.isArray(value.frames) || value.frames.length !== HERO_FRAMES ||
-      value.frames.some(png => !validPng(png)) || value.frames.reduce((n, png) => n + png.length, 0) > 1024 * 1024 || !value.clips) return null
-  const clips = {}
-  for (const state of COMPANION_STATES) {
-    const clip = value.clips[state]
-    if (!clip || !Array.isArray(clip.frames) || !Array.isArray(clip.durations) || !clip.frames.length || clip.frames.length > 24 ||
-        clip.frames.length !== clip.durations.length || clip.frames.some(i => !Number.isInteger(i) || i < 0 || i >= value.frames.length) ||
-        clip.durations.some(ms => !Number.isFinite(ms) || ms < 60 || ms > 10000)) return null
-    clips[state] = { frames: clip.frames, durations: clip.durations }
-  }
-  let mirroredFrames
-  if (value.mirroredFrames !== undefined) {
-    if (!value.mirroredFrames || typeof value.mirroredFrames !== 'object' || Array.isArray(value.mirroredFrames)) return null
-    const entries = Object.entries(value.mirroredFrames)
-    if (entries.length > value.frames.length || entries.some(([frame, png]) => !/^\d+$/.test(frame) || String(Number(frame)) !== frame || Number(frame) >= value.frames.length || !validPng(png)) ||
-        entries.reduce((n, [, png]) => n + png.length, 0) > 1024 * 1024) return null
-    mirroredFrames = Object.fromEntries(entries)
-  }
-  return { version: 1, frames: value.frames, clips, ...(mirroredFrames ? { mirroredFrames } : {}) }
+  if (!value || value.version !== HERO_CONTRACT.version || !validFrames(value.frames) || !validFrames(value.mirroredFrames)) return null
+  return { version: HERO_CONTRACT.version, frames: value.frames, mirroredFrames: value.mirroredFrames, clips: HERO_CONTRACT.clips }
 }
 
 export function validateCharacter(character) {
@@ -83,10 +72,9 @@ export function validateVisit(value, now = Date.now()) {
   const expires = Date.parse(value.expiresAt)
   if (!Number.isFinite(expires) || expires <= now || expires > now + 300000) return null
   const character = validateCharacter(value.character)
-  if (!character?.animation) return null
+  if (!character?.animation || !VISIT_EMOTES.includes(value.emote)) return null
   const clean = text => text.replace(/[\x00-\x1f\x7f]/g, '')
-  // Older servers only send kisses; an emote this client doesn't know plays as one too.
-  const emote = VISIT_EMOTES.includes(value.emote) ? value.emote : 'kiss'
+  const emote = value.emote
   const leagueRank = value.leagueRank
   return { id: value.id, name: clean(value.name), guild: value.guild === null ? null : clean(value.guild), expiresAt: value.expiresAt, emote, league: leagueOrBronze(value.league),
     ...(Number.isSafeInteger(leagueRank) && leagueRank > 0 ? { leagueRank } : {}), character }

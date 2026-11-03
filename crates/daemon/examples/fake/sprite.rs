@@ -5,23 +5,13 @@ use serde_json::{json, Value};
 const WIDTH: usize = 64;
 const HEIGHT: usize = 64;
 
+/// The hero contract's 31 frames (ClashOfMeat/app docs/hero-contract.md), drawn from the placeholder poses below:
+/// 16 poses, a 12-frame walk and 3 Flex frames. The desktop plays the contract's own clips over them.
 pub fn animation() -> Value {
-    let frames: Vec<String> = (0..24).map(frame).collect();
-    json!({
-        "version": 1,
-        "frames": frames,
-        "clips": {
-            "idle": clip(&[0, 1], 450),
-            "walk": clip(&[2, 3, 4, 5], 120),
-            "sit": clip(&[6, 7], 650),
-            "talk": clip(&[8, 9], 160),
-            "kiss": clip(&[10, 11], 350),
-            "angry": clip(&[16, 17], 300),
-            "flex": clip(&[18, 19, 20, 23], 180),
-            "grab": clip(&[12, 13, 14, 15], 180),
-            "sleep": clip(&[21, 22], 850)
-        }
-    })
+    const POSES: [usize; 16] = [0, 10, 6, 1, 8, 9, 8, 10, 11, 12, 13, 14, 16, 17, 21, 15];
+    let walk = (0..12).map(|i| 2 + i % 4);
+    let frames: Vec<String> = POSES.into_iter().chain(walk).chain([19, 20, 23]).map(frame).collect();
+    json!({ "version": 2, "frames": frames, "mirroredFrames": frames })
 }
 
 pub fn level_up(from: u64, to: u64, sequence: u64) -> Value {
@@ -31,10 +21,6 @@ pub fn level_up(from: u64, to: u64, sequence: u64) -> Value {
         "heroId": "barbarian", "fromLevel": from, "toLevel": to,
         "frames": frames, "durations": vec![100; 18], "durationMs": 1800
     })
-}
-
-fn clip(frames: &[usize], duration: u64) -> Value {
-    json!({"frames": frames, "durations": vec![duration; frames.len()]})
 }
 
 fn frame(pose: usize) -> String {

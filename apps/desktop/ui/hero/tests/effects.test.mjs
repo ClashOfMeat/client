@@ -43,7 +43,7 @@ test('aura and visitor keep old one-shot timing with pixel travel', () => {
   assert.equal(visitPose(animation, 7000, -84, -200).facing, 'left')
 })
 
-test('a visitor plays flex once between walking in and out, or a kiss without the clip', () => {
+test('a visitor plays flex once between walking in and out, or holds a kiss or angry', () => {
   const flexing = { clips: { ...animation.clips, flex: { frames: [5, 6, 7, 8], durations: [300, 125, 125, 3000] } } }
   assert.equal(visitDuration(flexing, 'flex'), 6550)
   assert.equal(visitDuration(animation, 'kiss'), 8000)
@@ -52,7 +52,8 @@ test('a visitor plays flex once between walking in and out, or a kiss without th
   assert.equal(visitPose(flexing, 3000, 84, 240, 'flex').state, 'flex')
   assert.equal(visitPose(flexing, 5050, 84, 240, 'flex').state, 'walk')
   assert.equal(visitPose(flexing, 6550, 84, 240, 'flex').offset, 240)
-  assert.equal(visitPose(animation, 3000, 84, 240, 'wave').state, 'kiss')
+  assert.equal(visitDuration(animation, 'angry'), 8000)
+  assert.equal(visitPose(animation, 3000, 84, 240, 'angry').state, 'angry')
   assert.equal(visitPose(animation, 3000, 84, 240).state, 'kiss')
 })
 
