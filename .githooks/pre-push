@@ -1,0 +1,4 @@
+#!/bin/sh
+# scripts/check.sh before anything leaves this machine; on a Mac this is the macOS run most pull requests rely on.
+# Enable once per clone with `git config core.hooksPath .githooks`; skip once with `git push --no-verify`.
+exec "$(git rev-parse --show-toplevel)/scripts/check.sh"

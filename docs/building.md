@@ -239,7 +239,9 @@ caches per target and the prebuilt `cargo-tauri` from its GitHub release (hash p
 together). When all four pass, the `publish` job waits for approval in the `release` environment, which alone holds
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, then runs
 `scripts/release.sh --artifacts dist` to sign the archives, write the manifests and publish. The web app offers the new
-release within five minutes; nothing changes on the app side. Every pull request runs `scripts/check.sh` (`CI`).
+release within five minutes; nothing changes on the app side. Every pull request runs `scripts/check.sh` on Linux (`CI`), and on macOS too when it touches the desktop app, the CLI, the
+daemon or the installer (`CI macOS`). `Audit` scans both lock files weekly. `.githooks/pre-push` runs `scripts/check.sh` before
+each push once enabled with `git config core.hooksPath .githooks`.
 
 **By hand on a Mac:** the steps below.
 
