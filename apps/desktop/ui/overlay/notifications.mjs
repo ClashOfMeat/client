@@ -47,8 +47,21 @@ export function bellPosition(rect) {
   }
 }
 
-// The bell only shows when something needs attention (or its open inbox needs a way to close),
-// and never while the hero is away or being carried.
-export function bellVisible({ count, inboxOpen, away, carried }) {
-  return !away && !carried && (count > 0 || inboxOpen)
+// Unread rows only: a reward already read but still to claim stays in the list without ringing the bell.
+export function unreadCount(snapshot) {
+  return snapshot ? snapshot.items.filter(item => !item.read).length : 0
+}
+
+// What the inbox looks like once one row is read, before the server's refreshed snapshot arrives.
+export function markedRead(snapshot, id) {
+  const items = snapshot.items
+    .map(item => item.id === id ? { ...item, read: true } : item)
+    .filter(item => !item.read || item.claimable)
+  const wasUnread = snapshot.items.some(item => item.id === id && !item.read)
+  return { attention: { unread: Math.max(0, snapshot.attention.unread - (wasUnread ? 1 : 0)) }, items }
+}
+
+// The bell only shows while something is unread, and never while the hero is away or being carried.
+export function bellVisible({ count, away, carried }) {
+  return !away && !carried && count > 0
 }

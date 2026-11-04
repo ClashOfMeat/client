@@ -20,7 +20,7 @@ document.getSelection()?.removeAllRanges()
 import { friendRows, friendPage, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
 import { xpBar } from './overlay/xp-bar.mjs'
-import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible } from './overlay/notifications.mjs'
+import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead } from './overlay/notifications.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen, emit } = window.__TAURI__.event
@@ -231,11 +231,11 @@ function notificationHeartbeat(data) {
 }
 
 function renderNotifications() {
-  const count = inbox?.attention.unread ?? 0
+  const count = unreadCount(inbox)
   const badge = bellCount(count)
   notificationCount.hidden = !badge
   notificationCount.textContent = badge
-  notificationBell.setAttribute('aria-label', count ? `Notifications, ${count} needing attention` : 'Notifications')
+  notificationBell.setAttribute('aria-label', count ? `Notifications, ${count} unread` : 'Notifications')
   notificationsList.replaceChildren(...(inbox?.items ?? []).map(notificationRow))
   const message = notificationError || (!inbox ? 'Notifications will appear after the next sync.'
     : inbox.items.length ? '' : "You're all caught up.")
@@ -248,11 +248,13 @@ function renderNotifications() {
 
 function showBell(away = outgoing.away()) {
   notificationBell.hidden = !bellVisible({
-    count: inbox?.attention.unread ?? 0, inboxOpen: statsOpen && !notificationsPanel.hidden, away, carried: Boolean(drag?.moved),
+    count: unreadCount(inbox), away, carried: Boolean(drag?.moved),
   })
 }
 
 function notificationRow(item) {
+  const entry = document.createElement('div')
+  entry.className = 'notification-item'
   const row = document.createElement('button')
   row.type = 'button'
   row.className = 'notification-row'
@@ -268,15 +270,44 @@ function notificationRow(item) {
   time.textContent = new Date(item.at).toLocaleString('en-US')
   copy.append(time)
   row.append(icon, copy)
-  if (!item.read || item.claimable) {
+  if (item.claimable) {
     const dot = document.createElement('span')
     dot.className = 'notification-dot'
     dot.setAttribute('role', 'img')
-    dot.setAttribute('aria-label', item.claimable ? 'Reward to claim' : 'Unread')
+    dot.setAttribute('aria-label', 'Reward to claim')
     row.append(dot)
   }
   row.addEventListener('click', () => void openNotification(item))
-  return row
+  entry.append(row)
+  // Reading a row here acknowledges it without opening the web app.
+  if (!item.read) {
+    const read = document.createElement('button')
+    read.type = 'button'
+    read.className = 'notification-read'
+    read.textContent = '✓'
+    read.title = 'Mark as read'
+    read.setAttribute('aria-label', 'Mark as read')
+    read.addEventListener('click', () => void readNotification(item))
+    entry.append(read)
+  }
+  return entry
+}
+
+async function readNotification(item) {
+  if (notificationBusy || !inbox) return
+  notificationBusy = true
+  const epoch = inboxEpoch
+  const before = inbox
+  inbox = markedRead(inbox, item.id)
+  notificationError = ''
+  renderNotifications()
+  try {
+    const next = await invoke('daemon_request', { method: 'notifications_read', params: { id: item.id } })
+    if (epoch === inboxEpoch) receiveNotifications(next)
+  } catch (error) {
+    if (epoch === inboxEpoch) { inbox = before; notificationError = errorText(error); renderNotifications() }
+  }
+  notificationBusy = false
 }
 
 async function openNotification(item) {

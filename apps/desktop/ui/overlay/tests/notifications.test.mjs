@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible } from '../notifications.mjs'
+import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead } from '../notifications.mjs'
 
 const item = (id, extra = {}) => ({
   id: String(id), kind: 'duel_invite', message: `Event ${id}`, sentence: `Event ${id} — claim 5 gold`,
@@ -46,10 +46,26 @@ test('bell follows the hero and stays inside the overlay at both screen edges', 
 })
 
 test('bell hides with nothing to read, while the hero is carried and while it is away', () => {
-  const base = { count: 2, inboxOpen: false, away: false, carried: false }
+  const base = { count: 2, away: false, carried: false }
   assert.equal(bellVisible(base), true)
   assert.equal(bellVisible({ ...base, count: 0 }), false)
-  assert.equal(bellVisible({ ...base, count: 0, inboxOpen: true }), true)
   assert.equal(bellVisible({ ...base, carried: true }), false)
   assert.equal(bellVisible({ ...base, away: true }), false)
+})
+
+test('the bell counts unread rows, not rewards already read and waiting to be claimed', () => {
+  const snapshot = notificationSnapshot({ attention: { unread: 2 }, items: [item(2, { read: true, claimable: true }), item(1)] })
+  assert.equal(unreadCount(snapshot), 1)
+  assert.equal(unreadCount(notificationSnapshot({ attention: { unread: 1 }, items: [item(3, { read: true, claimable: true })] })), 0)
+  assert.equal(unreadCount(null), 0)
+})
+
+test('marking a row read drops it, or keeps it while its reward is still to claim', () => {
+  const snapshot = notificationSnapshot({ attention: { unread: 2 }, items: [item(2, { claimable: true }), item(1)] })
+  const plain = markedRead(snapshot, '1')
+  assert.deepEqual(plain.items.map(row => row.id), ['2'])
+  assert.equal(plain.attention.unread, 1)
+  const reward = markedRead(snapshot, '2')
+  assert.deepEqual(reward.items.map(row => [row.id, row.read]), [['2', true], ['1', false]])
+  assert.equal(unreadCount(reward), 1)
 })
