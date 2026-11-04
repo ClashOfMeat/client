@@ -11,7 +11,7 @@ import { visitTracker, visitLabelLeft, visitAnchor, anchoredRect, edgeFade } fro
 import { scopedOutgoingVisits, parseOutgoingVisit } from './hero/outgoing.mjs'
 import { beginDeparture, departurePose } from './hero/departure.mjs'
 import { windowRect } from './overlay/layout.mjs'
-import { heroDrawRect } from './hero/display.mjs'
+import { HERO_CELL_SIZE, LEGACY_FRAME_SIZE, heroDrawRect, heroEffectAnchor } from './hero/display.mjs'
 import { heroSettings } from './settings/hero.mjs'
 
 // The hero window has no text to select or images to drag; a selection there could never be cleared (see overlay.css).
@@ -449,8 +449,8 @@ async function sendVisit(friend, emote) {
     outgoing.sent(result)
     if (outgoing.away() && character && animation && workArea) {
       const now = Date.now()
-      const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: true })
-      departure = beginDeparture({ x: pose.x, width: Math.max(0, workArea.width - 128), facing: pose.facing, startedAt: now })
+      const pose = activity.snapshot(now, { width: Math.max(0, workArea.width - HERO_CELL_SIZE), still: true })
+      departure = beginDeparture({ x: pose.x, width: Math.max(0, workArea.width - HERO_CELL_SIZE), facing: pose.facing, startedAt: now })
     }
     note(null)
     statsOpen = false
@@ -470,7 +470,7 @@ function visitDone(id) {
 function setStayStill(next) {
   if (next && !stayStill && workArea) {
     const now = Date.now()
-    activity.drag(activity.snapshot(now, { width: Math.max(0, workArea.width - 128), still: true }).x, now)
+    activity.drag(activity.snapshot(now, { width: Math.max(0, workArea.width - HERO_CELL_SIZE), still: true }).x, now)
   }
   if (!next && stayStill && workArea) activity.strollNow(Date.now())
   stayStill = next
@@ -556,8 +556,8 @@ function drawImage(png, x, y, size, flip = false, opacity = 1, height = size) {
   ctx.restore()
 }
 
-function drawHeroImage(png, x, y, scale, flip = false, opacity = 1, width = 128, height = 128) {
-  const place = heroDrawRect(x, y, scale, width, height)
+function drawHeroImage(png, x, y, frameSize, flip = false, opacity = 1) {
+  const place = heroDrawRect(x, y, frameSize)
   drawImage(png, place.x, place.y, place.width, flip, opacity, place.height)
 }
 
@@ -656,7 +656,7 @@ async function draw() {
   if (!away) departure = null
   let leaving = away && departure ? departurePose(departure, now) : null
   if (leaving?.done) { departure = null; leaving = null }
-  const patrolWidth = Math.max(0, workArea.width - 128)
+  const patrolWidth = Math.max(0, workArea.width - HERO_CELL_SIZE)
   const pose = activity.snapshot(now, { width: patrolWidth, still: stayStill || statsOpen || menuOpen || away || Boolean(visitor) })
   // One fixed size: the window only moves, so opening the card never resizes it (no flash).
   const boundedX = Math.max(0, Math.min(patrolWidth, leaving?.x ?? pose.x))
@@ -707,19 +707,22 @@ async function draw() {
   if (!away && auraPlaying) {
     // The effect frames contain the hero turning into its next skin, drawn larger than the sprite
     // (renderScale) with the feet at the bottom, so they replace the sprite while they play.
-    const size = 128 * (aura.renderScale ?? 1)
-    drawImage(aura.frames[levelUpFrame(aura, now - auraStarted)], rect.spriteX + 64 - size / 2, rect.spriteY + 128 - size, size, pose.facing === 'left')
+    const size = LEGACY_FRAME_SIZE * (aura.renderScale ?? 1)
+    drawImage(aura.frames[levelUpFrame(aura, now - auraStarted)], rect.spriteX + HERO_CELL_SIZE / 2 - size / 2, rect.spriteY + HERO_CELL_SIZE - size, size, pose.facing === 'left')
   } else if (!away || leaving) {
     const active = leaving ?? pose
     const frame = companionFrame(animation, active.state, active.elapsed)
     const chosen = frameImage(animation, frame, active.facing)
-    const motion = active.state === 'flex' ? flexMotion(active.elapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
+    const motion = active.state === 'flex' ? flexMotion(active.elapsed) : { dx: 0, dy: 0 }
     const exitOffset = leaving ? leaving.x - boundedX : 0
     const hostX = rect.spriteX + exitOffset
     // In a window pinned for a visitor, a host leaving the window fades at its edge.
     const opacity = (leaving?.opacity ?? 1) * (visitSpot ? edgeFade(hostX, rect.width) : 1)
-    drawHeroImage(chosen.png ?? character.png, hostX + motion.dx, rect.spriteY + motion.dy, character.displayScale, chosen.flip, opacity, motion.width, motion.height)
-    if (!leaving) drawEmoteEffect(active.state, active.elapsed, frame, rect.spriteX, rect.spriteY, active.facing, player?.league, player?.leagueRank)
+    drawHeroImage(chosen.png ?? character.png, hostX + motion.dx, rect.spriteY + motion.dy, animation.size, chosen.flip, opacity)
+    if (!leaving) {
+      const effect = heroEffectAnchor(rect.spriteX, rect.spriteY)
+      drawEmoteEffect(active.state, active.elapsed, frame, effect.x, effect.y, active.facing, player?.league, player?.leagueRank)
+    }
   }
   visitLabel.hidden = true
   if (visitor) {
@@ -730,29 +733,32 @@ async function draw() {
     const v = visitPose(visitAnimation, now - visitorStarted, place.stand, place.edge, visitor.emote)
     const frame = frameImage(visitAnimation, v.frame, v.facing)
     const visitElapsed = now - visitorStarted - 1500
-    const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0, width: 128, height: 128 }
-    drawHeroImage(frame.png, visitorX + v.offset + motion.dx, rect.spriteY + motion.dy, visitor.character.displayScale, frame.flip, 1, motion.width, motion.height)
-    // Contract v2 sends the bare Kiss frame for visitors; draw its one shared
+    const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0 }
+    const visitorCellX = visitorX + v.offset
+    drawHeroImage(frame.png, visitorCellX + motion.dx, rect.spriteY + motion.dy, visitAnimation.size, frame.flip)
+    // Both contract versions send the bare Kiss frame for visitors; draw its one shared
     // heart between the two heroes.
-    drawEmoteEffect(v.state, visitElapsed, v.frame, visitorX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, visitorX)
+    const visitorEffect = heroEffectAnchor(visitorCellX, rect.spriteY)
+    const hostEffect = heroEffectAnchor(visitorX, rect.spriteY)
+    drawEmoteEffect(v.state, visitElapsed, v.frame, visitorEffect.x, visitorEffect.y, v.facing, visitor.league, visitor.leagueRank, hostEffect.x)
     // Measured while shown: a hidden label is 0 px wide, which put its left edge on the hero's centre.
     visitLabel.hidden = false
-    const left = visitLabelLeft(visitorX + v.offset, visitLabel.offsetWidth, rect.width)
+    const left = visitLabelLeft(visitorCellX, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null || !visitLabelVisible(now - visitorStarted, visitDuration(visitAnimation, visitor.emote))
     visitLabel.style.left = `${left ?? 0}px`
-    visitLabel.style.top = `${rect.spriteY - 4}px`
+    visitLabel.style.top = `${visitorEffect.y - 4}px`
   }
   if (!away && gained) {
     // Rises 32 px above the head, as in the terminal.
     ctx.save()
-    ctx.translate(0, rect.spriteY - 30)
-    drawXpText(ctx, xpTextFrame(gained.amount, now - gained.startedAt, { centerX: rect.spriteX + 64, areaHeight: 46, scale: 2, maxWidth: rect.width }))
+    ctx.translate(0, rect.spriteY + HERO_CELL_SIZE - LEGACY_FRAME_SIZE - 30)
+    drawXpText(ctx, xpTextFrame(gained.amount, now - gained.startedAt, { centerX: rect.spriteX + HERO_CELL_SIZE / 2, areaHeight: 46, scale: 2, maxWidth: rect.width }))
     ctx.restore()
   }
   if (!away && character.canLevelUp === true && !evolving && !auraPlaying) void evolve()
   stats.hidden = away || !statsOpen || menuOpen
   menu.hidden = away || !menuOpen
-  document.documentElement.style.setProperty('--hero-center', `${rect.spriteX + 64}px`)
+  document.documentElement.style.setProperty('--hero-center', `${rect.spriteX + HERO_CELL_SIZE / 2}px`)
   showBell(away)
   if (!notificationBell.hidden) {
     const at = bellPosition(rect)
@@ -766,7 +772,7 @@ async function draw() {
 
 // Only these rectangles take clicks; the rest of the window lets them through (overlay.rs).
 function updateHitRegions() {
-  const regions = outgoing.away() ? [] : drag ? [[0, 0, rect.width, rect.height]] : [[rect.spriteX + 8, rect.spriteY + 8, 112, 120]]
+  const regions = outgoing.away() ? [] : drag ? [[0, 0, rect.width, rect.height]] : [[rect.spriteX + 16, rect.spriteY + 32, 160, 160]]
   for (const element of [notificationBell, stats, menu]) {
     if (element.hidden) continue
     const box = element.getBoundingClientRect()
@@ -792,10 +798,10 @@ function wake() {
 canvas.addEventListener('pointerdown', event => {
   if (!rect || !character || outgoing.away() || event.button !== 0) return
   const x = event.clientX, y = event.clientY
-  if (x < rect.spriteX || x > rect.spriteX + 128 || y < rect.spriteY || y > rect.spriteY + 128) return
+  if (x < rect.spriteX || x > rect.spriteX + HERO_CELL_SIZE || y < rect.spriteY || y > rect.spriteY + HERO_CELL_SIZE) return
   // Grabbing a falling hero catches it where it is.
   fall = null
-  drag = { startX: event.screenX, startY: event.screenY, startLift: lift, starting: activity.snapshot(Date.now(), { width: workArea.width - 128, still: true }).x, moved: false }
+  drag = { startX: event.screenX, startY: event.screenY, startLift: lift, starting: activity.snapshot(Date.now(), { width: workArea.width - HERO_CELL_SIZE, still: true }).x, moved: false }
   canvas.setPointerCapture(event.pointerId)
   updateHitRegions()
 })
@@ -810,7 +816,7 @@ canvas.addEventListener('pointermove', event => {
   }
   if (drag.moved) {
     activity.drag(drag.starting + event.screenX - drag.startX, Date.now())
-    lift = Math.max(0, Math.min(workArea.height - 128, drag.startLift + drag.startY - event.screenY))
+    lift = Math.max(0, Math.min(workArea.height - HERO_CELL_SIZE, drag.startLift + drag.startY - event.screenY))
     wake()
   }
 })
@@ -834,7 +840,7 @@ canvas.addEventListener('pointercancel', release)
 canvas.addEventListener('contextmenu', event => {
   event.preventDefault()
   if (outgoing.away()) return
-  if (!rect || event.clientX < rect.spriteX || event.clientX > rect.spriteX + 128 || event.clientY < rect.spriteY || event.clientY > rect.spriteY + 128) return
+  if (!rect || event.clientX < rect.spriteX || event.clientX > rect.spriteX + HERO_CELL_SIZE || event.clientY < rect.spriteY || event.clientY > rect.spriteY + HERO_CELL_SIZE) return
   menuOpen = !menuOpen
   statsOpen = false
   wake()
@@ -907,7 +913,7 @@ document.getElementById('quit').addEventListener('click', async () => {
   visible = false
 })
 function setPaused(next) {
-  if (next !== paused && workArea) activity.snapshot(Date.now(), { width: Math.max(0, workArea.width - 128), paused: true, still: true })
+  if (next !== paused && workArea) activity.snapshot(Date.now(), { width: Math.max(0, workArea.width - HERO_CELL_SIZE), paused: true, still: true })
   paused = next
 }
 window.addEventListener('resize', wake)
@@ -1008,7 +1014,7 @@ await listen('screen-click', ({ payload }) => {
   }
   if (!rect || !character || outgoing.away() || paused || hidden || stayStill || drag || fall || visitor) return
   if (aura && Date.now() - auraStarted < aura.durationMs) return
-  const dx = payload.x - (rect.spriteX + 64), dy = payload.y - (rect.spriteY + 64)
+  const dx = payload.x - (rect.spriteX + HERO_CELL_SIZE / 2), dy = payload.y - (rect.spriteY + HERO_CELL_SIZE - 64)
   if (Math.hypot(dx, dy) > 260) return
   activity.flee(dx, Date.now())
   wake()

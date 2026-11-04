@@ -1,5 +1,5 @@
 import { HERO_CONTRACT } from './hero-contract.mjs'
-import { safeDisplayScale } from './display.mjs'
+import { HERO_CELL_SIZE, LEGACY_FRAME_SIZE } from './display.mjs'
 
 export const VISIT_EMOTES = HERO_CONTRACT.emotes
 export const COMPANION_STATES = HERO_CONTRACT.states
@@ -11,21 +11,37 @@ const PNG_SIGNATURE = '\x89PNG\r\n\x1a\n'
 const UUID = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i
 const count = value => Number.isSafeInteger(value) && value >= 0
 
-export function validPng(png, limit = 64 * 1024) {
+function pngDimensions(png) {
+  try {
+    const header = atob(png.slice(0, 36))
+    if (header.length < 24 || header.slice(12, 16) !== 'IHDR') return null
+    const u32 = at => (header.charCodeAt(at) * 0x1000000 +
+      (header.charCodeAt(at + 1) << 16) + (header.charCodeAt(at + 2) << 8) + header.charCodeAt(at + 3)) >>> 0
+    return { width: u32(16), height: u32(20) }
+  } catch { return null }
+}
+
+export function validPng(png, limit = 64 * 1024, size) {
   if (typeof png !== 'string' || png.length > limit || !BASE64.test(png)) return false
-  try { return atob(png.slice(0, 12)).slice(0, 8) === PNG_SIGNATURE }
+  try {
+    if (atob(png.slice(0, 12)).slice(0, 8) !== PNG_SIGNATURE) return false
+    const dimensions = size === undefined ? null : pngDimensions(png)
+    return size === undefined || dimensions?.width === size && dimensions.height === size
+  }
   catch { return false }
 }
 
 const { frames: FRAMES, limits: LIMITS } = HERO_CONTRACT
-const validFrames = list => Array.isArray(list) && list.length === FRAMES.total &&
-  list.every(png => validPng(png, LIMITS.pngBase64)) && list.reduce((n, png) => n + png.length, 0) <= LIMITS.framesBase64
+const validFrames = (list, size) => Array.isArray(list) && list.length === FRAMES.total &&
+  list.every(png => validPng(png, LIMITS.pngBase64, size)) && list.reduce((n, png) => n + png.length, 0) <= LIMITS.framesBase64
 
 // The hero contract (hero-contract.mjs): 31 frames each way in a fixed order, facing right and left. The server sends
 // art only; the clips are the contract's, attached here so the rest of the desktop reads them from the animation.
 export function validateAnimation(value) {
-  if (!value || value.version !== HERO_CONTRACT.version || !validFrames(value.frames) || !validFrames(value.mirroredFrames)) return null
-  return { version: HERO_CONTRACT.version, frames: value.frames, mirroredFrames: value.mirroredFrames, clips: HERO_CONTRACT.clips }
+  const size = value?.version === HERO_CONTRACT.version ? HERO_CELL_SIZE :
+    value?.version === 2 ? LEGACY_FRAME_SIZE : null
+  if (!size || !validFrames(value.frames, size) || !validFrames(value.mirroredFrames, size)) return null
+  return { version: value.version, size, frames: value.frames, mirroredFrames: value.mirroredFrames, clips: HERO_CONTRACT.clips }
 }
 
 export function validateCharacter(character) {
@@ -40,7 +56,6 @@ export function validateCharacter(character) {
   if (character.evolution != null && (!Number.isInteger(character.evolution) || character.evolution < 1 || character.evolution > 99)) return null
   if (character.heroId !== undefined && (typeof character.heroId !== 'string' || !/^[a-z0-9_-]{1,64}$/.test(character.heroId))) return null
   return { id: character.id, png: character.png,
-    ...(safeDisplayScale(character.displayScale) === character.displayScale ? { displayScale: character.displayScale } : {}),
     ...(character.xp !== undefined ? { xp: character.xp } : {}),
     ...(character.levelFloor !== undefined ? { levelFloor: character.levelFloor } : {}),
     ...(character.nextLevelAt !== undefined ? { nextLevelAt: character.nextLevelAt } : {}),

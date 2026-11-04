@@ -40,16 +40,17 @@ test('Kiss heart pulses at 75% of its previous size', () => {
 })
 
 test('a visiting Kiss heart stays centered between both heroes from either side', () => {
-  for (const hostX of [0, 20, 56, 84, 112]) {
-    const { stand } = visitPlace(hostX, 240)
-    const visitorX = hostX + stand
+  for (const hostCellX of [0, 48, 116, 180, 232]) {
+    const { stand } = visitPlace(hostCellX, 424)
+    const hostX = hostCellX + 32
+    const visitorX = hostCellX + stand + 32
     for (const elapsed of [520, 745, 970]) {
-      const heart = visitorKissHeartPlace(hostX, visitorX, 252, 240, elapsed)
-      const at = `${hostX}/${elapsed}`
-      assert(heart.x >= 0 && heart.x + heart.size <= 240 && heart.y >= 0, `${at}: clipped`)
+      const heart = visitorKissHeartPlace(hostX, visitorX, 316, 424, elapsed)
+      const at = `${hostCellX}/${elapsed}`
+      assert(heart.x >= 0 && heart.x + heart.size <= 424 && heart.y >= 0, `${at}: clipped`)
       const midpoint = (hostX + visitorX) / 2 + 64
       assert(Math.abs(heart.x + heart.size / 2 - midpoint) <= 0.5, `${at}: not between the heroes`)
-      assert(heart.y >= 252 + 16, `${at}: overlaps the visitor label`)
+      assert(heart.y >= 316 + 16, `${at}: overlaps the visitor label`)
       assert(heart.size >= 39 && heart.size <= 42)
     }
   }

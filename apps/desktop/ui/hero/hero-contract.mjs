@@ -1,8 +1,8 @@
 // A verbatim copy of ClashOfMeat/app packages/core/src/heroes/hero-contract.json (docs/hero-contract.md there).
 // Change both in the same release. A module rather than JSON, so every system webview can load it.
 export const HERO_CONTRACT = Object.freeze({
-  "version": 2,
-  "frames": { "poses": 16, "walk": 12, "flex": 3, "total": 31, "walkStart": 16, "flexStart": 28, "size": 128 },
+  "version": 3,
+  "frames": { "poses": 16, "walk": 12, "flex": 3, "total": 31, "walkStart": 16, "flexStart": 28, "size": 192 },
   "poses": {
     "0": "stand",
     "1": "kiss lean",

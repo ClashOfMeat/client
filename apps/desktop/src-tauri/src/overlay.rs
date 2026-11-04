@@ -30,7 +30,7 @@ pub struct Geometry {
 pub fn create(app: &tauri::AppHandle) -> tauri::Result<WebviewWindow> {
     let window = WebviewWindowBuilder::new(app, "hero", WebviewUrl::App("overlay.html".into()))
         .title("Clash of Meat hero")
-        .inner_size(160.0, 160.0)
+        .inner_size(424.0, 444.0)
         .transparent(true)
         .decorations(false)
         .shadow(false)

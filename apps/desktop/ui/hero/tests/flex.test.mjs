@@ -38,7 +38,7 @@ test('the crest shows the leaderboard rank, never a score', () => {
 })
 
 test('hero keeps a fixed draw size throughout all four Flex poses', () => {
-  const normal = { dx: 0, dy: 0, width: 128, height: 128 }
+  const normal = { dx: 0, dy: 0, width: 192, height: 192 }
   for (const elapsed of [0, 299, 300, 424, 425, 549, 550, 3549, FLEX_DURATION])
     assert.deepEqual(flexMotion(elapsed), normal, `Flex draw at ${elapsed} ms`)
 })

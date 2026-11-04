@@ -1,8 +1,10 @@
+import { HERO_CELL_SIZE } from './display.mjs'
+
 // A successful local send gets one visible walk toward the nearest screen edge.
 // The caller keeps the visit's pending/delivered state separately and hides the
 // hero once this short departure finishes. Restored visits do not start one.
 export const DEPARTURE_STEP_MS = 83
-export const DEPARTURE_OVERHANG = 128
+export const DEPARTURE_OVERHANG = HERO_CELL_SIZE
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
