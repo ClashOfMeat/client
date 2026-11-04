@@ -1,0 +1,27 @@
+README.md
+  s_f5baafbc74a355::t_24ffd2899b2873 50,86
+apps/desktop/ui/overlay.css
+  s_f5baafbc74a355::t_f0363202aa20b5 69-72,79-80
+apps/desktop/ui/overlay.mjs
+  s_f5baafbc74a355::t_c6c5eeaec73397 23,234,238,251,256-257,273,277,281-310
+apps/desktop/ui/overlay/notifications.mjs
+  s_f5baafbc74a355::t_edd175982e90d4 50-66
+apps/desktop/ui/overlay/tests/notifications.test.mjs
+  s_f5baafbc74a355::t_d61f37b19987a7 3,49,55-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "01fe9a4d3805467b3a5df3d801db485266f35a8a",
+  "prompts": {},
+  "sessions": {
+    "s_f5baafbc74a355": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a262c919-9112-414c-82fc-8a1e2b42c82c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}

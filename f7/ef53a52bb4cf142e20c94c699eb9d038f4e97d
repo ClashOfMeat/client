@@ -1,0 +1,25 @@
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_d22b99f460759d 3,561
+  s_4974f21a2d9593::t_ff6e4db8303364 546
+apps/desktop/ui/hero/tests/effects.test.mjs
+  s_4974f21a2d9593::t_d22b99f460759d 3,60-65
+  s_4974f21a2d9593::t_5fbd14fe33a34f 66-67
+apps/desktop/ui/hero/effects.mjs
+  s_4974f21a2d9593::t_d22b99f460759d 35-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f7ef53a52bb4cf142e20c94c699eb9d038f4e97d",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}

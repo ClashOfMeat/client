@@ -1,0 +1,57 @@
+crates/daemon/tests/sync.rs
+  s_96f91b15a1e2c0::t_ddaf2598ea60f1 821-822,825-830,835-838
+  s_96f91b15a1e2c0::t_18e583ecb37795 839-841,844-845,849-853,859,863,869,873,899-903,907,913-919
+  s_96f91b15a1e2c0::t_e3a5e3b419b6f1 406-409,823-824,831-834,842-843,846-848,854-858,860-862,864-868,870-872,874-898,904-906,908-911
+  s_96f91b15a1e2c0::t_5d5b75e0ffe65d 912
+apps/desktop/ui/assets/achievement-crest.svg
+  s_96f91b15a1e2c0::t_8b68978eb0df41 1-11
+apps/desktop/ui/overlay.html
+  s_96f91b15a1e2c0::t_e1f9523ecd5e2f 11,36-38,40
+  s_96f91b15a1e2c0::t_228d8ed9cadd42 39
+  s_96f91b15a1e2c0::t_994843797202ba 41
+apps/desktop/src-tauri/src/settings.rs
+  s_96f91b15a1e2c0::t_5726bdce790111 161
+apps/desktop/ui/overlay/tests/notifications.test.mjs
+  s_96f91b15a1e2c0::t_3af42a26a4b964 11,13-14
+  s_96f91b15a1e2c0::t_ddaf2598ea60f1 1-10,12,15-46
+apps/desktop/ui/assets/achievement-tome.svg
+  s_96f91b15a1e2c0::t_8b68978eb0df41 1-16
+crates/daemon/src/hero.rs
+  s_96f91b15a1e2c0::t_ddaf2598ea60f1 102-115
+crates/daemon/src/run.rs
+  s_96f91b15a1e2c0::t_5726bdce790111 363-366,689-691,695,700
+  s_96f91b15a1e2c0::t_e3a5e3b419b6f1 692-694,696-699
+apps/desktop/ui/overlay/notifications.mjs
+  s_96f91b15a1e2c0::t_3af42a26a4b964 11
+  s_96f91b15a1e2c0::t_8b68978eb0df41 31-32
+  s_96f91b15a1e2c0::t_b908d79c30e349 1-10,12-30,33-48
+apps/desktop/ui/overlay.css
+  s_96f91b15a1e2c0::t_ddaf2598ea60f1 70
+  s_96f91b15a1e2c0::t_2c005cb3f41788 21
+  s_96f91b15a1e2c0::t_e1f9523ecd5e2f 19-20,22-23,60-69,71-74
+crates/daemon/src/sync.rs
+  s_96f91b15a1e2c0::t_5726bdce790111 270-271,276-277
+  s_96f91b15a1e2c0::t_e3a5e3b419b6f1 272-275
+apps/desktop/ui/overlay.mjs
+  s_96f91b15a1e2c0::t_9b167ada92e335 67,223,276-280,283-287,799,887
+  s_96f91b15a1e2c0::t_8fefbfe471fe50 281,288
+  s_96f91b15a1e2c0::t_2c005cb3f41788 22,40-44,196,201-222,224-275,282,289-290
+  s_96f91b15a1e2c0::t_aa65bc1467ca33 560-563,606,678-683,692,788-798,800-801,871,878,888-891,907
+  s_96f91b15a1e2c0::t_f8fb25d0b8fd4a 291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab47f383fbf2cf1f13d933a2b2c3372cffa232ad",
+  "prompts": {},
+  "sessions": {
+    "s_96f91b15a1e2c0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a264-d10b-7c63-a6fb-3f78223f5956",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}

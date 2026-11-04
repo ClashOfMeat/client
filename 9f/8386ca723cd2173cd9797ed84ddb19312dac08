@@ -1,0 +1,36 @@
+apps/desktop/ui/overlay.css
+  s_4974f21a2d9593::t_937d5f26a1f57f 79
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_937d5f26a1f57f 349
+apps/desktop/ui/overlay/layout.mjs
+  s_4974f21a2d9593::t_e78aab6797ce52 7
+apps/desktop/ui/overlay/tests/layout.test.mjs
+  s_4974f21a2d9593::t_e78aab6797ce52 4-5,24,30-36
+  s_4974f21a2d9593::t_008c1c075fec91 37-39
+apps/desktop/ui/hero/README.md
+  s_4974f21a2d9593::t_d1d12de8cb2a3a 12
+apps/desktop/ui/hero/flex.mjs
+  s_4974f21a2d9593::t_d1d12de8cb2a3a 39,47
+apps/desktop/ui/hero/effects.mjs
+  s_4974f21a2d9593::t_d1d12de8cb2a3a 50
+apps/desktop/ui/hero/visit.mjs
+  s_4974f21a2d9593::t_d1d12de8cb2a3a 17
+apps/desktop/ui/hero/kiss.mjs
+  s_4974f21a2d9593::t_d1d12de8cb2a3a 8,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9f8386ca723cd2173cd9797ed84ddb19312dac08",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
