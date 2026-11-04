@@ -1,5 +1,6 @@
 import { heroActivity } from './hero/activity.mjs'
 import { companionFrame, frameDelay, frameImage } from './hero/frames.mjs'
+import { decodePng } from './hero/png-image.mjs'
 import { xpGain, bubbleFrame, levelUpFrame, visitPose, visitDuration, visitLabelVisible } from './hero/effects.mjs'
 import { xpTextFrame, drawXpText } from './hero/xp-text.mjs'
 import { fallPose } from './hero/fall.mjs'
@@ -73,11 +74,11 @@ let evolving = false, evolveRetryAt = 0, levelingUp = false, hitKey = ''
 let lift = 0, fall = null
 let lastActivityAt = Date.now()
 
-async function bitmap(png) {
+// Decoded <img> elements, not ImageBitmaps: those draw nothing after WebKit's GPU process restarts (hero/png-image.mjs).
+async function heroImage(png) {
   if (!png) return null
   if (!images.has(png)) {
-    const bytes = Uint8Array.from(atob(png), char => char.charCodeAt(0))
-    images.set(png, createImageBitmap(new Blob([bytes], { type: 'image/png' })).then(image => {
+    images.set(png, decodePng(png).then(image => {
       images.set(png, image)
       return image
     }).catch(error => { images.delete(png); throw error }))
@@ -111,7 +112,7 @@ function heroPngs(hero = character, frames = animation, effect = aura) {
 
 async function decodeHero() {
   if (!animation || !character) return
-  await Promise.all(heroPngs().map(bitmap))
+  await Promise.all(heroPngs().map(heroImage))
 }
 
 function normaliseActivity(data) {
@@ -163,7 +164,7 @@ async function playLevelUp() {
     const result = await invoke('daemon_request', { method: 'level_up', params: { fromLevel: character.evolution, toLevel: character.evolution } })
     const effect = validateLevelUp(result?.levelUp)
     if (effect) {
-      await Promise.all(effect.frames.map(bitmap))
+      await Promise.all(effect.frames.map(heroImage))
       aura = effect
       auraStarted = Date.now()
       wake()
@@ -417,7 +418,7 @@ async function setHero(data, heartbeat = false) {
   // hero stays whole until the new one swaps in at once: never a new name on an old skin, or
   // new frames that draw nothing yet. A newer heartbeat that arrives meanwhile wins.
   if (candidate && nextAnimation) {
-    try { await Promise.all(heroPngs(candidate, nextAnimation, nextAura).map(bitmap)) }
+    try { await Promise.all(heroPngs(candidate, nextAnimation, nextAura).map(heroImage)) }
     catch (error) { console.error('hero image decoding:', error); return }
     if (current !== generation) return
     now = Date.now()
@@ -454,7 +455,7 @@ async function setHero(data, heartbeat = false) {
     updateStats()
     try { await decodeHero() } catch (error) { console.error('hero image decoding:', error); return }
     if (current !== generation) return
-    // The previous skin's bitmaps can no longer be drawn; each switch would otherwise keep them.
+    // The previous skin's images can no longer be drawn; each switch would otherwise keep them.
     if (previous && previous.png !== character.png) {
       const kept = new Set(heroPngs())
       for (const png of images.keys()) if (!kept.has(png)) images.delete(png)
