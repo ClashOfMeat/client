@@ -32,15 +32,16 @@ export function validPng(png, limit = 64 * 1024, size) {
 }
 
 const { frames: FRAMES, limits: LIMITS } = HERO_CONTRACT
-const validFrames = (list, size) => Array.isArray(list) && list.length === FRAMES.total &&
-  list.every(png => validPng(png, LIMITS.pngBase64, size)) && list.reduce((n, png) => n + png.length, 0) <= LIMITS.framesBase64
+const validFrames = (list, size, frameLimit) => Array.isArray(list) && list.length === FRAMES.total &&
+  list.every(png => validPng(png, frameLimit, size)) && list.reduce((n, png) => n + png.length, 0) <= LIMITS.framesBase64
 
 // The hero contract (hero-contract.mjs): 31 frames each way in a fixed order, facing right and left. The server sends
 // art only; the clips are the contract's, attached here so the rest of the desktop reads them from the animation.
 export function validateAnimation(value) {
   const size = value?.version === HERO_CONTRACT.version ? HERO_CELL_SIZE :
     value?.version === 2 ? LEGACY_FRAME_SIZE : null
-  if (!size || !validFrames(value.frames, size) || !validFrames(value.mirroredFrames, size)) return null
+  const frameLimit = value?.version === 2 ? LIMITS.pngBase64 : LIMITS.intrinsicPngBase64
+  if (!size || !validFrames(value.frames, size, frameLimit) || !validFrames(value.mirroredFrames, size, frameLimit)) return null
   return { version: value.version, size, frames: value.frames, mirroredFrames: value.mirroredFrames, clips: HERO_CONTRACT.clips }
 }
 

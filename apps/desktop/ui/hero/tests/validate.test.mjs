@@ -21,6 +21,8 @@ const aura = { id: 'preview', heroId: 'hero', version: 1, fromLevel: 1, toLevel:
 test('the hero contract: 31 frames, nine animations, three emotes, every clip inside the frames', () => {
   assert.equal(HERO_CONTRACT.version, 3)
   assert.equal(HERO_CONTRACT.frames.size, 192)
+  assert.equal(HERO_CONTRACT.limits.pngBase64, 64 * 1024)
+  assert.equal(HERO_CONTRACT.limits.intrinsicPngBase64, 80 * 1024)
   assert.deepEqual(COMPANION_STATES, ['idle', 'walk', 'sit', 'talk', 'kiss', 'angry', 'flex', 'grab', 'sleep'])
   assert.deepEqual(VISIT_EMOTES, ['flex', 'kiss', 'angry'])
   assert.deepEqual(Object.keys(HERO_CONTRACT.clips).sort(), [...COMPANION_STATES].sort())
@@ -52,6 +54,18 @@ test('an animation is 31 frames each way and plays the contract clips', () => {
   const detailed = btoa(atob(png128) + '\0'.repeat(21000))
   assert(validateAnimation({ ...animation, frames: Array(31).fill(detailed) }))
   assert.equal(validateAnimation({ ...animation, frames: Array(31).fill(detailed.repeat(2)) }), null)
+})
+
+test('lossless v3 frames may use 80 KiB each while v2 keeps its 64 KiB limit', () => {
+  const large192 = btoa(atob(png192) + '\0'.repeat(52_400))
+  const large128 = btoa(atob(png128) + '\0'.repeat(52_400))
+  const tooLarge192 = btoa(atob(png192) + '\0'.repeat(62_000))
+  assert(large192.length > HERO_CONTRACT.limits.pngBase64)
+  assert(large192.length < HERO_CONTRACT.limits.intrinsicPngBase64)
+  const v3Frames = [large192, ...animation3.frames.slice(1)]
+  assert(validateAnimation({ ...animation3, frames: v3Frames }))
+  assert.equal(validateAnimation({ ...animation, frames: [large128, ...animation.frames.slice(1)] }), null)
+  assert.equal(validateAnimation({ ...animation3, frames: [tooLarge192, ...animation3.frames.slice(1)] }), null)
 })
 
 test('a visitor brings the same art and one of the three emotes', () => {
