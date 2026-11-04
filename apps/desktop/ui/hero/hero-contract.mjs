@@ -38,5 +38,5 @@ export const HERO_CONTRACT = Object.freeze({
     "sleep": { "frames": [2, 14, 14], "durations": [300, 1500, 1600] }
   },
   "visit": { "walkInMs": 1500, "emoteMs": { "kiss": 5000, "angry": 5000, "flex": "one flex clip" }, "walkOutMs": 1500 },
-  "limits": { "pngBase64": 65536, "intrinsicPngBase64": 81920, "framesBase64": 1048576 }
+  "limits": { "pngBase64": 65536, "intrinsicPngBase64": 81920, "framesBase64": 1048576, "intrinsicFramesBase64": 1572864 }
 })

@@ -23,6 +23,8 @@ test('the hero contract: 31 frames, nine animations, three emotes, every clip in
   assert.equal(HERO_CONTRACT.frames.size, 192)
   assert.equal(HERO_CONTRACT.limits.pngBase64, 64 * 1024)
   assert.equal(HERO_CONTRACT.limits.intrinsicPngBase64, 80 * 1024)
+  assert.equal(HERO_CONTRACT.limits.framesBase64, 1024 * 1024)
+  assert.equal(HERO_CONTRACT.limits.intrinsicFramesBase64, 1536 * 1024)
   assert.deepEqual(COMPANION_STATES, ['idle', 'walk', 'sit', 'talk', 'kiss', 'angry', 'flex', 'grab', 'sleep'])
   assert.deepEqual(VISIT_EMOTES, ['flex', 'kiss', 'angry'])
   assert.deepEqual(Object.keys(HERO_CONTRACT.clips).sort(), [...COMPANION_STATES].sort())
@@ -66,6 +68,18 @@ test('lossless v3 frames may use 80 KiB each while v2 keeps its 64 KiB limit', (
   assert(validateAnimation({ ...animation3, frames: v3Frames }))
   assert.equal(validateAnimation({ ...animation, frames: [large128, ...animation.frames.slice(1)] }), null)
   assert.equal(validateAnimation({ ...animation3, frames: [tooLarge192, ...animation3.frames.slice(1)] }), null)
+})
+
+test('v3 can carry a lossless 1.3 MiB facing while v2 keeps its 1 MiB set limit', () => {
+  const dense192 = btoa(atob(png192) + '\0'.repeat(32_000))
+  const dense128 = btoa(atob(png128) + '\0'.repeat(32_000))
+  const tooDense192 = btoa(atob(png192) + '\0'.repeat(39_000))
+  const v3Frames = Array(31).fill(dense192)
+  assert(v3Frames.reduce((sum, png) => sum + png.length, 0) > HERO_CONTRACT.limits.framesBase64)
+  assert(v3Frames.reduce((sum, png) => sum + png.length, 0) < HERO_CONTRACT.limits.intrinsicFramesBase64)
+  assert(validateAnimation({ ...animation3, frames: v3Frames }))
+  assert.equal(validateAnimation({ ...animation, frames: Array(31).fill(dense128) }), null)
+  assert.equal(validateAnimation({ ...animation3, frames: Array(31).fill(tooDense192) }), null)
 })
 
 test('a visitor brings the same art and one of the three emotes', () => {
