@@ -20,7 +20,7 @@ document.getSelection()?.removeAllRanges()
 import { friendRows, friendPage, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
 import { xpBar } from './overlay/xp-bar.mjs'
-import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead, stillSelected } from './overlay/notifications.mjs'
+import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead, stillSelected, arrived, BELL_RING_MS } from './overlay/notifications.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen, emit } = window.__TAURI__.event
@@ -43,6 +43,8 @@ const notificationCount = document.getElementById('notification-count')
 const notificationsPanel = document.getElementById('notifications')
 const notificationsList = document.getElementById('notifications-list')
 const notificationsRead = document.getElementById('notifications-read')
+const cardBell = document.getElementById('card-bell')
+const cardBellCount = document.getElementById('card-bell-count')
 const notificationsNote = document.getElementById('notifications-note')
 const visitLabel = document.getElementById('visit-label')
 const stillButton = document.getElementById('still')
@@ -69,6 +71,8 @@ let friends = [], friendsPageIndex = 0
 let inbox = null, inboxOwner = null, notificationBusy = false, notificationError = '', inboxEpoch = 0
 // Unread rows ticked in the inbox, waiting for "Mark as read".
 let selectedNotifications = new Set()
+// The bell beside the hero rings until this time after a new arrival; lastUnread is what it last saw.
+let bellRingUntil = 0, lastUnread = null
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = true
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
@@ -236,9 +240,13 @@ function notificationHeartbeat(data) {
 function renderNotifications() {
   const count = unreadCount(inbox)
   const badge = bellCount(count)
-  notificationCount.hidden = !badge
-  notificationCount.textContent = badge
-  notificationBell.setAttribute('aria-label', count ? `Notifications, ${count} unread` : 'Notifications')
+  if (arrived(lastUnread, count)) ringBell()
+  lastUnread = count
+  for (const [bell, counter] of [[notificationBell, notificationCount], [cardBell, cardBellCount]]) {
+    counter.hidden = !badge
+    counter.textContent = badge
+    bell.setAttribute('aria-label', count ? `Notifications, ${count} unread` : 'Notifications')
+  }
   selectedNotifications = stillSelected(inbox, selectedNotifications)
   notificationsRead.disabled = notificationBusy || selectedNotifications.size === 0
   notificationsList.replaceChildren(...(inbox?.items ?? []).map(notificationRow))
@@ -253,8 +261,16 @@ function renderNotifications() {
 
 function showBell(away = outgoing.away()) {
   notificationBell.hidden = !bellVisible({
-    count: unreadCount(inbox), away, carried: Boolean(drag?.moved),
+    count: unreadCount(inbox), ringing: Date.now() < bellRingUntil, away, carried: Boolean(drag?.moved),
   })
+}
+
+// Restarts the ring-and-fade animation; draw() hides the bell once it is over.
+function ringBell() {
+  bellRingUntil = Date.now() + BELL_RING_MS
+  notificationBell.classList.remove('ringing')
+  void notificationBell.offsetWidth
+  notificationBell.classList.add('ringing')
 }
 
 function notificationRow(item) {
@@ -600,6 +616,7 @@ function deadline(now, pose) {
   const clip = frameDelay(animation, pose.state, pose.elapsed)
   if (Number.isFinite(clip)) delays.push(clip)
   if (Number.isFinite(pose.until)) delays.push(pose.until)
+  if (bellRingUntil > Date.now()) delays.push(bellRingUntil - Date.now())
   if (pose.state === 'walk' && !paused) delays.push(83)
   if (pose.state === 'flex') delays.push(flexDelay(pose.elapsed))
   if (pose.state === 'kiss' || pose.state === 'angry') delays.push(83)
@@ -855,6 +872,8 @@ notificationBell.addEventListener('click', () => {
   showNotifications(!closing)
   wake()
 })
+// The hero card's bell swaps the card for the inbox in the same bubble; its back arrow returns to the card.
+cardBell.addEventListener('click', () => { showNotifications(true); wake() })
 document.getElementById('notifications-back').addEventListener('click', () => { showNotifications(false); wake() })
 document.getElementById('notifications-all').addEventListener('click', async () => {
   try { await invoke('open_app', { path: '/notifications' }); statsOpen = false; wake() }

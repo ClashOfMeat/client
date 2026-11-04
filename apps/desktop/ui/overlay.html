@@ -8,11 +8,11 @@
 </head>
 <body>
   <canvas id="hero" aria-label="Clash of Meat hero"></canvas>
-  <button id="notification-bell" aria-label="Notifications" title="Notifications" hidden><img src="./assets/bell.png" alt=""><span id="notification-count" hidden></span></button>
+  <button id="notification-bell" aria-label="Notifications" title="Notifications" hidden><img src="./assets/bell.png" alt=""><span id="notification-count" class="bell-count" hidden></span></button>
   <div id="visit-label" class="visit-label" hidden></div>
   <div id="stats" class="bubble" hidden>
     <div id="card">
-      <div id="name"></div>
+      <div class="card-head"><div id="name"></div><button id="card-bell" class="card-bell" aria-label="Notifications" title="Notifications"><img src="./assets/bell.png" alt=""><span id="card-bell-count" class="bell-count" hidden></span></button></div>
       <div class="xp-row">
         <div id="xp-text"></div>
         <div class="xp-track"><div id="xp-fill"></div><span id="xp-count"></span></div>

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead, stillSelected } from '../notifications.mjs'
+import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead, stillSelected, arrived } from '../notifications.mjs'
 
 const item = (id, extra = {}) => ({
   id: String(id), kind: 'duel_invite', message: `Event ${id}`, sentence: `Event ${id} — claim 5 gold`,
@@ -45,9 +45,10 @@ test('bell follows the hero and stays inside the overlay at both screen edges', 
     bellPosition({ width: 360, height: 380, spriteX: 116, spriteY: 252 }).left)
 })
 
-test('bell hides with nothing to read, while the hero is carried and while it is away', () => {
-  const base = { count: 2, away: false, carried: false }
+test('bell shows only while ringing for unread rows, never while carried or away', () => {
+  const base = { count: 2, ringing: true, away: false, carried: false }
   assert.equal(bellVisible(base), true)
+  assert.equal(bellVisible({ ...base, ringing: false }), false)
   assert.equal(bellVisible({ ...base, count: 0 }), false)
   assert.equal(bellVisible({ ...base, carried: true }), false)
   assert.equal(bellVisible({ ...base, away: true }), false)
@@ -77,4 +78,12 @@ test('several ticked rows are read together and the selection keeps only unread 
   assert.equal(read.attention.unread, 1)
   assert.deepEqual([...stillSelected(read, new Set(['3', '2', '1']))], ['2'])
   assert.deepEqual([...stillSelected(null, new Set(['3']))], [])
+})
+
+test('the bell rings when the unread count goes up, not when it stays or drops', () => {
+  assert.equal(arrived(null, 2), true)
+  assert.equal(arrived(null, 0), false)
+  assert.equal(arrived(1, 2), true)
+  assert.equal(arrived(2, 2), false)
+  assert.equal(arrived(2, 1), false)
 })

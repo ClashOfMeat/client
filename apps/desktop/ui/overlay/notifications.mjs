@@ -68,7 +68,16 @@ export function stillSelected(snapshot, selected) {
   return new Set([...selected].filter(id => unread.has(id)))
 }
 
-// The bell only shows while something is unread, and never while the hero is away or being carried.
-export function bellVisible({ count, away, carried }) {
-  return !away && !carried && count > 0
+// How long the bell beside the hero rings and fades after a notification arrives (overlay.css .ringing).
+export const BELL_RING_MS = 4000
+
+// The bell beside the hero only shows while it rings for a new arrival, never while the hero is away
+// or carried; the hero card's own bell stays the way back to the inbox.
+export function bellVisible({ count, ringing, away, carried }) {
+  return !away && !carried && ringing && count > 0
+}
+
+// A notification arrived when the unread count goes up (the first snapshot counts from zero).
+export function arrived(previous, next) {
+  return next > (previous ?? 0)
 }
