@@ -231,7 +231,8 @@ export TAURI_SIGNING_PRIVATE_KEY_PASSWORD='…'   # optional: release.sh asks on
 ## 6. Cut a release
 
 **From GitHub Actions (normal path):** Actions ▸ **Release** ▸ Run workflow on `dev`, choosing `patch`, `minor` or
-`major`. The `version` job bumps the version in `Cargo.toml`, `apps/desktop/src-tauri/Cargo.toml` and `tauri.conf.json`
+`major`. Check **Require update** when older installed clients cannot use this release's content; the updater manifest
+then sets this release as its minimum version. The `version` job bumps the version in `Cargo.toml`, `apps/desktop/src-tauri/Cargo.toml` and `tauri.conf.json`
 (the first release keeps `Cargo.toml`'s), commits it to `dev` and fast-forwards `main`. Then four jobs run side by
 side: `checks` (`scripts/check.sh` on macOS), one `mac` job per Mac target and `linux` (both Linux CLIs with
 cargo-zigbuild on Ubuntu). Each runs `scripts/package.sh` without a signing key and uploads its archives, with build
