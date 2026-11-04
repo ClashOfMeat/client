@@ -1,0 +1,71 @@
+apps/desktop/ui/overlay/notifications.mjs
+  s_4974f21a2d9593::t_eee56a63d14e0f 1-2,45-46,49
+  s_4974f21a2d9593::t_f4890f07d45dc5 42
+apps/desktop/ui/hero/tests/kiss.test.mjs
+  s_4974f21a2d9593::t_d43f915d796450 43-46,48-50,53
+apps/desktop/ui/hero/departure.mjs
+  s_4974f21a2d9593::t_28d067f1d9e317 1-2,7
+apps/desktop/ui/overlay/layout.mjs
+  s_4974f21a2d9593::t_28d067f1d9e317 1-2,7
+  s_4974f21a2d9593::t_0410687765ef47 9-10
+apps/desktop/ui/hero/hero-contract.mjs
+  s_4974f21a2d9593::t_117e9e032da616 4-5
+apps/desktop/ui/hero/tests/visit.test.mjs
+  s_4974f21a2d9593::t_d9fd0d5b52b356 16-20,24,26,31,38-43
+apps/desktop/ui/hero/tests/effects.test.mjs
+  s_4974f21a2d9593::t_ab0c9623afe68e 76-79
+apps/desktop/ui/overlay/tests/notifications.test.mjs
+  s_4974f21a2d9593::t_d07deaf77fd5f6 40-42,44-45
+apps/desktop/ui/hero/README.md
+  s_4974f21a2d9593::t_05173f9f6d465b 8-9
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_1f0c299f74e0cc 14,452-453,473,559-560,659,710-711,716,721-725,736-738,741-743,746,749,754-755,761,775,801,804,819,843,916,1017
+  s_4974f21a2d9593::t_c0b348417f6431 739
+apps/desktop/ui/overlay.css
+  s_4974f21a2d9593::t_f4890f07d45dc5 43
+apps/desktop/ui/hero/effects.mjs
+  s_4974f21a2d9593::t_0410687765ef47 56
+  s_4974f21a2d9593::t_28d067f1d9e317 3,59
+apps/desktop/ui/hero/tests/flex.test.mjs
+  s_4974f21a2d9593::t_ab0c9623afe68e 41
+apps/desktop/ui/hero/tests/departure.test.mjs
+  s_4974f21a2d9593::t_3ce5d5d8dcd00f 30,34
+  s_4974f21a2d9593::t_ab0c9623afe68e 13,23
+apps/desktop/src-tauri/src/overlay.rs
+  s_4974f21a2d9593::t_f4890f07d45dc5 33
+apps/desktop/ui/hero/display.mjs
+  s_4974f21a2d9593::t_ec8f38f166538b 1-7,10-11,13-16,19-23
+  s_4974f21a2d9593::t_aca9ea88fce0ab 24
+apps/desktop/ui/hero/tests/display.test.mjs
+  s_4974f21a2d9593::t_0c9bfcd30fd398 3,5-14,16
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_4974f21a2d9593::t_abd1d987343bb7 7-14,16-17,22-23,40-43,52,60
+apps/desktop/ui/hero/validate.mjs
+  s_4974f21a2d9593::t_00c9b4118f4411 2,14-24,26-30,35-36,41-44
+apps/desktop/ui/overlay/tests/layout.test.mjs
+  s_4974f21a2d9593::t_37f5f520a9aace 5,10,12,14,19,24-25,30-31,34-38,45,67,70
+apps/desktop/ui/hero/flex.mjs
+  s_4974f21a2d9593::t_ab4ab534caea2f 1-2
+  s_4974f21a2d9593::t_28d067f1d9e317 10
+apps/desktop/ui/hero/kiss.mjs
+  s_4974f21a2d9593::t_28d067f1d9e317 1-3
+  s_4974f21a2d9593::t_f4890f07d45dc5 28
+apps/desktop/ui/hero/visit.mjs
+  s_4974f21a2d9593::t_28d067f1d9e317 2,20,41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a0385955e4394089174e3effc6673d4d4a0848b",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
