@@ -104,7 +104,7 @@ SHA-256 checksum in the release manifest and, when `minisign` is installed, agai
 ## Build from source
 
 See [docs/building.md](docs/building.md). In short, you need Rust, the Tauri CLI and Node.js, and
-`scripts/check.sh` runs all the tests.
+`scripts/check.sh` runs all the tests. Run `git config core.hooksPath .githooks` once so it runs before every push.
 
 ## Repo layout
 

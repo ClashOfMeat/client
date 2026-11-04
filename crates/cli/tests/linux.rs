@@ -68,16 +68,16 @@ impl Fixture {
     }
 
     fn run(&self, args: &[&str], vars: &[(&str, &str)]) -> Output {
-        Command::new(&self.exe)
-            .args(args)
-            .env_clear()
-            .env("HOME", self.home())
-            .env("PATH", "/usr/bin:/bin")
-            .env("CLASHOFMEAT_SYSTEMCTL", &self.systemctl)
-            .env("CLASHOFMEAT_NO_OPEN", "1")
-            .envs(vars.iter().copied())
-            .output()
-            .unwrap()
+        output_of(
+            Command::new(&self.exe)
+                .args(args)
+                .env_clear()
+                .env("HOME", self.home())
+                .env("PATH", "/usr/bin:/bin")
+                .env("CLASHOFMEAT_SYSTEMCTL", &self.systemctl)
+                .env("CLASHOFMEAT_NO_OPEN", "1")
+                .envs(vars.iter().copied()),
+        )
     }
 
     fn calls(&self) -> Vec<String> {
@@ -87,6 +87,20 @@ impl Fixture {
             .map(str::to_owned)
             .collect()
     }
+}
+
+/// Runs a program this test just wrote. Another test forking at that moment briefly holds the file open for writing,
+/// and Linux then refuses to execute it (ETXTBSY), so wait for that fork to exec and try again.
+fn output_of(command: &mut Command) -> Output {
+    for _ in 0..100 {
+        match command.output() {
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                thread::sleep(std::time::Duration::from_millis(20))
+            }
+            result => return result.unwrap(),
+        }
+    }
+    command.output().unwrap()
 }
 
 fn assert_success(output: &Output) {
@@ -255,10 +269,7 @@ fn update_installs_a_signed_release() {
     let output = fixture.run(&["update"], &[("CLASHOFMEAT_UPDATE_PUBKEY", &pubkey)]);
     assert_success(&output);
     assert!(String::from_utf8_lossy(&output.stdout).contains("to 99.0.0"));
-    let replaced = Command::new(&fixture.exe)
-        .arg("--version")
-        .output()
-        .unwrap();
+    let replaced = output_of(Command::new(&fixture.exe).arg("--version"));
     assert_eq!(
         String::from_utf8_lossy(&replaced.stdout).trim(),
         "clashofmeat-cli 99.0.0"

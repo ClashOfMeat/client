@@ -1,27 +1,17 @@
 name: CI
-# The checks a release runs (scripts/check.sh), on every pull request and on dev.
+# scripts/check.sh on Linux for every pull request. macOS runs it in ci-macos.yaml when macOS code changes, in the
+# pre-push hook on a Mac (.githooks), and in every release before packaging. A merge to dev was already tested as the
+# PR's merge commit, so pushes to dev don't run this again.
 on:
   pull_request:
-  push:
-    branches: [dev]
+    paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  checks:
-    # macOS: the LaunchAgent, the desktop app's sidecar and the .app installer path.
-    runs-on: macos-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with: { persist-credentials: false }
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with: { node-version: 24 }
-      - run: rustup component add clippy
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - run: scripts/check.sh
   linux:
     # Linux: the systemd user service, `clashofmeat update` and the installer's Linux branch.
     runs-on: ubuntu-latest
