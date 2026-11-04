@@ -69,7 +69,7 @@ export function stillSelected(snapshot, selected) {
 }
 
 // How long the bell beside the hero rings and fades after a notification arrives (overlay.css .ringing).
-export const BELL_RING_MS = 4000
+export const BELL_RING_MS = 10000
 
 // The bell beside the hero only shows while it rings for a new arrival, never while the hero is away
 // or carried; the hero card's own bell stays the way back to the inbox.

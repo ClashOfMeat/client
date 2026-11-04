@@ -22,18 +22,21 @@ img, canvas { -webkit-user-drag: none; }
 #notification-bell:active:not(:disabled) { box-shadow: none; }
 #notification-bell img { width: 22px; height: 22px; image-rendering: pixelated; pointer-events: none; }
 #notification-bell[hidden], .bell-count[hidden] { display: none; }
-/* After a new notification the bell swings, rests, then fades out (BELL_RING_MS in notifications.mjs). */
-#notification-bell.ringing { animation: bell-ring 4s ease-out forwards; transform-origin: 50% 12%; }
+/* After a new notification the bell pops in and swings, rests, swings again at 5 s, then fades out over
+   the last 0.8 s: 10 s in all (BELL_RING_MS in notifications.mjs). Each swing lasts 1.4 s. */
+#notification-bell.ringing { animation: bell-ring 10s ease-out forwards; transform-origin: 50% 12%; }
 @keyframes bell-ring {
   0% { opacity: 0; transform: scale(.6); }
-  6% { opacity: 1; transform: scale(1.15) rotate(0); }
-  12% { transform: rotate(18deg); } 18% { transform: rotate(-15deg); } 24% { transform: rotate(11deg); }
-  30% { transform: rotate(-7deg); } 36% { transform: rotate(3deg); } 42% { transform: rotate(0); }
-  80% { opacity: 1; transform: none; }
+  2.4% { opacity: 1; transform: scale(1.15) rotate(0); }
+  4.8% { transform: rotate(18deg); } 7.2% { transform: rotate(-15deg); } 9.6% { transform: rotate(11deg); }
+  12% { transform: rotate(-7deg); } 14.4% { transform: rotate(3deg); } 16.8%, 50% { transform: rotate(0); }
+  52.4% { transform: rotate(14deg); } 54.8% { transform: rotate(-11deg); } 57.2% { transform: rotate(7deg); }
+  59.6% { transform: rotate(-3deg); } 62% { transform: rotate(0); }
+  92% { opacity: 1; transform: none; }
   100% { opacity: 0; transform: translateY(-4px); }
 }
-@media (prefers-reduced-motion: reduce) { #notification-bell.ringing { animation: bell-fade 4s linear forwards; } }
-@keyframes bell-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #notification-bell.ringing { animation: bell-fade 10s linear forwards; } }
+@keyframes bell-fade { 0%, 92% { opacity: 1; } 100% { opacity: 0; } }
 .bell-count { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; padding: 1px 3px;
   border: 1px solid var(--panel); border-radius: 9px; background: #f05b55; color: #fff; font: 700 11px/14px "Alegreya Sans", sans-serif; text-align: center; }
 
