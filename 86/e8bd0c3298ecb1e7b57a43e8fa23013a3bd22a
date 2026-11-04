@@ -1,0 +1,25 @@
+apps/desktop/ui/hero/hero-contract.mjs
+  s_4974f21a2d9593::t_21b7171105402f 41
+apps/desktop/ui/hero/tests/validate.test.mjs
+  s_4974f21a2d9593::t_740c017bb18df4 24-25,59-68
+  s_4974f21a2d9593::t_d6f2e4ded8a632 69-70
+apps/desktop/ui/hero/validate.mjs
+  s_4974f21a2d9593::t_709d79b37346d4 35-36,44
+  s_4974f21a2d9593::t_21b7171105402f 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "86e8bd0c3298ecb1e7b57a43e8fa23013a3bd22a",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
