@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead } from '../notifications.mjs'
+import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead, stillSelected } from '../notifications.mjs'
 
 const item = (id, extra = {}) => ({
   id: String(id), kind: 'duel_invite', message: `Event ${id}`, sentence: `Event ${id} — claim 5 gold`,
@@ -62,10 +62,19 @@ test('the bell counts unread rows, not rewards already read and waiting to be cl
 
 test('marking a row read drops it, or keeps it while its reward is still to claim', () => {
   const snapshot = notificationSnapshot({ attention: { unread: 2 }, items: [item(2, { claimable: true }), item(1)] })
-  const plain = markedRead(snapshot, '1')
+  const plain = markedRead(snapshot, ['1'])
   assert.deepEqual(plain.items.map(row => row.id), ['2'])
   assert.equal(plain.attention.unread, 1)
-  const reward = markedRead(snapshot, '2')
+  const reward = markedRead(snapshot, ['2'])
   assert.deepEqual(reward.items.map(row => [row.id, row.read]), [['2', true], ['1', false]])
   assert.equal(unreadCount(reward), 1)
+})
+
+test('several ticked rows are read together and the selection keeps only unread rows', () => {
+  const snapshot = notificationSnapshot({ attention: { unread: 3 }, items: [item(3), item(2, { claimable: true }), item(1)] })
+  const read = markedRead(snapshot, ['3', '1'])
+  assert.deepEqual(read.items.map(row => row.id), ['2'])
+  assert.equal(read.attention.unread, 1)
+  assert.deepEqual([...stillSelected(read, new Set(['3', '2', '1']))], ['2'])
+  assert.deepEqual([...stillSelected(null, new Set(['3']))], [])
 })

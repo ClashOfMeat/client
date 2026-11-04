@@ -47,7 +47,7 @@ On a Mac or Linux, if your default account lives elsewhere through `CLAUDE_CONFI
 
 ## Notifications
 
-When you have unread notifications and the hero is on screen, a bell follows it (it hides while you carry the hero). Click the bell to see your ten newest unread notifications, including rewards you have read but still need to claim. Clicking a notification opens its destination in the web app; its ✓ marks it read without opening anything. **View all in Clash of Meat** opens the full notification history. The bell and inbox disappear when the hero is hidden or the desktop app is quit; the background collector still runs.
+When you have unread notifications and the hero is on screen, a bell follows it (it hides while you carry the hero). Click the bell to see your ten newest unread notifications, including rewards you have read but still need to claim. Clicking a notification opens its destination in the web app; tick unread rows (the box shows on hover) and click **Mark as read** to read them without opening anything. **View all in Clash of Meat** opens the full notification history. The bell and inbox disappear when the hero is hidden or the desktop app is quit; the background collector still runs.
 
 ## Privacy
 

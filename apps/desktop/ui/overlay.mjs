@@ -20,7 +20,7 @@ document.getSelection()?.removeAllRanges()
 import { friendRows, friendPage, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
 import { xpBar } from './overlay/xp-bar.mjs'
-import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead } from './overlay/notifications.mjs'
+import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead, stillSelected } from './overlay/notifications.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen, emit } = window.__TAURI__.event
@@ -42,6 +42,7 @@ const notificationBell = document.getElementById('notification-bell')
 const notificationCount = document.getElementById('notification-count')
 const notificationsPanel = document.getElementById('notifications')
 const notificationsList = document.getElementById('notifications-list')
+const notificationsRead = document.getElementById('notifications-read')
 const notificationsNote = document.getElementById('notifications-note')
 const visitLabel = document.getElementById('visit-label')
 const stillButton = document.getElementById('still')
@@ -66,6 +67,8 @@ const outgoing = scopedOutgoingVisits(outgoingStorage)
 let friendsRequest = 0, sending = false, noteTimer
 let friends = [], friendsPageIndex = 0
 let inbox = null, inboxOwner = null, notificationBusy = false, notificationError = '', inboxEpoch = 0
+// Unread rows ticked in the inbox, waiting for "Mark as read".
+let selectedNotifications = new Set()
 let paused = false, hidden = false, screen = 'main', statsOpen = false, menuOpen = false, stayStill = true
 let timer, rect, lastPlaced, drag, visible = false
 let generation = 0
@@ -236,6 +239,8 @@ function renderNotifications() {
   notificationCount.hidden = !badge
   notificationCount.textContent = badge
   notificationBell.setAttribute('aria-label', count ? `Notifications, ${count} unread` : 'Notifications')
+  selectedNotifications = stillSelected(inbox, selectedNotifications)
+  notificationsRead.disabled = notificationBusy || selectedNotifications.size === 0
   notificationsList.replaceChildren(...(inbox?.items ?? []).map(notificationRow))
   const message = notificationError || (!inbox ? 'Notifications will appear after the next sync.'
     : inbox.items.length ? '' : "You're all caught up.")
@@ -279,36 +284,49 @@ function notificationRow(item) {
   }
   row.addEventListener('click', () => void openNotification(item))
   entry.append(row)
-  // Reading a row here acknowledges it without opening the web app.
+  // An unread row can be ticked (the box shows on hover) and read with the others from the header.
   if (!item.read) {
-    const read = document.createElement('button')
-    read.type = 'button'
-    read.className = 'notification-read'
-    read.textContent = '✓'
-    read.title = 'Mark as read'
-    read.setAttribute('aria-label', 'Mark as read')
-    read.addEventListener('click', () => void readNotification(item))
-    entry.append(read)
+    const pick = document.createElement('input')
+    pick.type = 'checkbox'
+    pick.className = 'notification-pick'
+    pick.checked = selectedNotifications.has(item.id)
+    pick.title = 'Select to mark as read'
+    pick.setAttribute('aria-label', `Select: ${item.sentence}`)
+    pick.addEventListener('change', () => {
+      if (pick.checked) selectedNotifications.add(item.id)
+      else selectedNotifications.delete(item.id)
+      notificationsRead.disabled = notificationBusy || selectedNotifications.size === 0
+    })
+    entry.append(pick)
   }
   return entry
 }
 
-async function readNotification(item) {
-  if (notificationBusy || !inbox) return
+// The server reads one row per request; the ticked rows leave the list at once and come back if it refuses.
+async function readSelectedNotifications() {
+  if (notificationBusy || !inbox || !selectedNotifications.size) return
   notificationBusy = true
   const epoch = inboxEpoch
   const before = inbox
-  inbox = markedRead(inbox, item.id)
+  const ids = [...selectedNotifications]
+  inbox = markedRead(inbox, ids)
+  selectedNotifications = new Set()
   notificationError = ''
   renderNotifications()
   try {
-    const next = await invoke('daemon_request', { method: 'notifications_read', params: { id: item.id } })
+    let next
+    for (const id of ids) {
+      next = await invoke('daemon_request', { method: 'notifications_read', params: { id } })
+      if (epoch !== inboxEpoch) break
+    }
     if (epoch === inboxEpoch) receiveNotifications(next)
   } catch (error) {
-    if (epoch === inboxEpoch) { inbox = before; notificationError = errorText(error); renderNotifications() }
+    if (epoch === inboxEpoch) { inbox = before; notificationError = errorText(error) }
   }
   notificationBusy = false
+  if (epoch === inboxEpoch) renderNotifications()
 }
+notificationsRead.addEventListener('click', () => void readSelectedNotifications())
 
 async function openNotification(item) {
   if (notificationBusy) return

@@ -52,13 +52,20 @@ export function unreadCount(snapshot) {
   return snapshot ? snapshot.items.filter(item => !item.read).length : 0
 }
 
-// What the inbox looks like once one row is read, before the server's refreshed snapshot arrives.
-export function markedRead(snapshot, id) {
+// What the inbox looks like once these rows are read, before the server's refreshed snapshot arrives.
+export function markedRead(snapshot, ids) {
+  const reading = new Set(ids)
+  const newlyRead = snapshot.items.filter(item => reading.has(item.id) && !item.read).length
   const items = snapshot.items
-    .map(item => item.id === id ? { ...item, read: true } : item)
+    .map(item => reading.has(item.id) ? { ...item, read: true } : item)
     .filter(item => !item.read || item.claimable)
-  const wasUnread = snapshot.items.some(item => item.id === id && !item.read)
-  return { attention: { unread: Math.max(0, snapshot.attention.unread - (wasUnread ? 1 : 0)) }, items }
+  return { attention: { unread: Math.max(0, snapshot.attention.unread - newlyRead) }, items }
+}
+
+// Ticked rows that are still unread in this snapshot; the rest drop out of the selection.
+export function stillSelected(snapshot, selected) {
+  const unread = new Set((snapshot?.items ?? []).filter(item => !item.read).map(item => item.id))
+  return new Set([...selected].filter(id => unread.has(id)))
 }
 
 // The bell only shows while something is unread, and never while the hero is away or being carried.

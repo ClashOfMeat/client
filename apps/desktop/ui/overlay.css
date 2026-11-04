@@ -76,8 +76,17 @@ button[hidden] { display: none; }
 .notification-icon[src$=".svg"] { image-rendering: auto; }
 .notification-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .notification-copy time { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
-.notification-read { flex: none; width: 24px; height: 24px; margin-top: 7px; padding: 0; display: grid; place-items: center;
-  color: #8fd17a; font: 700 14px/1 "Alegreya Sans", sans-serif; }
+/* "Mark as read" sits at the right of the inbox header, greyed until a row is ticked. */
+.notifications-read { margin-left: auto; padding: 4px 7px; font-size: 12px; color: var(--gold); }
+.notifications-read:disabled { opacity: 1; color: var(--muted); background: transparent; border-color: #80644566; box-shadow: none; }
+/* An unread row's checkbox shows on hover or keyboard focus, and stays once ticked. */
+.notification-pick { flex: none; appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 10px 2px 0 0;
+  border: 2px solid #806b49; border-radius: 3px; background: #241a14; cursor: pointer; visibility: hidden;
+  display: grid; place-items: center; }
+.notification-pick::after { content: "✓"; font: 700 12px/1 "Alegreya Sans", sans-serif; color: var(--gold); visibility: hidden; }
+.notification-pick:checked { border-color: #c79c52; background: #4b3e2e; }
+.notification-pick:checked::after { visibility: visible; }
+.notification-item:hover .notification-pick, .notification-pick:focus-visible, .notification-pick:checked { visibility: visible; }
 .notification-dot { flex: none; width: 7px; height: 7px; margin-top: 7px; border-radius: 50%; background: #f05b55; }
 .notifications .wide { flex: none; }
 .friends-head { display: flex; align-items: center; gap: 6px; font: 15px/1.2 Righteous, Georgia, serif; color: var(--title); }
