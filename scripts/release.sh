@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Check, package, sign and publish one desktop release (macOS arm64 + x86_64, Linux CLI x86_64 + arm64) as GitHub
 # release desktop-v<version>. Everything runs on this Mac; see docs/building.md. --mac-only builds only the two Mac
-# archives.
+# archives. --artifacts DIR skips the checks and builds and publishes the archives already in DIR (built by
+# scripts/package.sh without a signing key), signing them here: the release workflow builds each target in its own job.
 set -euo pipefail
 
 die() { echo "release: $*" >&2; exit 1; }
 note() { echo "release: $*"; }
-usage="usage: $0 <version> --app <url> [--min-version x.y.z] [--security] [--mac-only] [--dry-run] [--out DIR]"
+usage="usage: $0 <version> --app <url> [--min-version x.y.z] [--security] [--mac-only] [--dry-run] [--out DIR | --artifacts DIR]"
 repo=ClashOfMeat/client
 targets=(aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-musl aarch64-unknown-linux-musl)
 placeholder=REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY
@@ -21,9 +22,11 @@ min_version=
 security=false
 dry_run=false
 mac_only=false
+prebuilt=false
 dist="$root/dist/$version"
 while (( $# )); do
   case "$1" in
+    --artifacts) [[ $# -ge 2 && -n $2 ]] || die "$usage"; dist=$2; prebuilt=true; shift 2 ;;
     --app) [[ $# -ge 2 && -n $2 ]] || die "$usage"; app=$2; shift 2 ;;
     --min-version) [[ $# -ge 2 && -n $2 ]] || die "$usage"; min_version=$2; shift 2 ;;
     --security) security=true; shift ;;
@@ -84,18 +87,23 @@ else
   problem "could not check $repo for an existing $tag (gh not logged in)"
 fi
 
-[[ $mac_only == true ]] || { command -v cargo-zigbuild >/dev/null && command -v zig >/dev/null; } ||
-  problem "the Linux builds need cargo-zigbuild and zig: brew install zig && cargo install --locked cargo-zigbuild"
+if [[ $prebuilt == true ]]; then
+  [[ -d $dist ]] || die "--artifacts: no such directory: $dist"
+  dist=$(cd "$dist" && pwd)
+else
+  [[ $mac_only == true ]] || { command -v cargo-zigbuild >/dev/null && command -v zig >/dev/null; } ||
+    problem "the Linux builds need cargo-zigbuild and zig: brew install zig && cargo install --locked cargo-zigbuild"
 
-note "checks"
-scripts/check.sh
+  note "checks"
+  scripts/check.sh
 
-mkdir -p "$dist"
-dist=$(cd "$dist" && pwd)
-for target in "${targets[@]}"; do
-  note "package $target"
-  scripts/package.sh "$version" "$target" --out "$dist" --app "$app"
-done
+  mkdir -p "$dist"
+  dist=$(cd "$dist" && pwd)
+  for target in "${targets[@]}"; do
+    note "package $target"
+    scripts/package.sh "$version" "$target" --out "$dist" --app "$app"
+  done
+fi
 
 mac=("$dist/Clash.of.Meat_${version}_aarch64.app.tar.gz" "$dist/Clash.of.Meat_${version}_x86_64.app.tar.gz")
 linux=("$dist/clashofmeat_${version}_linux-x86_64.tar.gz" "$dist/clashofmeat_${version}_linux-aarch64.tar.gz")
@@ -109,6 +117,15 @@ else
   signed+=("${linux[@]}")
 fi
 assets+=("install/install.sh#install.sh")
+if [[ $prebuilt == true ]]; then
+  for file in "${signed[@]}"; do
+    [[ -s $file && -s $file.sha256 ]] || die "--artifacts: missing $file or its .sha256"
+    if [[ ! -s $file.sig && -n ${TAURI_SIGNING_PRIVATE_KEY:-}${TAURI_SIGNING_PRIVATE_KEY_PATH:-} ]]; then
+      cargo tauri signer sign --app-version "$version" "$file" >/dev/null
+      note "signed $file.sig"
+    fi
+  done
+fi
 unsigned=0
 for file in "${signed[@]}"; do [[ -s $file.sig ]] || unsigned=1; done
 if (( unsigned == 0 )); then

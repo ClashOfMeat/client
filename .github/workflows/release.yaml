@@ -1,6 +1,7 @@
 name: Release
-# Actions ▸ Release on dev: bumps the version, fast-forwards main, then builds, signs and publishes desktop-v<version>
-# with scripts/release.sh (docs/building.md). The web app serves the latest release within five minutes.
+# Actions ▸ Release on dev: bumps the version, fast-forwards main, builds every target in parallel, then signs and
+# publishes desktop-v<version> with scripts/release.sh --artifacts (docs/building.md). The web app serves the latest
+# release within five minutes.
 on:
   workflow_dispatch:
     inputs:
@@ -56,37 +57,108 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-  publish:
+  # The checks, each Mac target and the Linux CLIs build side by side; publish signs and releases what they produced.
+  checks:
     needs: version
     runs-on: macos-latest
-    # The updater signing key lives only in this environment, which waits for a reviewer's approval.
-    environment: release
-    timeout-minutes: 120
-    permissions:
-      contents: write
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with: { ref: "${{ needs.version.outputs.sha }}", persist-credentials: false }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: { node-version: 24 }
-      - run: |
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin \
-            x86_64-unknown-linux-musl aarch64-unknown-linux-musl
-          rustup component add clippy
-          brew install zig
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - run: rustup component add clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          path: |
-            ~/.cargo/bin/cargo-tauri
-            ~/.cargo/bin/cargo-zigbuild
-          key: release-tools-${{ runner.os }}-tauri-2.12.2-v3
-      - run: |
-          command -v cargo-tauri || cargo install tauri-cli --version 2.12.2 --locked
-          command -v cargo-zigbuild || cargo install --locked cargo-zigbuild
-      - name: Build, sign and publish
+          workspaces: |
+            . -> target
+            apps/desktop/src-tauri -> target
+      - run: scripts/check.sh
+
+  mac:
+    needs: version
+    strategy:
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { ref: "${{ needs.version.outputs.sha }}", persist-credentials: false }
+      - run: rustup target add "${{ matrix.target }}"
+      # The released binary, checked against its pinned hash, instead of a ~9 minute `cargo install`.
+      - name: Install cargo-tauri
+        env:
+          URL: https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v2.12.2/cargo-tauri-aarch64-apple-darwin.zip
+          SHA256: 4a27a61b06e688308a5c17333008b6df52fd5780fa7a313a9ce8fb4a80dfb9ac
+        run: |
+          curl -fsSL "$URL" -o "$RUNNER_TEMP/cargo-tauri.zip"
+          echo "$SHA256  $RUNNER_TEMP/cargo-tauri.zip" | shasum -a 256 -c -
+          unzip -o -j "$RUNNER_TEMP/cargo-tauri.zip" cargo-tauri -d ~/.cargo/bin
+          chmod 755 ~/.cargo/bin/cargo-tauri
+      # Release-profile dependencies per target; a version bump only rebuilds the workspace crates.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: ${{ matrix.target }}
+          workspaces: |
+            . -> target
+            apps/desktop/src-tauri -> target
+      - env:
+          VERSION: ${{ needs.version.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: scripts/package.sh "$VERSION" "$TARGET" --out dist --app https://app.clashofmeat.com
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: "release-${{ matrix.target }}", path: dist/*, if-no-files-found: error, retention-days: 7 }
+
+  linux:
+    needs: version
+    # The Linux CLIs are static musl builds; cargo-zigbuild cross-compiles both arches here, as it did on the Mac.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { ref: "${{ needs.version.outputs.sha }}", persist-credentials: false }
+      - run: rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with: { version: 0.17.1 }
+      - uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2.90.0
+        with: { tool: cargo-zigbuild }
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
+            scripts/package.sh "$VERSION" "$target" --out dist --app https://app.clashofmeat.com
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: release-linux, path: dist/*, if-no-files-found: error, retention-days: 7 }
+
+  publish:
+    needs: [version, checks, mac, linux]
+    runs-on: ubuntu-latest
+    # The updater signing key lives only in this environment, which waits for a reviewer's approval; no build job sees it.
+    environment: release
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { ref: "${{ needs.version.outputs.sha }}", persist-credentials: false }
+      # Only `cargo tauri signer sign` runs here; pinned like the Mac build's copy.
+      - name: Install cargo-tauri
+        env:
+          URL: https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v2.12.2/cargo-tauri-x86_64-unknown-linux-gnu.tgz
+          SHA256: 35c7b50266256cb6d5f757608d7097a59a5faeb0c75879ee1f504652a9b6087e
+        run: |
+          curl -fsSL "$URL" -o "$RUNNER_TEMP/cargo-tauri.tgz"
+          echo "$SHA256  $RUNNER_TEMP/cargo-tauri.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/cargo-tauri.tgz" -C ~/.cargo/bin cargo-tauri
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with: { pattern: release-*, path: dist, merge-multiple: true }
+      - name: Sign and publish
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
-        run: scripts/release.sh "$VERSION" --app https://app.clashofmeat.com
+        run: scripts/release.sh "$VERSION" --app https://app.clashofmeat.com --artifacts dist
