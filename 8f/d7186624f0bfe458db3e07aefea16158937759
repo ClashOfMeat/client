@@ -1,0 +1,35 @@
+.githooks/pre-push
+  s_d654cfa4f2068f::t_a76d2210100712 1-4
+.github/workflows/audit.yaml
+  s_d654cfa4f2068f::t_eef755f3ffafe2 1-20
+.github/workflows/ci-macos.yaml
+  s_d654cfa4f2068f::t_40a68f33e1fbcd 1-37
+.github/workflows/ci.yaml
+  s_d654cfa4f2068f::t_a73316f4ee6b3e 2-4,7-8
+README.md
+  s_d654cfa4f2068f::t_9b195977f9acf9 107
+crates/cli/tests/linux.rs
+  s_d654cfa4f2068f::t_af4fed9c6669bc 71-80,92-105,272
+docs/building.md
+  s_d654cfa4f2068f::t_e9806b3a47267f 242-244
+scripts/README.md
+  s_d654cfa4f2068f::t_24661217dad2ea 8
+scripts/check.sh
+  s_d654cfa4f2068f::t_bf58da15e596f4 13-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8fd7186624f0bfe458db3e07aefea16158937759",
+  "prompts": {},
+  "sessions": {
+    "s_d654cfa4f2068f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f1f06eb-4064-47b2-a6f8-53fddee19dff",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Gabriel <gabriel@usetandem.ai>"
+    }
+  }
+}
