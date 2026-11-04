@@ -700,6 +700,8 @@ async function draw() {
     // Contract v2 sends the bare Kiss frame for visitors; draw its one shared
     // heart between the two heroes.
     drawEmoteEffect(v.state, visitElapsed, v.frame, visitorX + v.offset, rect.spriteY, v.facing, visitor.league, visitor.leagueRank, visitorX)
+    // Measured while shown: a hidden label is 0 px wide, which put its left edge on the hero's centre.
+    visitLabel.hidden = false
     const left = visitLabelLeft(visitorX + v.offset, visitLabel.offsetWidth, rect.width)
     visitLabel.hidden = left === null || !visitLabelVisible(now - visitorStarted, visitDuration(visitAnimation, visitor.emote))
     visitLabel.style.left = `${left ?? 0}px`
