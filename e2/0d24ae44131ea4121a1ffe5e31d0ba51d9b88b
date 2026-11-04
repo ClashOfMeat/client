@@ -1,0 +1,29 @@
+apps/desktop/ui/assets/README.md
+  s_4974f21a2d9593::t_27f9bad523d343 1-2
+scripts/check-hero-emote-payload.mjs
+  s_4974f21a2d9593::t_6919d667d8d30f 32-33,35-36
+apps/desktop/ui/art/README.md
+  s_4974f21a2d9593::t_27f9bad523d343 1-6,10-11
+  s_4974f21a2d9593::t_06acfb8fa10993 9
+  s_4974f21a2d9593::t_5634718375b79f 7-8
+apps/desktop/ui/overlay.mjs
+  s_4974f21a2d9593::t_6919d667d8d30f 177,431-433,496,522,530
+docs/bronze-flex-effect.md
+  s_4974f21a2d9593::t_6919d667d8d30f 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e20d24ae44131ea4121a1ffe5e31d0ba51d9b88b",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
