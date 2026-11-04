@@ -232,9 +232,13 @@ export TAURI_SIGNING_PRIVATE_KEY_PASSWORD='…'   # optional: release.sh asks on
 
 **From GitHub Actions (normal path):** Actions ▸ **Release** ▸ Run workflow on `dev`, choosing `patch`, `minor` or
 `major`. The `version` job bumps the version in `Cargo.toml`, `apps/desktop/src-tauri/Cargo.toml` and `tauri.conf.json`
-(the first release keeps `Cargo.toml`'s), commits it to `dev` and fast-forwards `main`. The `publish` job then waits
-for approval in the `release` environment, which alone holds `TAURI_SIGNING_PRIVATE_KEY` and
-`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and runs `scripts/release.sh` on a macOS runner. The web app offers the new
+(the first release keeps `Cargo.toml`'s), commits it to `dev` and fast-forwards `main`. Then four jobs run side by
+side: `checks` (`scripts/check.sh` on macOS), one `mac` job per Mac target and `linux` (both Linux CLIs with
+cargo-zigbuild on Ubuntu). Each runs `scripts/package.sh` without a signing key and uploads its archives, with build
+caches per target and the prebuilt `cargo-tauri` from its GitHub release (hash pinned in the workflow; bump both
+together). When all four pass, the `publish` job waits for approval in the `release` environment, which alone holds
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, then runs
+`scripts/release.sh --artifacts dist` to sign the archives, write the manifests and publish. The web app offers the new
 release within five minutes; nothing changes on the app side. Every pull request runs `scripts/check.sh` on Linux (`CI`), and on macOS too when it touches the desktop app, the CLI, the
 daemon or the installer (`CI macOS`). `Audit` scans both lock files weekly. `.githooks/pre-push` runs `scripts/check.sh` before
 each push once enabled with `git config core.hooksPath .githooks`.
