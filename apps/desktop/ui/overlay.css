@@ -16,7 +16,10 @@ html, body, * { -webkit-user-select: none; -webkit-touch-callout: none; }
 img, canvas { -webkit-user-drag: none; }
 ::selection { background: transparent; }
 #hero { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; }
-#notification-bell { position: absolute; z-index: 2; width: 30px; height: 30px; padding: 3px; display: grid; place-items: center; }
+/* A bare icon, no button frame. */
+#notification-bell { position: absolute; z-index: 2; width: 30px; height: 30px; padding: 3px; display: grid; place-items: center;
+  border: 0; background: transparent; box-shadow: none; }
+#notification-bell:active:not(:disabled) { box-shadow: none; }
 #notification-bell img { width: 22px; height: 22px; image-rendering: pixelated; pointer-events: none; }
 #notification-bell[hidden], #notification-count[hidden] { display: none; }
 #notification-count { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; padding: 1px 3px;
@@ -27,18 +30,18 @@ img, canvas { -webkit-user-drag: none; }
   padding: 10px 12px 12px; border: 2px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--foreground);
   box-shadow: inset 0 1px #a98d5b44, 0 4px 0 #18120d, 0 8px 18px rgba(0,0,0,.4); font-variant-numeric: tabular-nums; }
 .bubble[hidden] { display: none; }
-#name { font: 17px/1.2 Righteous, Georgia, serif; color: var(--title); }
+#name { font: 15px/1.2 Righteous, Georgia, serif; color: var(--title); }
 /* The web app's daily reward meter (guildbyte-app components/daily-gauge.module.css .cardProgress)
    in its bevelled card frame (app/leaderboard/page.module.css .destinationCard), count centred inside, level on its left. */
 .xp-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 #xp-text { flex: none; font: 12px/1.2 Righteous, Georgia, serif; color: #f4d797; letter-spacing: .06em; white-space: nowrap; }
-.xp-track { position: relative; flex: 1; min-width: 0; height: 26px; overflow: hidden; border: 2px solid #80613b; border-radius: 4px;
+.xp-track { position: relative; flex: 1; min-width: 0; height: 20px; overflow: hidden; border: 2px solid #80613b; border-radius: 4px;
   border-color: #a5824f #80613b #6a4f2f; background: #4a3727; box-shadow: 0 0 0 1px #100c08, 0 3px 0 #100c08; }
 .xp-track::after { content: ""; position: absolute; inset: 0; border-radius: 2px; pointer-events: none;
   box-shadow: inset 0 0 0 2px #302218, inset 0 3px 1px rgb(0 0 0 / 50%); }
 #xp-fill { height: 100%; width: 0%; background: linear-gradient(#ffe1a1, #e2a947 35%, #b97835); box-shadow: inset 0 1px 0 #ffe9b8; }
 #xp-count { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center;
-  font: 700 14px/1 "Alegreya Sans", sans-serif; color: #fff1cc; text-shadow: 1px 1px 2px #1c140f; white-space: nowrap; }
+  font: 700 12px/1 "Alegreya Sans", sans-serif; color: #fff1cc; text-shadow: 1px 1px 2px #1c140f; white-space: nowrap; }
 .xp-track[data-state="unavailable"] #xp-count { color: var(--muted); font-weight: 400; }
 
 button { font: 700 13px/1 "Alegreya Sans", sans-serif; color: var(--foreground); cursor: pointer; user-select: none;
@@ -50,12 +53,14 @@ button:disabled { opacity: .5; cursor: default; }
 button[hidden] { display: none; }
 
 .wide { display: block; width: 100%; margin-top: 7px; padding: 8px 9px; }
-.card-actions { display: flex; align-items: stretch; gap: 6px; margin-top: 9px; }
-.card-actions #send-friend { flex: 1; min-width: 0; margin-top: 0; }
-.card-actions #open-app { flex: 0 0 38px; padding: 0; display: grid; place-items: center; }
+.card-actions { display: flex; align-items: stretch; gap: 6px; margin-top: 8px; }
+.card-actions #send-friend { flex: 1; min-width: 0; margin-top: 0; padding: 5px 8px; }
+.card-actions #open-app { flex: 0 0 32px; padding: 0; display: grid; place-items: center; }
 
 /* The friend panel takes the card's place in the same bubble; a long list scrolls. */
 #stats:not([hidden]) { display: flex; flex-direction: column; }
+/* The hero card and the inbox are compact and centred over the hero; the friend panel keeps the full width. */
+#stats:is(:has(> #card:not([hidden])), :has(> #notifications:not([hidden]))) { left: clamp(4px, calc(var(--hero-center, 50%) - 120px), calc(100% - 244px)); right: auto; width: 240px; padding: 8px 10px 10px; }
 .friends:not([hidden]) { display: flex; flex-direction: column; min-height: 0; }
 .notifications:not([hidden]) { display: flex; flex-direction: column; min-height: 0; }
 .notifications-note { margin-top: 8px; color: var(--muted); font-size: 13px; }
@@ -101,5 +106,6 @@ button[hidden] { display: none; }
   color: var(--title); font: 700 12px/1.2 "Alegreya Sans", sans-serif; white-space: nowrap; pointer-events: none; }
 .visit-label[hidden] { display: none; }
 
-.menu { display: grid; gap: 4px; width: 172px; right: auto; padding: 8px; }
+/* Centred over the hero, like the card. */
+.menu { display: grid; gap: 4px; width: 172px; left: clamp(4px, calc(var(--hero-center, 50%) - 86px), calc(100% - 176px)); right: auto; padding: 8px; }
 .menu button { padding: 7px 9px; text-align: left; }

@@ -40,9 +40,15 @@ export function notificationIcon(kind) {
 // The overlay moves with the hero; this local position stays on the sprite's upper edge.
 export function bellPosition(rect) {
   const size = 30
-  const x = rect.spriteX + 128 + size <= rect.width ? rect.spriteX + 118 : rect.spriteX - 20
+  const x = rect.spriteX + 128 + size <= rect.width ? rect.spriteX + 106 : rect.spriteX - 30
   return {
     left: Math.max(0, Math.min(rect.width - size, x)),
     top: Math.max(0, Math.min(rect.height - size, rect.spriteY + 2)),
   }
+}
+
+// The bell only shows when something needs attention (or its open inbox needs a way to close),
+// and never while the hero is away or being carried.
+export function bellVisible({ count, inboxOpen, away, carried }) {
+  return !away && !carried && (count > 0 || inboxOpen)
 }

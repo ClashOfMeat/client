@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { notificationSnapshot, bellCount, notificationIcon, bellPosition } from '../notifications.mjs'
+import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible } from '../notifications.mjs'
 
 const item = (id, extra = {}) => ({
   id: String(id), kind: 'duel_invite', message: `Event ${id}`, sentence: `Event ${id} — claim 5 gold`,
@@ -43,4 +43,13 @@ test('bell follows the hero and stays inside the overlay at both screen edges', 
   }
   assert.notEqual(bellPosition({ width: 360, height: 380, spriteX: 0, spriteY: 252 }).left,
     bellPosition({ width: 360, height: 380, spriteX: 116, spriteY: 252 }).left)
+})
+
+test('bell hides with nothing to read, while the hero is carried and while it is away', () => {
+  const base = { count: 2, inboxOpen: false, away: false, carried: false }
+  assert.equal(bellVisible(base), true)
+  assert.equal(bellVisible({ ...base, count: 0 }), false)
+  assert.equal(bellVisible({ ...base, count: 0, inboxOpen: true }), true)
+  assert.equal(bellVisible({ ...base, carried: true }), false)
+  assert.equal(bellVisible({ ...base, away: true }), false)
 })

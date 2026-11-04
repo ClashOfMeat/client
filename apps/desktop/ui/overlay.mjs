@@ -20,7 +20,7 @@ document.getSelection()?.removeAllRanges()
 import { friendRows, friendPage, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
 import { xpBar } from './overlay/xp-bar.mjs'
-import { notificationSnapshot, bellCount, notificationIcon, bellPosition } from './overlay/notifications.mjs'
+import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible } from './overlay/notifications.mjs'
 
 const { invoke } = window.__TAURI__.core
 const { listen, emit } = window.__TAURI__.event
@@ -242,7 +242,14 @@ function renderNotifications() {
   notificationsNote.hidden = !message
   notificationsNote.textContent = message
   notificationsNote.classList.toggle('error', Boolean(notificationError))
-  if (!notificationsPanel.hidden) wake()
+  // The bell appears or disappears with the count, so redraw even with the inbox closed.
+  wake()
+}
+
+function showBell(away = outgoing.away()) {
+  notificationBell.hidden = !bellVisible({
+    count: inbox?.attention.unread ?? 0, inboxOpen: statsOpen && !notificationsPanel.hidden, away, carried: Boolean(drag?.moved),
+  })
 }
 
 function notificationRow(item) {
@@ -677,8 +684,9 @@ async function draw() {
   if (!away && character.canLevelUp === true && !evolving && !auraPlaying) void evolve()
   stats.hidden = away || !statsOpen || menuOpen
   menu.hidden = away || !menuOpen
-  notificationBell.hidden = away
-  if (!away) {
+  document.documentElement.style.setProperty('--hero-center', `${rect.spriteX + 64}px`)
+  showBell(away)
+  if (!notificationBell.hidden) {
     const at = bellPosition(rect)
     notificationBell.style.left = `${at.left}px`
     notificationBell.style.top = `${at.top}px`
