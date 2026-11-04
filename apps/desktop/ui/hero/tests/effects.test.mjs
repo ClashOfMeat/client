@@ -73,8 +73,8 @@ test('sender name shows during arrival and exit, but not during the emote', () =
 })
 
 test('a visitor stands beside the host on the side of the window with room', () => {
-  assert.deepEqual(visitPlace(56, 240), { stand: 84, edge: 184 })
-  assert.deepEqual(visitPlace(20, 240), { stand: 84, edge: 220 })
-  assert.deepEqual(visitPlace(60, 240), { stand: -84, edge: -188 })
-  assert.deepEqual(visitPlace(112, 240), { stand: -84, edge: -240 })
+  assert.deepEqual(visitPlace(116, 424), { stand: 112, edge: 308 })
+  assert.deepEqual(visitPlace(0, 424), { stand: 112, edge: 424 })
+  assert.deepEqual(visitPlace(180, 424), { stand: -112, edge: -372 })
+  assert.deepEqual(visitPlace(232, 424), { stand: -112, edge: -424 })
 })

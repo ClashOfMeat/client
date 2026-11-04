@@ -37,12 +37,12 @@ test('web icon mapping uses the same local art', () => {
 
 test('bell follows the hero and stays inside the overlay at both screen edges', () => {
   for (const spriteX of [0, 116, 232]) {
-    const at = bellPosition({ width: 360, height: 380, spriteX, spriteY: 252 })
-    assert.ok(at.left >= 0 && at.left + 30 <= 360)
-    assert.ok(at.top >= 0 && at.top + 30 <= 380)
+    const at = bellPosition({ width: 424, height: 444, spriteX, spriteY: 252 })
+    assert.ok(at.left >= 0 && at.left + 30 <= 424)
+    assert.ok(at.top >= 0 && at.top + 30 <= 444)
   }
-  assert.notEqual(bellPosition({ width: 360, height: 380, spriteX: 0, spriteY: 252 }).left,
-    bellPosition({ width: 360, height: 380, spriteX: 116, spriteY: 252 }).left)
+  assert.notEqual(bellPosition({ width: 424, height: 444, spriteX: 0, spriteY: 252 }).left,
+    bellPosition({ width: 424, height: 444, spriteX: 116, spriteY: 252 }).left)
 })
 
 test('bell shows only while ringing for unread rows, never while carried or away', () => {

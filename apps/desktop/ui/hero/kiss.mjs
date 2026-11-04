@@ -1,4 +1,6 @@
-const SPRITE_SIZE = 128
+import { LEGACY_FRAME_SIZE } from './display.mjs'
+
+const SPRITE_SIZE = LEGACY_FRAME_SIZE
 const HEART_SCALE = 0.75
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
@@ -23,7 +25,7 @@ export function kissHeartPlace(spriteX, spriteY, windowWidth, facing, elapsed) {
 }
 
 // Center the visiting heart between the two heroes, independently of which side
-// the visitor enters from. Their 128px cells may overlap in a narrow window,
+// the visitor enters from. Their visible art may overlap in a narrow window,
 // but their visible bodies leave room between the faces for the 75% heart.
 export function visitorKissHeartPlace(hostX, visitorX, spriteY, windowWidth, elapsed) {
   const rise = clamp((elapsed - 520) / 450, 0, 1)

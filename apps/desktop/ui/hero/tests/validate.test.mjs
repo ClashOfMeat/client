@@ -4,13 +4,27 @@ import { COMPANION_STATES, LEAGUES, VISIT_EMOTES, validPng, validateAnimation, v
 import { HERO_CONTRACT } from '../hero-contract.mjs'
 
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVQImWP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=='
+// Shape fixtures: validation reads the PNG header; image decoding is tested separately.
+const frame = size => {
+  const bytes = Buffer.from(png, 'base64')
+  bytes.writeUInt32BE(size, 16)
+  bytes.writeUInt32BE(size, 20)
+  return bytes.toString('base64')
+}
+const png128 = frame(128), png192 = frame(192)
 const uuid = '12345678-1234-1234-1234-123456789abc'
-const animation = { version: 2, frames: Array(31).fill(png), mirroredFrames: Array(31).fill(png) }
+const animation = { version: 2, frames: Array(31).fill(png128), mirroredFrames: Array(31).fill(png128) }
+const animation3 = { version: 3, frames: Array(31).fill(png192), mirroredFrames: Array(31).fill(png192) }
 const aura = { id: 'preview', heroId: 'hero', version: 1, fromLevel: 1, toLevel: 30,
   frames: Array(18).fill(png), durations: [80, ...Array(16).fill(90), 120], durationMs: 1640 }
 
 test('the hero contract: 31 frames, nine animations, three emotes, every clip inside the frames', () => {
-  assert.equal(HERO_CONTRACT.version, 2)
+  assert.equal(HERO_CONTRACT.version, 3)
+  assert.equal(HERO_CONTRACT.frames.size, 192)
+  assert.equal(HERO_CONTRACT.limits.pngBase64, 64 * 1024)
+  assert.equal(HERO_CONTRACT.limits.intrinsicPngBase64, 80 * 1024)
+  assert.equal(HERO_CONTRACT.limits.framesBase64, 1024 * 1024)
+  assert.equal(HERO_CONTRACT.limits.intrinsicFramesBase64, 1536 * 1024)
   assert.deepEqual(COMPANION_STATES, ['idle', 'walk', 'sit', 'talk', 'kiss', 'angry', 'flex', 'grab', 'sleep'])
   assert.deepEqual(VISIT_EMOTES, ['flex', 'kiss', 'angry'])
   assert.deepEqual(Object.keys(HERO_CONTRACT.clips).sort(), [...COMPANION_STATES].sort())
@@ -27,7 +41,10 @@ test('an animation is 31 frames each way and plays the contract clips', () => {
   assert.equal(validPng('bad'), false)
   assert.equal(validPng(png, 10), false)
   const valid = validateAnimation(animation)
-  assert.deepEqual(valid, { ...animation, clips: HERO_CONTRACT.clips })
+  assert.deepEqual(valid, { ...animation, size: 128, clips: HERO_CONTRACT.clips })
+  assert.deepEqual(validateAnimation(animation3), { ...animation3, size: 192, clips: HERO_CONTRACT.clips })
+  assert.equal(validateAnimation({ ...animation3, frames: animation.frames }), null, 'a 128px PNG cannot masquerade as a 192px frame')
+  assert.equal(validateAnimation({ ...animation, mirroredFrames: animation3.mirroredFrames }), null, 'both facings need the same native size')
   assert.strictEqual(validateAnimation({ ...animation, clips: { idle: { frames: [99], durations: [1] } } }).clips, HERO_CONTRACT.clips,
     'the server never chooses the clips')
   for (const count of [15, 20, 28, 30, 32]) {
@@ -36,15 +53,39 @@ test('an animation is 31 frames each way and plays the contract clips', () => {
   }
   for (const broken of [{ version: 1 }, { mirroredFrames: undefined }, { mirroredFrames: { 0: png } }, { frames: [...animation.frames.slice(1), 'bad'] }])
     assert.equal(validateAnimation({ ...animation, ...broken }), null, JSON.stringify(Object.keys(broken)))
-  const detailed = btoa(atob(png) + '\0'.repeat(21000))
+  const detailed = btoa(atob(png128) + '\0'.repeat(21000))
   assert(validateAnimation({ ...animation, frames: Array(31).fill(detailed) }))
   assert.equal(validateAnimation({ ...animation, frames: Array(31).fill(detailed.repeat(2)) }), null)
+})
+
+test('lossless v3 frames may use 80 KiB each while v2 keeps its 64 KiB limit', () => {
+  const large192 = btoa(atob(png192) + '\0'.repeat(52_400))
+  const large128 = btoa(atob(png128) + '\0'.repeat(52_400))
+  const tooLarge192 = btoa(atob(png192) + '\0'.repeat(62_000))
+  assert(large192.length > HERO_CONTRACT.limits.pngBase64)
+  assert(large192.length < HERO_CONTRACT.limits.intrinsicPngBase64)
+  const v3Frames = [large192, ...animation3.frames.slice(1)]
+  assert(validateAnimation({ ...animation3, frames: v3Frames }))
+  assert.equal(validateAnimation({ ...animation, frames: [large128, ...animation.frames.slice(1)] }), null)
+  assert.equal(validateAnimation({ ...animation3, frames: [tooLarge192, ...animation3.frames.slice(1)] }), null)
+})
+
+test('v3 can carry a lossless 1.3 MiB facing while v2 keeps its 1 MiB set limit', () => {
+  const dense192 = btoa(atob(png192) + '\0'.repeat(32_000))
+  const dense128 = btoa(atob(png128) + '\0'.repeat(32_000))
+  const tooDense192 = btoa(atob(png192) + '\0'.repeat(39_000))
+  const v3Frames = Array(31).fill(dense192)
+  assert(v3Frames.reduce((sum, png) => sum + png.length, 0) > HERO_CONTRACT.limits.framesBase64)
+  assert(v3Frames.reduce((sum, png) => sum + png.length, 0) < HERO_CONTRACT.limits.intrinsicFramesBase64)
+  assert(validateAnimation({ ...animation3, frames: v3Frames }))
+  assert.equal(validateAnimation({ ...animation, frames: Array(31).fill(dense128) }), null)
+  assert.equal(validateAnimation({ ...animation3, frames: Array(31).fill(tooDense192) }), null)
 })
 
 test('a visitor brings the same art and one of the three emotes', () => {
   const character = { id: uuid, png, animation }
   assert.deepEqual(validateCharacter(character).animation.clips.flex, HERO_CONTRACT.clips.flex)
-  assert.equal(validateCharacter({ ...character, displayScale: 1.12 }).displayScale, 1.12)
+  assert.equal(validateCharacter({ ...character, displayScale: 1.12 }).displayScale, undefined)
   assert.equal(validateCharacter({ ...character, displayScale: Infinity }).displayScale, undefined)
   const now = Date.parse('2026-11-02T12:00:00Z')
   for (const emote of VISIT_EMOTES)

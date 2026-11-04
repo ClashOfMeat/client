@@ -1,3 +1,5 @@
+import { HERO_CELL_SIZE } from './display.mjs'
+
 // The hero has four poses: start for 300ms, two moving poses for 125ms each,
 // then a still final pose for 3000ms. The twelve-frame crest spans that clip.
 export const FLEX_DELAYS = [300, 250, 100, 100, 100, 100, 100, 100, 100, 2150, 100, 50]
@@ -5,7 +7,7 @@ export const FLEX_DURATION = FLEX_DELAYS.reduce((sum, delay) => sum + delay, 0)
 export const FLEX_WIDTH = 180
 export const FLEX_HEIGHT = 200
 export const VISITOR_FLEX_SCALE = 0.8
-const NORMAL = { dx: 0, dy: 0, width: 128, height: 128 }
+const NORMAL = { dx: 0, dy: 0, width: HERO_CELL_SIZE, height: HERO_CELL_SIZE }
 
 export function flexPhase(elapsed) {
   if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed >= FLEX_DURATION) return -1

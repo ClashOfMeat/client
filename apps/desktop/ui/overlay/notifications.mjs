@@ -1,3 +1,5 @@
+import { HERO_CELL_SIZE, LEGACY_FRAME_SIZE } from '../hero/display.mjs'
+
 // Server-owned inbox data. The desktop never derives read, claim or expiry rules.
 const INTEGER_ID = /^[1-9][0-9]{0,18}$/
 const SAME_APP_PATH = /^\/(?!\/)[^\\\u0000-\u001f]*$/
@@ -37,13 +39,14 @@ export function notificationIcon(kind) {
   return './assets/duel-challenge.png'
 }
 
-// The overlay moves with the hero; this local position stays on the sprite's upper edge.
+// The overlay moves with the hero; this local position stays near its visible head.
 export function bellPosition(rect) {
   const size = 30
-  const x = rect.spriteX + 128 + size <= rect.width ? rect.spriteX + 106 : rect.spriteX - 30
+  const anchorX = rect.spriteX + (HERO_CELL_SIZE - LEGACY_FRAME_SIZE) / 2
+  const x = anchorX + LEGACY_FRAME_SIZE + size <= rect.width ? anchorX + 106 : anchorX - 30
   return {
     left: Math.max(0, Math.min(rect.width - size, x)),
-    top: Math.max(0, Math.min(rect.height - size, rect.spriteY + 2)),
+    top: Math.max(0, Math.min(rect.height - size, rect.spriteY + HERO_CELL_SIZE - LEGACY_FRAME_SIZE + 2)),
   }
 }
 

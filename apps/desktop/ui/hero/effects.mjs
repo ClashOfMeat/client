@@ -1,5 +1,6 @@
 import { companionFrame } from './frames.mjs'
 import { HERO_CONTRACT } from './hero-contract.mjs'
+import { HERO_CELL_SIZE } from './display.mjs'
 
 const { walkInMs: WALK_IN, walkOutMs: WALK_OUT, emoteMs: EMOTE_MS } = HERO_CONTRACT.visit
 
@@ -52,10 +53,10 @@ export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
     offset: arriving ? edge + (stand - edge) * progress : leaving ? stand + (edge - stand) * progress : stand }
 }
 
-// Where a visitor stands in the fixed window. Keep the full 84px separation
+// Where a visitor stands in the fixed window. Keep the full 112px separation
 // between sprite origins even when a narrow window crops transparent margins;
 // clamping it to the remaining room crowds the visible bodies near the center.
-export function visitPlace(spriteX, windowWidth, sprite = 128, gap = 84) {
+export function visitPlace(spriteX, windowWidth, sprite = HERO_CELL_SIZE, gap = 112) {
   const right = windowWidth - sprite - spriteX
   if (right >= gap - 12 || right >= spriteX) return { stand: gap, edge: right + sprite }
   return { stand: -gap, edge: -(spriteX + sprite) }

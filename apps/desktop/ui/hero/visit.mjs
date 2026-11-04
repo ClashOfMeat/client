@@ -1,4 +1,5 @@
 import { visitPlace } from './effects.mjs'
+import { HERO_CELL_SIZE } from './display.mjs'
 
 // The server re-sends a visit on every heartbeat until it is acknowledged, so each one plays once.
 export function visitTracker(limit = 50) {
@@ -16,7 +17,7 @@ export function visitTracker(limit = 50) {
 
 // Left edge of the player-name label: centred over the visitor and kept inside the window,
 // or null while the visitor is outside it.
-export function visitLabelLeft(visitorX, labelWidth, windowWidth, sprite = 128) {
+export function visitLabelLeft(visitorX, labelWidth, windowWidth, sprite = HERO_CELL_SIZE) {
   const center = visitorX + sprite / 2
   if (center < 0 || center > windowWidth) return null
   return Math.round(Math.max(2, Math.min(windowWidth - labelWidth - 2, center - labelWidth / 2)))
@@ -37,7 +38,7 @@ export function anchoredRect(rect, anchor) {
 
 // A host walking out of the pinned window fades as it crosses the edge instead of being cut off:
 // fully drawn while inside, gone once half of it is out.
-export function edgeFade(spriteX, windowWidth, sprite = 128) {
+export function edgeFade(spriteX, windowWidth, sprite = HERO_CELL_SIZE) {
   const inside = Math.max(0, Math.min(spriteX + sprite, windowWidth) - Math.max(spriteX, 0)) / sprite
   return Math.max(0, Math.min(1, inside * 2 - 1))
 }
