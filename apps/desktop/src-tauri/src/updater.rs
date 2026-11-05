@@ -82,6 +82,38 @@ pub fn status(app: &AppHandle) -> UpdateStatus {
     app.state::<State>().status.lock().unwrap().clone()
 }
 
+/// One line per check and install in `~/.clashofmeat/logs/updater.log` (UTC time, this app's version, what happened),
+/// so a late or failed update can be explained afterwards. The file is kept under 256 KiB.
+fn note(message: &str) {
+    use std::io::Write;
+    let path = crate::daemon::home().join("logs").join("updater.log");
+    let _ = std::fs::create_dir_all(path.parent().unwrap_or(&path));
+    if std::fs::metadata(&path).is_ok_and(|meta| meta.len() > 256 * 1024) {
+        let _ = std::fs::rename(&path, path.with_extension("log.1"));
+    }
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(file, "{} {} {message}", utc_now(), env!("CARGO_PKG_VERSION"));
+    }
+}
+
+/// `YYYY-MM-DDTHH:MM:SSZ` without a date library (days-to-civil, Howard Hinnant's algorithm).
+fn utc_now() -> String {
+    utc(SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs()) as i64)
+}
+fn utc(secs: i64) -> String {
+    let (days, rest) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z", rest / 3600, rest % 3600 / 60, rest % 60)
+}
+
 fn jitter() -> Duration {
     let seed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -137,7 +169,13 @@ pub fn start(app: &AppHandle) {
 }
 
 pub fn on_daemon_status(app: &AppHandle, value: &Value) {
-    if value.get("connected").is_some() {
+    if let Some(connected) = value.get("connected") {
+        // The first check runs a few seconds after launch and asks the daemon for the endpoint; right after an
+        // update the daemon is still restarting then, and the check fails. Check again as soon as it is back,
+        // instead of showing "Update failed" until the ten-minute retry.
+        if connected == true && status(app).phase == "failed" {
+            let _ = app.state::<State>().wake.send(());
+        }
         return;
     }
     let blocked = value
@@ -206,6 +244,16 @@ pub async fn check(app: &AppHandle) {
     }
     let result = fetch(app).await;
     state.busy.store(false, Ordering::SeqCst);
+    match &result {
+        Ok(()) => {
+            let now = status(app);
+            note(&match now.available {
+                Some(version) => format!("check: {} {version}", now.phase),
+                None => format!("check: {}", now.phase),
+            });
+        }
+        Err(error) => note(&format!("check failed: {error}")),
+    }
     if let Err(error) = result {
         eprintln!("updater: {error}");
         edit(app, |status| {
@@ -342,9 +390,11 @@ fn install(app: &AppHandle) -> Result<(), String> {
         status.phase = "installing";
         status.error = None;
     });
+    note(&format!("installing {}", ready.0.version));
     match ready.0.install(&ready.1).map_err(|e| e.to_string()) {
         Ok(()) => app.restart(),
         Err(error) => {
+            note(&format!("install failed: {error}"));
             edit(app, |status| {
                 status.phase = "failed";
                 status.error = Some(format!("Could not install update: {error}"));
@@ -386,5 +436,15 @@ mod tests {
                 "{download}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod note_tests {
+    #[test]
+    fn utc_formats_known_instants() {
+        assert_eq!(super::utc(0), "1970-01-01T00:00:00Z");
+        assert_eq!(super::utc(951_782_400), "2000-02-29T00:00:00Z");
+        assert_eq!(super::utc(1_793_892_000), "2026-11-05T15:20:00Z");
     }
 }

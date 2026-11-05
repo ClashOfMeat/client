@@ -82,7 +82,7 @@ fn parse_line(line: &str) -> Result<ParsedLine, String> {
     })
 }
 
-fn home() -> PathBuf {
+pub(crate) fn home() -> PathBuf {
     env::var_os("CLASHOFMEAT_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
