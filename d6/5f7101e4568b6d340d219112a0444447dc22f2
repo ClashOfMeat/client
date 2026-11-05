@@ -1,0 +1,21 @@
+.github/workflows/release.yaml
+  s_4974f21a2d9593::t_cabdc4bd5f0164 13-16,168-174
+docs/building.md
+  s_4974f21a2d9593::t_cec16867a78d05 234-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d65f7101e4568b6d340d219112a0444447dc22f2",
+  "prompts": {},
+  "sessions": {
+    "s_4974f21a2d9593": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18854-fe3d-7cc3-893c-147cd91daa4a",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
