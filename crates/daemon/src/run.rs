@@ -704,10 +704,11 @@ fn handle_request(
                 .and_then(Value::as_str)
                 .filter(|target| !target.is_empty() && target.len() <= 80)
                 .map(str::to_owned);
+            // Any catalog key: the server checks it against the emotes pinned on the active hero.
             let emote = params
                 .get("emote")
                 .and_then(Value::as_str)
-                .filter(|emote| sync::VISIT_EMOTES.contains(emote))
+                .filter(|emote| sync::emote_key(emote))
                 .map(str::to_owned);
             let (Some(target), Some(emote)) = (target, emote) else {
                 return Some((
@@ -718,9 +719,32 @@ fn handle_request(
                     )),
                 ));
             };
+            // A sign carries the link to review; the server checks it (github.com or gitlab.com).
+            let sign = params
+                .get("sign")
+                .and_then(|sign| sign.get("url"))
+                .and_then(Value::as_str);
+            let sign = match (emote == sync::SIGN_EMOTE, sign) {
+                (true, Some(url)) if !url.is_empty() && url.len() <= 2048 => Some(url.to_owned()),
+                (false, None) => None,
+                _ => {
+                    return Some((
+                        reply,
+                        Err(SocketError::new(
+                            "bad_request",
+                            "Review me needs the link to review, and only Review me takes one",
+                        )),
+                    ))
+                }
+            };
             return friend_request(opts, store, reply, move |client| {
                 client
-                    .send_visit(&target, &emote, &clashofmeat_core::ids::random_uuid())
+                    .send_visit(
+                        &target,
+                        &emote,
+                        sign.as_deref(),
+                        &clashofmeat_core::ids::random_uuid(),
+                    )
                     .map_err(visit_wording)
             });
         }
@@ -889,6 +913,13 @@ fn friend_request(
 fn visit_wording(mut error: sync::ApiError) -> sync::ApiError {
     if let sync::ApiError::Status { status, detail, .. } = &mut error {
         let text = match *status {
+            // The emote market also refuses an emote that is not pinned on the active hero.
+            403 if detail
+                .as_deref()
+                .is_some_and(|text| text.starts_with("Pin ")) =>
+            {
+                None
+            }
             403 => Some("Only friends can receive your hero".to_owned()),
             404 => Some("Player not found".to_owned()),
             409 => detail
@@ -1272,6 +1303,8 @@ fn sync_loop(
         if !played.is_empty() {
             presence.insert("acknowledgedVisits".into(), json!(played));
         }
+        // Paid or prop emotes this app plays; others arrive as their free stand-in.
+        presence.insert("supportedEmotes".into(), json!(sync::SUPPORTED_EMOTES));
         let result = if due == Due::Drain {
             sync::drain_once(&client, &mut store, OffsetDateTime::now_utc())
         } else {

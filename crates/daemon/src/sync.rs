@@ -264,7 +264,20 @@ impl Client {
                 }))
             })
             .collect();
-        Ok(json!({ "friends": friends }))
+        // The three emotes pinned on the player's active hero, one button each; older servers
+        // send none, so the free emotes stand in.
+        let pins: Vec<&str> = response
+            .get("pins")
+            .and_then(Value::as_array)
+            .map(|pins| {
+                pins.iter()
+                    .filter_map(Value::as_str)
+                    .filter(|key| emote_key(key))
+                    .collect()
+            })
+            .filter(|pins: &Vec<&str>| pins.len() == 3)
+            .unwrap_or_else(|| VISIT_EMOTES.to_vec());
+        Ok(json!({ "friends": friends, "pins": pins }))
     }
 
     /// Marks one private notification read and returns the server's refreshed inbox.
@@ -275,17 +288,20 @@ impl Client {
         )
     }
 
-    /// Sends the player's hero to a friend's screen to play one emote.
+    /// Sends the player's hero to a friend's screen to play one emote. A Review me sign carries
+    /// the link to review.
     pub fn send_visit(
         &self,
         target: &str,
         emote: &str,
+        sign_url: Option<&str>,
         request_id: &str,
     ) -> Result<Value, ApiError> {
-        self.post(
-            "/api/companion/kiss",
-            &json!({"target": target, "requestId": request_id, "emote": emote}),
-        )
+        let mut body = json!({"target": target, "requestId": request_id, "emote": emote});
+        if let Some(url) = sign_url {
+            body["sign"] = json!({ "url": url });
+        }
+        self.post("/api/companion/kiss", &body)
     }
 
     /// Sends a feedback note to the Clash of Meat team. The server trims it and stores it as is.
@@ -899,8 +915,20 @@ impl HeroArt {
     }
 }
 
-/// The emotes a hero can play on a friend's screen.
+/// The free emotes every hero can play on a friend's screen, and the pins without a choice.
 pub const VISIT_EMOTES: [&str; 3] = ["flex", "kiss", "angry"];
+/// The sign a visitor plants on the friend's desktop, with a GitHub or GitLab link to review.
+pub const SIGN_EMOTE: &str = "review_me";
+/// Emotes beyond the free ones that this app can play (the heartbeat's `supportedEmotes`).
+pub const SUPPORTED_EMOTES: [&str; 1] = [SIGN_EMOTE];
+
+/// An emote catalog key, the server's `^[a-z][a-z0-9_]{1,30}$`.
+pub fn emote_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    (2..=31).contains(&key.len())
+        && chars.next().is_some_and(|c| c.is_ascii_lowercase())
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
 
 /// This install's companion session, created once. Heartbeats carry it so the server only
 /// sends visits to an app that is running.
