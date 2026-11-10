@@ -1,0 +1,33 @@
+apps/desktop/ui/overlay.mjs
+  s_17caec12047d7f::t_4cd5039298b3d9 937,943-946
+crates/daemon/src/cadence.rs
+  s_859f5c482ccc8e::t_85a8cfea2e3472 1-2,18-24,63-64,130-135,171-175,178-179,184,186,212,235-242,267,430-490,494-497
+crates/daemon/src/live.rs
+  s_859f5c482ccc8e::t_a2b4c30ff9dc26 15-16,21,43-46,61
+crates/daemon/src/run.rs
+  s_17caec12047d7f::t_6b73480ce06563 98-99,205,207-213,1145-1146,1372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bee0aa294c657860fb5d318dbf886b77f3772bf1",
+  "prompts": {},
+  "sessions": {
+    "s_17caec12047d7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b139aec1-639c-4a6d-a41a-4c40b7159eb1",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    },
+    "s_859f5c482ccc8e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b0c0c21a-caf0-42c1-a4b6-ebc1068b167b",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
