@@ -13,9 +13,12 @@ import { beginDeparture, departurePose } from './hero/departure.mjs'
 import { windowRect } from './overlay/layout.mjs'
 import { HERO_CELL_SIZE, LEGACY_FRAME_SIZE, heroDrawRect, heroEffectAnchor } from './hero/display.mjs'
 import { heroSettings } from './settings/hero.mjs'
+import { SIGN_EMOTE, SIGN_DROP_AT, signPostX } from './hero/plant.mjs'
+import { checkReviewLink } from './overlay/review-link.mjs'
+import { HERO_CONTRACT } from './hero/hero-contract.mjs'
 
 // The hero window has no text to select or images to drag; a selection there could never be cleared (see overlay.css).
-for (const type of ['selectstart', 'dragstart']) document.addEventListener(type, event => event.preventDefault())
+for (const type of ['selectstart', 'dragstart']) document.addEventListener(type, event => { if (event.target !== signUrl) event.preventDefault() })
 document.getSelection()?.removeAllRanges()
 import { friendRows, friendPage, errorText } from './overlay/friends.mjs'
 import { predict } from './overlay/predict.mjs'
@@ -48,7 +51,16 @@ const cardBellCount = document.getElementById('card-bell-count')
 const notificationsNote = document.getElementById('notifications-note')
 const visitLabel = document.getElementById('visit-label')
 const stillButton = document.getElementById('still')
-const EMOTE_LABELS = { flex: 'Flex', kiss: 'Kiss', angry: 'Angry' }
+const signStep = document.getElementById('sign-step')
+const signUrl = document.getElementById('sign-url')
+const signWhy = document.getElementById('sign-why')
+const signSend = document.getElementById('sign-send')
+const removeSigns = document.getElementById('remove-signs')
+const EMOTE_LABELS = { flex: 'Flex', kiss: 'Kiss', angry: 'Angry', [SIGN_EMOTE]: 'Review me' }
+// A paid emote this app has no button art for shows its key as words ("happy_dance" reads "Happy dance").
+const emoteLabel = key => EMOTE_LABELS[key] ?? key.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())
+const WALK_IN = HERO_CONTRACT.visit.walkInMs
+const EMOTE_KEY = /^[a-z][a-z0-9_]{1,30}$/
 const activity = heroActivity()
 const images = new Map()
 const effectImages = new Map()
@@ -68,6 +80,12 @@ try {
 const outgoing = scopedOutgoingVisits(outgoingStorage)
 let friendsRequest = 0, sending = false, noteTimer
 let friends = [], friendsPageIndex = 0
+// The emotes pinned on the active hero (the friends list brings them), one button each in a friend's row.
+let pins = [...VISIT_EMOTES]
+// The friend a Review me sign is going to while its link step is open, and whether the hero window has the keyboard.
+let signTarget = null, keyboard = false
+// Friends' signs planted on this desktop (signs.mjs counts them), and whether they are allowed (Settings).
+let signCount = 0, allowSigns = true
 let inbox = null, inboxOwner = null, notificationBusy = false, notificationError = '', inboxEpoch = 0
 // Unread rows ticked in the inbox, waiting for "Mark as read".
 let selectedNotifications = new Set()
@@ -181,6 +199,7 @@ async function playLevelUp() {
 }
 
 function emoteIconSrc(name) {
+  if (name === SIGN_EMOTE) return './assets/sign-review-me.png'
   return name === 'flex' ? `./assets/leagues/${leagueOrBronze(player?.league)}.png` : `./assets/emote-${name}.png`
 }
 
@@ -189,11 +208,12 @@ function emoteButton(name) {
   const icon = document.createElement('img')
   icon.src = emoteIconSrc(name)
   icon.alt = ''
+  if (name === SIGN_EMOTE) icon.className = 'sign-icon'
   // Without the icon file the button falls back to its word.
-  icon.addEventListener('error', () => { button.textContent = EMOTE_LABELS[name]; button.style.width = 'auto' }, { once: true })
+  icon.addEventListener('error', () => { button.textContent = emoteLabel(name); button.style.width = 'auto' }, { once: true })
   button.append(icon)
-  button.title = EMOTE_LABELS[name]
-  button.setAttribute('aria-label', EMOTE_LABELS[name])
+  button.title = emoteLabel(name)
+  button.setAttribute('aria-label', emoteLabel(name))
   return button
 }
 
@@ -202,6 +222,7 @@ function showFriends(open) {
   card.hidden = open
   friendsPanel.hidden = !open
   notificationsPanel.hidden = true
+  signStep.hidden = true
   if (open) void loadFriends()
   else friendsRequest++
 }
@@ -209,6 +230,7 @@ function showFriends(open) {
 function showNotifications(open) {
   card.hidden = open
   friendsPanel.hidden = true
+  signStep.hidden = true
   notificationsPanel.hidden = !open
   friendsRequest++
   if (open) {
@@ -372,7 +394,7 @@ function note(text, { error = false, emote } = {}) {
   if (emote) {
     const icon = document.createElement('img')
     icon.src = emoteIconSrc(emote)
-    icon.alt = EMOTE_LABELS[emote]
+    icon.alt = emoteLabel(emote)
     friendsNote.append(icon)
   }
   friendsNote.append(text)
@@ -386,7 +408,12 @@ async function loadFriends() {
   friendsOpenApp.hidden = true
   note('Loading friends…')
   let rows
-  try { rows = friendRows(await invoke('daemon_request', { method: 'friends', params: {} })) }
+  try {
+    const result = await invoke('daemon_request', { method: 'friends', params: {} })
+    rows = friendRows(result)
+    pins = Array.isArray(result?.pins) && result.pins.length === 3 && result.pins.every(key => typeof key === 'string' && EMOTE_KEY.test(key))
+      ? result.pins : [...VISIT_EMOTES]
+  }
   catch (error) {
     if (current === friendsRequest) note(errorText(error), { error: true })
     wake()
@@ -427,23 +454,62 @@ function friendRow(friend) {
   who.title = `@${friend.handle}`
   row.append(who)
   if (friend.online) {
-    for (const name of VISIT_EMOTES) {
+    for (const name of pins) {
       const button = emoteButton(name)
-      button.title = `${EMOTE_LABELS[name]} to ${friend.name}`
-      button.addEventListener('click', () => void sendVisit(friend, name))
+      button.title = `${emoteLabel(name)} to ${friend.name}`
+      button.addEventListener('click', () => name === SIGN_EMOTE ? openSignStep(friend) : void sendVisit(friend, name))
       row.append(button)
     }
   }
   return row
 }
 
-async function sendVisit(friend, emote) {
+// Review me asks for the link before it goes: one more step in the same bubble, which takes the keyboard.
+function openSignStep(friend) {
   if (sending) return
+  signTarget = friend
+  document.getElementById('sign-title').textContent = `Review me · ${friend.name}`
+  signUrl.value = ''
+  checkSignUrl()
+  friendsPanel.hidden = true
+  signStep.hidden = false
+  wake()
+}
+
+function checkSignUrl() {
+  const raw = signUrl.value.trim()
+  const result = checkReviewLink(raw)
+  const state = !raw ? '' : result.ok ? 'good' : 'bad'
+  signUrl.className = state
+  signWhy.className = `sign-why ${state}`
+  signWhy.textContent = result.ok ? `${signTarget?.name ?? 'Your friend'} gets a sign on their desktop.` : result.why
+  signSend.disabled = !result.ok || sending
+  return result.ok
+}
+
+async function sendSign() {
+  if (!signTarget || sending || !checkSignUrl()) return
+  const sent = await sendVisit(signTarget, SIGN_EMOTE, { url: signUrl.value.trim() })
+  if (!sent) checkSignUrl()
+}
+
+// The hero window takes the keyboard only while the link step is open on screen (overlay.rs hero_keyboard).
+function syncKeyboard(wanted) {
+  if (wanted === keyboard) return
+  keyboard = wanted
+  void invoke('hero_keyboard', { on: wanted })
+    .then(() => { if (wanted) signUrl.focus() })
+    .catch(error => console.error('hero keyboard:', error))
+}
+
+async function sendVisit(friend, emote, sign) {
+  if (sending) return false
   sending = true
-  const buttons = friendsList.querySelectorAll('button')
+  const buttons = [...friendsList.querySelectorAll('button'), signSend]
   for (const button of buttons) button.disabled = true
+  let sent = false
   try {
-    const result = await invoke('daemon_request', { method: 'send_visit', params: { target: friend.handle, emote } })
+    const result = await invoke('daemon_request', { method: 'send_visit', params: { target: friend.handle, emote, ...(sign ? { sign } : {}) } })
     if (!parseOutgoingVisit(result)) throw new Error('The visit was sent without a valid visit ID.')
     outgoing.identify(player?.handle)
     outgoing.sent(result)
@@ -456,10 +522,15 @@ async function sendVisit(friend, emote) {
     statsOpen = false
     menuOpen = false
     showFriends(false)
-  } catch (error) { note(errorText(error), { error: true }) }
+    sent = true
+  } catch (error) {
+    if (signStep.hidden) note(errorText(error), { error: true })
+    else { signWhy.className = 'sign-why bad'; signWhy.textContent = errorText(error) }
+  }
   for (const button of buttons) button.disabled = false
   sending = false
   wake()
+  return sent
 }
 
 // The daemon acknowledges it with the next heartbeat, and the server stops re-sending it.
@@ -516,7 +587,8 @@ async function setHero(data, heartbeat = false) {
   const visit = validateVisit(data?.visit, now)
   if (visit && !paused && !hidden) {
     if (visits.first(visit.id)) {
-      visitor = visit
+      // With friends' signs turned off in Settings, a Review me visitor just blows a kiss.
+      visitor = visit.emote === SIGN_EMOTE && !allowSigns ? { ...visit, emote: 'kiss', sign: undefined } : visit
       visitorStarted = now
       visitSpot = null
       visitLabel.textContent = visit.name
@@ -556,9 +628,15 @@ function drawImage(png, x, y, size, flip = false, opacity = 1, height = size) {
   ctx.restore()
 }
 
-function drawHeroImage(png, x, y, frameSize, flip = false, opacity = 1) {
+function drawHeroImage(png, x, y, frameSize, flip = false, opacity = 1, squash) {
   const place = heroDrawRect(x, y, frameSize)
-  drawImage(png, place.x, place.y, place.width, flip, opacity, place.height)
+  if (!squash) return drawImage(png, place.x, place.y, place.width, flip, opacity, place.height)
+  // Squashed and stretched about the feet (Review me's plant): scaled around the bottom centre of the frame.
+  ctx.save()
+  ctx.translate(place.x + place.width / 2, place.y + place.height)
+  ctx.scale(squash.sx, squash.sy)
+  drawImage(png, -place.width / 2, -place.height, place.width, flip, opacity, place.height)
+  ctx.restore()
 }
 
 function drawEmoteEffect(state, elapsed, frame, spriteX, spriteY, facing, league, leagueRank, hostSpriteX = null) {
@@ -620,6 +698,8 @@ function deadline(now, pose) {
   if (pose.state === 'walk' && !paused) delays.push(83)
   if (pose.state === 'flex') delays.push(flexDelay(pose.elapsed))
   if (pose.state === 'kiss' || pose.state === 'angry') delays.push(83)
+  // The plant squashes and hops: draw it smoothly while it plays.
+  if (visitor?.emote === SIGN_EMOTE && now - visitorStarted >= WALK_IN && now - visitorStarted < visitDuration(visitor.character.animation, SIGN_EMOTE)) delays.push(33)
   if (gained && bubbleFrame(gained, now).visible) delays.push(83, Math.max(0, gained.startedAt + 1800 - now))
   if (aura && now - auraStarted < aura.durationMs) delays.push(83, aura.durationMs - (now - auraStarted))
   if (visitor && now - visitorStarted < visitDuration(visitor.character.animation, visitor.emote)) {
@@ -634,6 +714,7 @@ async function draw() {
   timer = undefined
   if (!character || !animation || !workArea || hidden || paused) {
     notificationBell.hidden = true
+    syncKeyboard(false)
     return
   }
   const now = Date.now()
@@ -678,6 +759,7 @@ async function draw() {
   if (away && !leaving && !visitor) {
     stats.hidden = true
     menu.hidden = true
+    syncKeyboard(false)
     notificationBell.hidden = true
     visitLabel.hidden = true
     updateHitRegions()
@@ -735,7 +817,15 @@ async function draw() {
     const visitElapsed = now - visitorStarted - 1500
     const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0 }
     const visitorCellX = visitorX + v.offset
-    drawHeroImage(frame.png, visitorCellX + motion.dx, rect.spriteY + motion.dy, visitAnimation.size, frame.flip)
+    const squash = v.state === SIGN_EMOTE ? { sx: v.sx, sy: v.sy } : undefined
+    drawHeroImage(frame.png, visitorCellX + motion.dx, rect.spriteY + motion.dy + (v.dy ?? 0), visitAnimation.size, frame.flip, 1, squash)
+    // The sign drops beside the visitor, away from the host, into the signs window (signs.mjs) that keeps it.
+    if (v.state === SIGN_EMOTE && visitor.sign && !visitor.planted && now - visitorStarted - WALK_IN >= SIGN_DROP_AT) {
+      visitor.planted = true
+      const outward = v.offset > 0 ? 1 : -1
+      const x = signPostX(rect.x + visitorCellX + HERO_CELL_SIZE / 2, outward, workArea)
+      void emit('sign-plant', { id: visitor.id, url: visitor.sign.url, sender: visitor.name, x, area: workArea })
+    }
     // Both contract versions send the bare Kiss frame for visitors; draw its one shared
     // heart between the two heroes.
     const visitorEffect = heroEffectAnchor(visitorCellX, rect.spriteY)
@@ -758,6 +848,7 @@ async function draw() {
   if (!away && character.canLevelUp === true && !evolving && !auraPlaying) void evolve()
   stats.hidden = away || !statsOpen || menuOpen
   menu.hidden = away || !menuOpen
+  syncKeyboard(!stats.hidden && !signStep.hidden)
   document.documentElement.style.setProperty('--hero-center', `${rect.spriteX + HERO_CELL_SIZE / 2}px`)
   showBell(away)
   if (!notificationBell.hidden) {
@@ -869,6 +960,21 @@ document.getElementById('open-app').addEventListener('click', async () => {
 })
 document.getElementById('send-friend').addEventListener('click', () => { showFriends(true); wake() })
 document.getElementById('friends-back').addEventListener('click', () => { showFriends(false); wake() })
+document.getElementById('sign-back').addEventListener('click', () => { signStep.hidden = true; friendsPanel.hidden = false; wake() })
+signUrl.addEventListener('input', checkSignUrl)
+signUrl.addEventListener('keydown', event => {
+  if (event.key === 'Enter') void sendSign()
+  if (event.key === 'Escape') { signStep.hidden = true; friendsPanel.hidden = false; wake() }
+})
+signSend.addEventListener('click', () => void sendSign())
+// Pulls out every friend's sign at once (signs.mjs).
+removeSigns.addEventListener('click', () => { void emit('signs-clear') })
+function showSignCount(count) {
+  signCount = Number.isSafeInteger(count) && count > 0 ? count : 0
+  removeSigns.hidden = signCount === 0
+  document.getElementById('sign-count').textContent = `(${signCount})`
+  wake()
+}
 notificationBell.addEventListener('pointerdown', event => event.stopPropagation())
 notificationBell.addEventListener('click', () => {
   if (outgoing.away()) return
@@ -982,6 +1088,7 @@ const initial = await invoke('desktop_state')
 const initialHero = heroSettings(initial.hero)
 screen = initialHero.screen
 setStayStill(initialHero.still)
+allowSigns = initialHero.signs
 setPaused(!initialHero.show)
 const snapshot = initial.daemon?.snapshot
 if (snapshot) {
@@ -996,6 +1103,9 @@ if (initial.daemon?.connected) void invoke('daemon_request', { method: 'sync_now
 await listen('hero-settings', ({ payload }) => {
   const next = heroSettings(payload)
   setStayStill(next.still)
+  // Turning friends' signs off also takes down the ones already up.
+  if (allowSigns && !next.signs) void emit('signs-clear')
+  allowSigns = next.signs
   const nextScreen = next.screen
   if (screen !== nextScreen) { screen = nextScreen; workArea = undefined; lastPlaced = undefined; void invoke('hero_geometry', { screen }).then(value => { workArea = value.work_area; wake() }) }
   setPaused(!next.show)
@@ -1019,6 +1129,8 @@ await listen('screen-click', ({ payload }) => {
   activity.flee(dx, Date.now())
   wake()
 })
+await listen('signs-count', ({ payload }) => showSignCount(payload?.count))
+void emit('signs-ask')
 await listen('hero-control', ({ payload }) => {
   setPaused(Boolean(payload?.paused))
   if (payload?.show) hidden = false

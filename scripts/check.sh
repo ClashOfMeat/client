@@ -22,8 +22,8 @@ if [[ $(uname) == Darwin ]]; then
   fi
   cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
 fi
-step "node --test (hero, overlay, settings, installer)"
-node --test apps/desktop/ui/hero/tests/*.test.mjs apps/desktop/ui/overlay/tests/*.test.mjs apps/desktop/ui/settings/tests/*.test.mjs install/tests/*.test.mjs
+step "node --test (hero, overlay, settings, signs, installer)"
+node --test apps/desktop/ui/hero/tests/*.test.mjs apps/desktop/ui/overlay/tests/*.test.mjs apps/desktop/ui/settings/tests/*.test.mjs apps/desktop/ui/signs/tests/*.test.mjs install/tests/*.test.mjs
 if [[ -f ../clashofmeat-app/packages/core/src/heroes/hero-contract.json ]]; then
   step "exported game hero payloads"
   (cd ../clashofmeat-app && node --import remix/node-tsx "$root/scripts/check-hero-emote-payload.mjs" . --all)

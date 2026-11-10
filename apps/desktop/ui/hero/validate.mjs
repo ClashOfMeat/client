@@ -1,5 +1,7 @@
 import { HERO_CONTRACT } from './hero-contract.mjs'
 import { HERO_CELL_SIZE, LEGACY_FRAME_SIZE } from './display.mjs'
+import { SIGN_EMOTE } from './plant.mjs'
+import { checkReviewLink } from '../overlay/review-link.mjs'
 
 export const VISIT_EMOTES = HERO_CONTRACT.emotes
 export const COMPANION_STATES = HERO_CONTRACT.states
@@ -91,10 +93,13 @@ export function validateVisit(value, now = Date.now()) {
   const expires = Date.parse(value.expiresAt)
   if (!Number.isFinite(expires) || expires <= now || expires > now + 300000) return null
   const character = validateCharacter(value.character)
-  if (!character?.animation || !VISIT_EMOTES.includes(value.emote)) return null
+  // A Review me visit brings its sign, whose link must pass the same check the server made.
+  const sign = value.emote === SIGN_EMOTE && value.sign?.v === 1 && value.sign.preset === SIGN_EMOTE &&
+    checkReviewLink(value.sign.url).ok ? { url: value.sign.url } : null
+  if (!character?.animation || !(VISIT_EMOTES.includes(value.emote) || sign)) return null
   const clean = text => text.replace(/[\x00-\x1f\x7f]/g, '')
   const emote = value.emote
   const leagueRank = value.leagueRank
   return { id: value.id, name: clean(value.name), guild: value.guild === null ? null : clean(value.guild), expiresAt: value.expiresAt, emote, league: leagueOrBronze(value.league),
-    ...(Number.isSafeInteger(leagueRank) && leagueRank > 0 ? { leagueRank } : {}), character }
+    ...(Number.isSafeInteger(leagueRank) && leagueRank > 0 ? { leagueRank } : {}), ...(sign ? { sign } : {}), character }
 }

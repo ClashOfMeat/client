@@ -21,11 +21,13 @@ fn main() {
             overlay::hero_geometry,
             overlay::hero_place,
             overlay::hero_hit,
+            overlay::hero_keyboard,
             settings::desktop_state,
             settings::daemon_request,
             settings::set_hero_settings,
             settings::open_pair_link,
             settings::open_app,
+            settings::open_review_link,
             updater::update_check,
             updater::update_restart
         ])
@@ -87,6 +89,7 @@ fn main() {
                     _ => {}
                 }
             });
+            overlay::create_signs(handle)?;
             overlay::create(handle)?;
             Ok(())
         })
