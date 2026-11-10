@@ -1,4 +1,5 @@
-//! When the daemon talks to the web app. Heartbeats keep the app "online" for friends' visits;
+//! When the daemon talks to the web app. Heartbeats keep the app "online" for friends' visits
+//! (the open live stream does too, so an idle app with a stream heartbeats only every 5 minutes);
 //! observations go up at most every 30 s while an agent works, plus once more shortly after it
 //! stops; a backlog drains in paced batches; the server's hint, Retry-After and failures slow
 //! everything down; and every timer carries ±20% jitter so clients never line up.
@@ -14,6 +15,13 @@ use crate::sync::ApiError;
 const BUSY_HEARTBEAT: Duration = Duration::from_secs(30);
 /// Even when idle, a heartbeat a minute keeps this app "online" for friends' visits.
 const IDLE_HEARTBEAT: Duration = Duration::from_secs(60);
+/// With the live stream open, the server keeps this app online from the stream and announces
+/// every change on it, so an idle heartbeat is only a safety net. Most running apps are idle:
+/// this is what keeps a large player base from heartbeating the server twice a minute each.
+const IDLE_LIVE_HEARTBEAT: Duration = Duration::from_secs(300);
+/// A sync the player asked for (the settings button, opening the notification panel) waits
+/// until this long after the last sync, so repeated clicks cannot hammer the server.
+const MANUAL_AFTER_SYNC: Duration = Duration::from_secs(3);
 /// While an agent works, observations go up at most this often.
 const UPLOAD_EVERY: Duration = Duration::from_secs(30);
 /// Once the agent stops, what is left goes up after nothing new arrived for this long.
@@ -52,6 +60,8 @@ pub struct Outcome<'a> {
     pub next_sync: Option<Duration>,
     /// An agent worked in the last few minutes.
     pub busy: bool,
+    /// The live stream is open.
+    pub live: bool,
 }
 
 pub struct Cadence {
@@ -117,6 +127,12 @@ impl Cadence {
             .get_or_insert((self.last_sync + LIVE_AFTER_SYNC).max(now));
     }
 
+    /// The player asked for a sync. It respects a back-off, and waits 3 s after the last sync.
+    pub fn request(&mut self, now: Instant) {
+        let at = (self.last_sync + MANUAL_AFTER_SYNC).max(now);
+        self.live_at = Some(self.live_at.map_or(at, |live| live.min(at)));
+    }
+
     /// `busy`: an agent is working right now. `quiet`: how long the queue has not changed.
     pub fn due(&self, now: Instant, busy: bool, pending: bool, quiet: Duration) -> Due {
         if self.hold_until.is_some_and(|until| now < until) {
@@ -152,16 +168,22 @@ impl Cadence {
         if outcome.uploaded > 0 {
             self.last_upload = Some(now);
         }
-        self.hinted = outcome.next_sync.is_some();
+        // The server names a pace with every answer (30 s when it is not loaded). It is the
+        // fastest this client may go, never a reason to go faster than its own pace: an idle
+        // app keeps its slow heartbeat. Only a pace slower than normal holds the quick flush.
+        let hint = outcome.next_sync.unwrap_or(Duration::ZERO);
+        self.hinted = hint > BUSY_HEARTBEAT;
         let heartbeat = if outcome.busy {
             BUSY_HEARTBEAT
+        } else if outcome.live {
+            IDLE_LIVE_HEARTBEAT
         } else {
             IDLE_HEARTBEAT
         };
         if outcome.due == Due::Sync || outcome.next_sync.is_some() {
-            self.next_heartbeat = now + jitter(outcome.next_sync.unwrap_or(heartbeat));
+            self.next_heartbeat = now + jitter(heartbeat.max(hint));
         }
-        self.next_upload = now + jitter(outcome.next_sync.unwrap_or(UPLOAD_EVERY));
+        self.next_upload = now + jitter(UPLOAD_EVERY.max(hint));
         self.drain_at = (outcome.error.is_none() && outcome.more)
             .then(|| now + jitter(outcome.next_sync.unwrap_or(DRAIN_EVERY)));
         if outcome.error.is_some_and(backs_off) {
@@ -187,7 +209,7 @@ impl Cadence {
 fn backs_off(error: &ApiError) -> bool {
     match error {
         ApiError::Transport(_) | ApiError::Invalid(_) => true,
-        ApiError::Status { status, .. } => matches!(status, 400 | 408 | 413 | 500..=599),
+        ApiError::Status { status, .. } => matches!(status, 400 | 408 | 413 | 429 | 500..=599),
     }
 }
 
@@ -208,6 +230,14 @@ pub fn jitter(base: Duration) -> Duration {
 /// such as a 429 pointing at the next minute, don't all return at once.
 pub fn spread(base: Duration) -> Duration {
     base + Duration::from_secs_f64(random_unit() * (base.as_secs_f64() * 0.2).clamp(1.0, 30.0))
+}
+
+/// How long the live stream waits before reconnecting: the back-off plus a random share of 20
+/// to 60 s. A server restart drops every stream in the same second; this spreads the
+/// reconnections over tens of seconds instead of two.
+pub fn reconnect_delay(backoff: Duration) -> Duration {
+    let share = (backoff * 4).clamp(Duration::from_secs(20), Duration::from_secs(60));
+    backoff + share.mul_f64(random_unit())
 }
 
 /// A random number in [0, 1) from the standard library's per-instance random keys.
@@ -234,6 +264,7 @@ mod tests {
             error: None,
             next_sync: None,
             busy: true,
+            live: false,
         }
     }
 
@@ -397,8 +428,73 @@ mod tests {
     }
 
     #[test]
+    fn an_idle_app_with_a_live_stream_heartbeats_every_five_minutes_whatever_the_hint() {
+        let start = Instant::now();
+        let mut cadence = Cadence::with_jitter(start, same);
+        let idle = |hint| Outcome {
+            busy: false,
+            live: true,
+            next_sync: hint,
+            ..done(Due::Sync, 0)
+        };
+        // The server's usual 30 s is a floor, not a pace: the idle heartbeat stays at 5 minutes.
+        cadence.after(start, idle(Some(S(30))));
+        assert_eq!(cadence.due(start + S(299), false, false, S(299)), Due::Wait);
+        assert_eq!(cadence.due(start + S(300), false, false, S(300)), Due::Sync);
+        // It does not hold the quick flush either, once an agent has worked and stopped.
+        assert_eq!(cadence.due(start + S(40), false, true, S(10)), Due::Sync);
+        // A loaded server asking for 10 minutes is obeyed.
+        cadence.after(start, idle(Some(S(600))));
+        assert_eq!(cadence.due(start + S(599), false, true, S(599)), Due::Wait);
+        assert_eq!(cadence.due(start + S(600), false, false, S(600)), Due::Sync);
+        // Without the stream nothing else keeps the app online: back to a minute.
+        cadence.after(
+            start,
+            Outcome {
+                live: false,
+                ..idle(Some(S(30)))
+            },
+        );
+        assert_eq!(cadence.due(start + S(59), false, false, S(59)), Due::Wait);
+        assert_eq!(cadence.due(start + S(60), false, false, S(60)), Due::Sync);
+    }
+
+    #[test]
+    fn a_requested_sync_waits_three_seconds_after_the_last_and_respects_a_back_off() {
+        let start = Instant::now();
+        let mut cadence = Cadence::with_jitter(start, same);
+        cadence.after(start, done(Due::Sync, 0));
+        cadence.request(start + S(1));
+        assert_eq!(cadence.due(start + S(2), false, false, S(0)), Due::Wait);
+        assert_eq!(cadence.due(start + S(3), false, false, S(0)), Due::Sync);
+        // Throttled by the server: the request waits for the back-off like everything else.
+        let throttled = ApiError::Status {
+            status: 429,
+            message: String::new(),
+            detail: None,
+            reason: None,
+            retry_after_s: None,
+            setup_url: None,
+        };
+        cadence.after(
+            start + S(3),
+            Outcome {
+                error: Some(&throttled),
+                ..done(Due::Sync, 0)
+            },
+        );
+        cadence.request(start + S(8));
+        assert_eq!(cadence.due(start + S(12), false, false, S(0)), Due::Wait);
+        assert_eq!(cadence.due(start + S(13), false, false, S(0)), Due::Sync);
+    }
+
+    #[test]
     fn jitter_stays_within_twenty_percent() {
         for _ in 0..200 {
+            let wait = reconnect_delay(S(5));
+            assert!(wait >= S(5) && wait <= S(25), "{wait:?}");
+            let wait = reconnect_delay(S(300));
+            assert!(wait >= S(300) && wait <= S(360), "{wait:?}");
             let value = jitter(S(100));
             assert!(value >= S(80) && value <= S(120), "{value:?}");
             let later = spread(S(60));

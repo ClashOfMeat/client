@@ -95,6 +95,8 @@ struct Busy {
     now: AtomicBool,
     /// An agent worked in the last five minutes.
     recent: AtomicBool,
+    /// The live stream is open, so the server keeps this app online without heartbeats.
+    live: AtomicBool,
 }
 
 pub(crate) enum Message {
@@ -200,10 +202,15 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
         let version = opts.version.clone();
         let stopping = stopping.clone();
         let live = sync_tx.clone();
+        let stream = busy.clone();
         thread::spawn(move || {
-            crate::live::follow(env, version, stopping, |companion| {
-                live.send(SyncCommand::Live { companion }).is_ok()
-            })
+            crate::live::follow(
+                env,
+                version,
+                stopping,
+                |open| stream.live.store(open, Ordering::Relaxed),
+                |companion| live.send(SyncCommand::Live { companion }).is_ok(),
+            )
         });
     }
     let main_sync = sync_tx.clone();
@@ -1135,7 +1142,8 @@ fn sync_loop(
         let mut forced = false;
         match commands.recv_timeout(Duration::from_secs(1)) {
             Ok(SyncCommand::Stop) | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
-            Ok(SyncCommand::Now) => forced = true,
+            // Asked by the player (settings, the notification panel, the CLI): soon, but paced.
+            Ok(SyncCommand::Now) => cadence.request(Instant::now()),
             Ok(SyncCommand::Evolve {
                 character_id,
                 level,
@@ -1361,6 +1369,7 @@ fn sync_loop(
                 error: result.error.as_ref(),
                 next_sync: result.next_sync,
                 busy: busy.recent.load(Ordering::Relaxed),
+                live: busy.live.load(Ordering::Relaxed),
             },
         );
         if result.error.is_none() && !result.deferred {
