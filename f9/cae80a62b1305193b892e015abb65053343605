@@ -1,0 +1,43 @@
+apps/desktop/src-tauri/src/overlay.rs
+  s_859f5c482ccc8e::t_0ba09fa09e0a51 110-114,121-122,124,130-131,143-145,163-174
+crates/core/src/lib.rs
+  s_859f5c482ccc8e::t_fa38916568d96d 23
+crates/core/src/store/migrations.rs
+  s_859f5c482ccc8e::t_76a7c1b77ac7cb 90-93
+crates/core/src/store/mod.rs
+  s_859f5c482ccc8e::t_a9ea9e0d7961f2 10,188-237,460-498,551-554,569-572,576-606,613-616,619-629,654-660,671-681,685-687,758-759,764,775-780,787,790-791,793-796,801,803
+crates/daemon/src/engine.rs
+  s_e5f449b534bea3::t_f19a486c187593 510-531
+crates/daemon/src/hero.rs
+  s_859f5c482ccc8e::t_18bc31fd4da892 31-33,42-78,80,93,96,105,107-128,130,160-195
+crates/daemon/src/run.rs
+  s_859f5c482ccc8e::t_f57cbea5613491 63-66,270,359-362,433-440,464,497-499,503-505,508-510,513,515-562,564
+crates/daemon/src/socket.rs
+  s_e5f449b534bea3::t_e308985b179192 83,87-90,100,206-207
+crates/daemon/src/watch.rs
+  s_e5f449b534bea3::t_930e6b8549ea90 3,34-35,45-49,51,63,81-82,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9cae80a62b1305193b892e015abb65053343605",
+  "prompts": {},
+  "sessions": {
+    "s_859f5c482ccc8e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b0c0c21a-caf0-42c1-a4b6-ebc1068b167b",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    },
+    "s_e5f449b534bea3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c4d8-1e3a-7b40-8d40-503c4c2744f5",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
