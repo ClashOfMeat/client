@@ -1,6 +1,6 @@
 //! Provider source root watcher.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -31,7 +31,8 @@ pub(crate) fn start(
                 return;
             }
         };
-        let mut watched = HashSet::new();
+        // Each watched folder, and whether its whole tree is watched.
+        let mut watched = HashMap::new();
         add_roots(&env, &mut watcher, &mut watched);
         let _ = ready.send(());
         loop {
@@ -41,8 +42,13 @@ pub(crate) fn start(
                 recv(received) -> event => match event {
                     Ok(Ok(event)) => {
                         if matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) {
+                            // A change inside a watched tree (every log line an agent writes) cannot
+                            // reveal a new root; only one outside may be a missing root appearing.
+                            let inside = event.paths.iter().all(|path| {
+                                watched.iter().any(|(root, tree)| *tree && path.starts_with(root))
+                            });
                             if !event.paths.is_empty() { let _ = main.send(Message::FsChanged(event.paths)); }
-                            add_roots(&env, &mut watcher, &mut watched);
+                            if !inside { add_roots(&env, &mut watcher, &mut watched); }
                         }
                     }
                     Ok(Err(error)) => eprintln!("daemon watcher event: {error}"),
@@ -54,7 +60,7 @@ pub(crate) fn start(
     })
 }
 
-fn add_roots(env: &Env, watcher: &mut RecommendedWatcher, watched: &mut HashSet<PathBuf>) {
+fn add_roots(env: &Env, watcher: &mut RecommendedWatcher, watched: &mut HashMap<PathBuf, bool>) {
     let config = crate::config::read_config(env).unwrap_or_default();
     let mut wanted = HashSet::new();
     for provider in clashofmeat_providers::all() {
@@ -72,7 +78,8 @@ fn add_roots(env: &Env, watcher: &mut RecommendedWatcher, watched: &mut HashSet<
                 if path.is_dir() {
                     wanted.insert(path.to_path_buf());
                 }
-                if path.is_dir() && watched.insert(path.to_path_buf()) {
+                if path.is_dir() && !watched.contains_key(path) {
+                    watched.insert(path.to_path_buf(), path == root);
                     let mode = if path == root {
                         RecursiveMode::Recursive
                     } else {
@@ -86,7 +93,7 @@ fn add_roots(env: &Env, watcher: &mut RecommendedWatcher, watched: &mut HashSet<
             }
         }
     }
-    watched.retain(|path| {
+    watched.retain(|path, _| {
         if wanted.contains(path) {
             return true;
         }

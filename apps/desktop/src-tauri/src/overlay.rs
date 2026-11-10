@@ -107,23 +107,28 @@ struct ScreenClick {
     y: f64,
 }
 
-/// Polls the cursor 20 times a second and lets clicks reach the overlay only over a hit region.
-/// One cheap position read per tick; the window flag changes only when the answer does. A click
+/// Polls the cursor and lets clicks reach the overlay only over a hit region: 20 times a second
+/// while the cursor is near the hero window, 5 times a second while it is elsewhere, and twice a
+/// second (without reading the cursor) while the hero is hidden. Each read wakes the app's main
+/// thread, so the slow paces are what keep an idle app idle. The window flag changes only when
+/// the answer does. A click
 /// elsewhere on screen is reported to the overlay (window-local, logical px) so the hero can move away.
 fn follow_cursor(window: WebviewWindow) {
     thread::spawn(move || {
         let mut ignoring = true;
         let mut clicks = left_clicks();
         let mut cursor_scale = None;
-        let mut tick = 0u32;
+        let mut scale_read = None::<std::time::Instant>;
+        let mut pause = Duration::from_millis(50);
         loop {
-            thread::sleep(Duration::from_millis(50));
+            thread::sleep(pause);
             let visible = window.is_visible().unwrap_or(false);
             // On macOS, tao scales the cursor by the main display's factor but the window's
             // position by its own display's one, so on a second screen with another factor (a 1x
             // monitor beside a Retina laptop) the two disagree. Each goes back to points with its
             // own factor; the main display's is read again every 2 s in case displays change.
-            if tick.is_multiple_of(40) {
+            if visible && scale_read.is_none_or(|at| at.elapsed() >= Duration::from_secs(2)) {
+                scale_read = Some(std::time::Instant::now());
                 cursor_scale = if cfg!(target_os = "macos") {
                     window
                         .primary_monitor()
@@ -134,8 +139,10 @@ fn follow_cursor(window: WebviewWindow) {
                     None
                 };
             }
-            tick = tick.wrapping_add(1);
             let local = (|| {
+                if !visible {
+                    return None;
+                }
                 let cursor = window.cursor_position().ok()?;
                 let origin = window.outer_position().ok()?;
                 let scale = window.scale_factor().ok()?;
@@ -153,6 +160,18 @@ fn follow_cursor(window: WebviewWindow) {
                         })
                     })
                 });
+            // The window is at most 360 x 380; within 200 px of it the hero may have to react
+            // to the cursor or to a click (it flees clicks up to 260 px from its centre).
+            let near = local.is_some_and(|(x, y)| {
+                (-200.0..=560.0).contains(&x) && (-200.0..=580.0).contains(&y)
+            });
+            pause = Duration::from_millis(if !visible {
+                500
+            } else if near {
+                50
+            } else {
+                200
+            });
             let counted = left_clicks();
             if counted != clicks {
                 clicks = counted;

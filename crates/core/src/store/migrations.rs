@@ -88,4 +88,8 @@ ALTER TABLE events ADD COLUMN agent_id TEXT;
 ALTER TABLE events ADD COLUMN acked INTEGER NOT NULL DEFAULT 0;
 UPDATE events SET acked=value WHERE synced=1;
 "#,
+    // Token sums read a window of recent rows; without this they scan the whole history.
+    r#"
+CREATE INDEX events_at ON events(at);
+"#,
 ];

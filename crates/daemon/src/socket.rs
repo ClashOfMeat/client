@@ -66,7 +66,6 @@ impl BoundSocket {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
         }
-        listener.set_nonblocking(true)?;
         Ok(Self { listener, path })
     }
 
@@ -81,9 +80,14 @@ impl BoundSocket {
     ) -> JoinHandle<()> {
         thread::spawn(move || {
             let mut clients = Vec::new();
+            // Blocks until a client connects; stopping the daemon connects once to wake it.
             while !stopping.load(Ordering::Relaxed) {
                 match self.listener.accept() {
                     Ok((stream, _)) => {
+                        if stopping.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        clients.retain(|client: &JoinHandle<()>| !client.is_finished());
                         if stream.set_nonblocking(false).is_err() {
                             continue;
                         }
@@ -93,9 +97,7 @@ impl BoundSocket {
                             serve_client(stream, requests, stopping)
                         }));
                     }
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        thread::sleep(Duration::from_millis(50))
-                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
                     Err(error) => {
                         eprintln!("daemon socket accept: {error}");
                         break;
@@ -201,7 +203,8 @@ fn serve_client(
 fn stream_events(stream: &mut UnixStream, events: Receiver<Value>, stopping: &AtomicBool) {
     let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
     while !stopping.load(Ordering::Relaxed) {
-        match events.recv_timeout(Duration::from_millis(200)) {
+        // The main loop drops its end when the daemon stops, which ends this wait at once.
+        match events.recv_timeout(Duration::from_secs(30)) {
             Ok(event) => {
                 if write_line(stream, &event).is_err() {
                     break;

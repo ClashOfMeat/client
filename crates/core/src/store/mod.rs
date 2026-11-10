@@ -7,6 +7,7 @@ use std::path::Path;
 
 use rusqlite::{params, Connection, OptionalExtension};
 use thiserror::Error;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime, UtcOffset};
 
 use crate::ids::MAX_OBSERVATION_VALUE;
 use crate::reader::FileCursor;
@@ -182,6 +183,56 @@ mod tests {
         store.reject(&[snapshot(&rows[3])]).unwrap();
         assert_eq!(store.acknowledged_tokens_since(since).unwrap(), 100);
         assert_eq!(store.effective_tokens_since(since).unwrap(), 210);
+    }
+
+    #[test]
+    fn token_changes_follow_new_grown_and_refused_rows_and_sums_skip_old_days() {
+        let mut store = Store::open_in_memory().unwrap();
+        let old = event("old", "output_tokens", 7, "2025-12-01T00:00:00Z");
+        store.save_events("codex", &[old], None).unwrap();
+        assert!(store.take_token_changes().is_empty());
+        store.track_token_changes();
+        let at = "2026-01-01T12:00:00+02:00";
+        let mut read = event("r", "cache_read_tokens", 1000, at);
+        let count = event("p", "prompt_count", 1, at);
+        store
+            .save_events("codex", &[read.clone(), count], None)
+            .unwrap();
+        assert_eq!(
+            store.take_token_changes(),
+            vec![TokenChange {
+                before: None,
+                after: (at.into(), 1000)
+            }]
+        );
+        // Unchanged: nothing to add. Refused, then grown: it counts in full again.
+        store.save_events("codex", &[read.clone()], None).unwrap();
+        assert!(store.take_token_changes().is_empty());
+        store.reject(&[(read.id(), 1000, at.into())]).unwrap();
+        read.value = 1500;
+        store.begin().unwrap();
+        store.save_events("codex", &[read], None).unwrap();
+        store.commit().unwrap();
+        assert_eq!(
+            store.take_token_changes(),
+            vec![TokenChange {
+                before: None,
+                after: (at.into(), 1500)
+            }]
+        );
+        // 10:00 UTC, written with an offset: after a 09:00 UTC start, before an 11:00 one.
+        assert_eq!(
+            store
+                .effective_tenths_since("2026-01-01T09:00:00Z")
+                .unwrap(),
+            1500
+        );
+        assert_eq!(
+            store
+                .effective_tenths_since("2026-01-01T11:00:00Z")
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
@@ -406,6 +457,45 @@ pub struct HealthRow {
 /// SQLite backed local store.
 pub struct Store {
     conn: Connection,
+    /// Token changes saved since the last `take_token_changes`, once tracking is on.
+    token_changes: Option<Vec<TokenChange>>,
+}
+
+/// How one saved token observation changed, in tenths of an effective token (a cache read
+/// counts a tenth of a token). The daemon adds these to its running totals instead of summing
+/// the table again after every scan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TokenChange {
+    /// The observation's time and amount before the save; `None` when it was new or refused.
+    pub before: Option<(String, u64)>,
+    /// Its time and amount after the save.
+    pub after: (String, u64),
+}
+
+const TOKEN_KEYS: [&str; 4] = [
+    "input_tokens",
+    "output_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+];
+
+fn tenths(key: &str, value: u64) -> u64 {
+    if key == "cache_read_tokens" {
+        value
+    } else {
+        value.saturating_mul(10)
+    }
+}
+
+/// A date every timestamp at or after `since` sorts after as text, whatever its UTC offset:
+/// the day before `since`. It lets the `at` index skip older rows before the exact
+/// `julianday` comparison. Empty (no skipping) when `since` cannot be read.
+fn day_before(since: &str) -> String {
+    OffsetDateTime::parse(since, &Rfc3339)
+        .ok()
+        .and_then(|at| at.to_offset(UtcOffset::UTC).date().previous_day())
+        .map(|day| day.to_string())
+        .unwrap_or_default()
 }
 
 impl Store {
@@ -458,6 +548,10 @@ impl Store {
     fn initialize(mut conn: Connection) -> Result<Self> {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.busy_timeout(std::time::Duration::from_millis(5000))?;
+        // In WAL mode this syncs at checkpoints instead of at every commit. A power cut can lose
+        // the last commits, never corrupt the file; cursors and events are saved together, so
+        // the lost lines are read again.
+        conn.pragma_update(None, "synchronous", "NORMAL")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
         if version < 0 || version as usize > migrations::MIGRATIONS.len() {
             return Err(StoreError::UnsupportedVersion(version));
@@ -472,19 +566,67 @@ impl Store {
             tx.pragma_update(None, "user_version", index + 1)?;
             tx.commit()?;
         }
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            token_changes: None,
+        })
     }
 
     /// Saves accepted events atomically and returns the number inserted or changed.
+    /// Starts recording how saved token observations change (see `take_token_changes`).
+    pub fn track_token_changes(&mut self) {
+        self.token_changes.get_or_insert_with(Vec::new);
+    }
+
+    /// The token changes saved since the last call; empty unless tracking is on.
+    pub fn take_token_changes(&mut self) -> Vec<TokenChange> {
+        self.token_changes
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    }
+
+    /// Opens a write transaction that the saves up to `commit` share: one commit for a pass
+    /// over a file instead of one per statement.
+    pub fn begin(&mut self) -> Result<()> {
+        Ok(self.conn.execute_batch("BEGIN IMMEDIATE")?)
+    }
+
+    /// Commits the transaction `begin` opened.
+    pub fn commit(&mut self) -> Result<()> {
+        Ok(self.conn.execute_batch("COMMIT")?)
+    }
+
+    /// Drops the transaction `begin` opened, if one is still open.
+    pub fn rollback(&mut self) {
+        if !self.conn.is_autocommit() {
+            let _ = self.conn.execute_batch("ROLLBACK");
+        }
+    }
+
     pub fn save_events(
         &mut self,
         _provider: &str,
         events: &[Event],
         paired_at: Option<&str>,
     ) -> Result<usize> {
-        let tx = self.conn.transaction()?;
+        let track = self.token_changes.is_some();
+        let mut changes = Vec::new();
+        // A savepoint, so it also works inside `begin` ... `commit`.
+        let tx = self.conn.savepoint()?;
         let mut changed = 0;
         {
+            let mut look = tx.prepare_cached("SELECT at, value, synced FROM events WHERE id=?1")?;
+            let mut row = |id: &str| {
+                look.query_row([id], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, u64>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                })
+                .optional()
+            };
             let mut statement = tx.prepare_cached(
                 "INSERT INTO events (id, session_id, at, key, value, resets_at, kind, source, model, provider, agent_id)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'live', ?8, ?9, ?10)
@@ -509,8 +651,13 @@ impl Store {
                     EventKind::Counter => "counter",
                     EventKind::Reading => "reading",
                 };
-                changed += statement.execute(params![
-                    event.id(),
+                let id = event.id();
+                let tokens = track
+                    && matches!(event.kind, EventKind::Counter)
+                    && TOKEN_KEYS.contains(&event.key.as_str());
+                let before = if tokens { row(&id)? } else { None };
+                let saved = statement.execute(params![
+                    id,
                     event.session_id,
                     event.at,
                     event.key,
@@ -521,9 +668,23 @@ impl Store {
                     event.provider,
                     event.agent_id,
                 ])?;
+                changed += saved;
+                if tokens && saved > 0 {
+                    if let Some((at, value, _)) = row(&id)? {
+                        changes.push(TokenChange {
+                            before: before
+                                .filter(|(_, _, synced)| *synced != 2)
+                                .map(|(at, value, _)| (at, tenths(&event.key, value))),
+                            after: (at, tenths(&event.key, value)),
+                        });
+                    }
+                }
             }
         }
         tx.commit()?;
+        if let Some(list) = &mut self.token_changes {
+            list.extend(changes);
+        }
         Ok(changed)
     }
 
@@ -594,13 +755,13 @@ impl Store {
     /// Sums persisted counter tokens by event provider, including uploaded rows.
     pub fn token_totals_between(&self, since: &str, until: &str) -> Result<Vec<(String, u64)>> {
         let mut statement = self.conn.prepare(
-            "SELECT provider, SUM(value) FROM events
-             WHERE kind='counter' AND provider IS NOT NULL
+            "SELECT provider, SUM(value) FROM events INDEXED BY events_at
+             WHERE at>=?3 AND kind='counter' AND provider IS NOT NULL
                AND key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens')
                AND julianday(at)>=julianday(?1) AND julianday(at)<=julianday(?2)
              GROUP BY provider ORDER BY provider",
         )?;
-        let rows = statement.query_map(params![since, until], |row| {
+        let rows = statement.query_map(params![since, until, day_before(since)], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
         })?;
         rows.collect::<std::result::Result<Vec<_>, _>>()
@@ -611,30 +772,35 @@ impl Store {
     /// output and cache writes in full, a tenth of cache reads. Observations the server refused
     /// are left out.
     pub fn effective_tokens_since(&self, since: &str) -> Result<u64> {
-        self.effective_sum("value", since)
+        Ok(self.effective_tenths_since(since)? / 10)
+    }
+
+    /// `effective_tokens_since` in tenths of a token, the unit of `TokenChange`.
+    pub fn effective_tenths_since(&self, since: &str) -> Result<u64> {
+        self.effective_tenths("value", since)
     }
 
     /// The part of `effective_tokens_since` the server has acknowledged. An observation queued
     /// again still counts what was acknowledged before, so the difference between the two is
     /// only what the server has not seen.
     pub fn acknowledged_tokens_since(&self, since: &str) -> Result<u64> {
-        self.effective_sum("acked", since)
+        Ok(self.effective_tenths("acked", since)? / 10)
     }
 
-    fn effective_sum(&self, column: &str, since: &str) -> Result<u64> {
-        let total: f64 = self.conn.query_row(
+    fn effective_tenths(&self, column: &str, since: &str) -> Result<u64> {
+        Ok(self.conn.query_row(
             &format!(
-                "SELECT COALESCE(SUM(CASE key WHEN 'cache_read_tokens' THEN {column} / 10.0 ELSE {column} END), 0)
-                 FROM events
-                 WHERE kind='counter'
+                "SELECT COALESCE(SUM(CASE key WHEN 'cache_read_tokens' THEN {column} ELSE {column} * 10 END), 0)
+                 FROM events INDEXED BY events_at
+                 WHERE at>=?2
+                   AND kind='counter'
                    AND key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens')
                    AND julianday(at)>=julianday(?1)
                    AND synced IN (0,1)"
             ),
-            [since],
+            params![since, day_before(since)],
             |row| row.get(0),
-        )?;
-        Ok(total as u64)
+        )?)
     }
 
     /// Acknowledges only observations whose value and timestamp still match the snapshot.
