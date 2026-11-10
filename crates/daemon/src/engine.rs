@@ -507,13 +507,29 @@ fn save_pass(
     client_version: &str,
     report: &mut ScanReport,
 ) -> Result<()> {
-    if let Some(paired_at) = paired_at {
-        report.events_saved +=
-            store.save_events(provider.manifest().id, events, Some(paired_at))?;
-        observer::apply(store, provider.manifest().id, observations, client_version)?;
+    // One commit for the pass: its events, its task rows and the cursor that marks them read.
+    store.begin()?;
+    let saved = (|| -> Result<usize> {
+        let mut saved = 0;
+        if let Some(paired_at) = paired_at {
+            saved = store.save_events(provider.manifest().id, events, Some(paired_at))?;
+            observer::apply(store, provider.manifest().id, observations, client_version)?;
+        }
+        store.put_cursor(provider.manifest().id, source_index, file_key, cursor)?;
+        store.commit()?;
+        Ok(saved)
+    })();
+    match saved {
+        Ok(saved) => {
+            report.events_saved += saved;
+            Ok(())
+        }
+        Err(error) => {
+            store.rollback();
+            // The rolled-back saves were recorded; the next full recount corrects the totals.
+            Err(error)
+        }
     }
-    store.put_cursor(provider.manifest().id, source_index, file_key, cursor)?;
-    Ok(())
 }
 
 fn apply_turn(

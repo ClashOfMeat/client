@@ -12,11 +12,13 @@ use clashofmeat_core::{Env, Store};
 use crate::{config, sync};
 
 /// Calls `changed` for every revision the server announces, with whether it came on the
-/// desktop's own `companion:<id>` topic. Returns when `stopping` is set or `changed` returns false.
+/// desktop's own `companion:<id>` topic, and `connected` when the stream opens and closes (an
+/// open stream keeps the app online on the server, so heartbeats can be rare). Returns when `stopping` is set or `changed` returns false.
 pub fn follow(
     env: Env,
     version: String,
     stopping: Arc<AtomicBool>,
+    connected: impl Fn(bool),
     changed: impl Fn(bool) -> bool,
 ) {
     let mut store = match Store::open(config::store_path(&env)) {
@@ -38,7 +40,10 @@ pub fn follow(
         if let (Some(token), Some(url)) = (token, app_url) {
             match sync::Client::new(&url, Some(token), &version).and_then(|client| client.live()) {
                 Ok(reader) => {
-                    if !read_events(reader, &stopping, &changed) {
+                    connected(true);
+                    let listening = read_events(reader, &stopping, &changed);
+                    connected(false);
+                    if !listening {
                         return;
                     }
                 }
@@ -53,7 +58,7 @@ pub fn follow(
             backoff = Duration::from_secs(5);
         }
         // Jittered, so a server restart doesn't bring every client back in the same second.
-        let until = Instant::now() + crate::cadence::jitter(backoff);
+        let until = Instant::now() + crate::cadence::reconnect_delay(backoff);
         while Instant::now() < until && !stopping.load(Ordering::Relaxed) {
             thread::sleep(Duration::from_secs(1));
         }

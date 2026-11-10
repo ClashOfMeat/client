@@ -934,13 +934,16 @@ function setPaused(next) {
   paused = next
 }
 window.addEventListener('resize', wake)
-let checkingOutgoing = false
+let checkingOutgoing = false, outgoingChecks = 0
 setInterval(async () => {
   const now = Date.now()
   if (outgoing.expire(now)) wake()
   if (checkingOutgoing) return
   const ids = outgoing.ids(now)
-  if (!ids.length) return
+  if (!ids.length) { outgoingChecks = 0; return }
+  // Every 3 s for the first 20 s, when most visits are played, then every 12 s: heartbeats
+  // and the visit's own expiry bring the hero back anyway.
+  if (outgoingChecks++ > 6 && outgoingChecks % 4) return
   const owner = outgoing.owner()
   checkingOutgoing = true
   try {

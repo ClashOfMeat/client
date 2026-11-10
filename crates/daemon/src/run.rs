@@ -60,6 +60,10 @@ impl DaemonHandle {
 
     fn stop_inner(&mut self) {
         self.stopping.store(true, Ordering::Relaxed);
+        // The socket thread waits in `accept`; a connection wakes it to see the flag.
+        if self.socket.is_some() {
+            let _ = clashofmeat_core::ipc::UnixStream::connect(&self.socket_path);
+        }
         let _ = self.sender.send(Message::Stop);
         let _ = self.watch_stop.send(());
         let _ = self.sync_stop.send(SyncCommand::Stop);
@@ -91,6 +95,8 @@ struct Busy {
     now: AtomicBool,
     /// An agent worked in the last five minutes.
     recent: AtomicBool,
+    /// The live stream is open, so the server keeps this app online without heartbeats.
+    live: AtomicBool,
 }
 
 pub(crate) enum Message {
@@ -196,10 +202,15 @@ pub fn start(opts: RunOptions) -> Result<DaemonHandle> {
         let version = opts.version.clone();
         let stopping = stopping.clone();
         let live = sync_tx.clone();
+        let stream = busy.clone();
         thread::spawn(move || {
-            crate::live::follow(env, version, stopping, |companion| {
-                live.send(SyncCommand::Live { companion }).is_ok()
-            })
+            crate::live::follow(
+                env,
+                version,
+                stopping,
+                |open| stream.live.store(open, Ordering::Relaxed),
+                |companion| live.send(SyncCommand::Live { companion }).is_ok(),
+            )
         });
     }
     let main_sync = sync_tx.clone();
@@ -263,6 +274,7 @@ fn main_loop(
     let mut polled_at = Instant::now();
     let mut pair_state = json!({"status":"unpaired"});
     let mut local = LocalTokens::default();
+    store.track_token_changes();
     local.refresh(&store);
     loop {
         let full_deadline = full_at + Duration::from_secs(600);
@@ -351,8 +363,10 @@ fn main_loop(
                 );
                 if let Some(heartbeat) = result.heartbeat {
                     let mut view = hero::hero_view(&heartbeat);
-                    if let Err(error) = hero::save_cache(&config::home(&opts.env), &view) {
-                        eprintln!("daemon hero cache: {error}");
+                    if cached.as_ref() != Some(&view) {
+                        if let Err(error) = hero::save_cache(&config::home(&opts.env), &view) {
+                            eprintln!("daemon hero cache: {error}");
+                        }
                     }
                     cached = Some(view.clone());
                     // The overlay adds this machine's activity since the heartbeat to its numbers.
@@ -423,6 +437,14 @@ fn main_loop(
                 &mut local,
             );
             open_files.track(&recent);
+            // The running totals follow each scan's changes; count them in full now and then.
+            if local.refresh(&store) {
+                broadcast(
+                    &mut subscribers,
+                    "local_tokens",
+                    json!({"effective":local.pending,"localTodayTokens":local.today}),
+                );
+            }
             let _ = watch_refresh.send(());
             full_at = Instant::now();
         }
@@ -446,7 +468,7 @@ fn scan_and_broadcast(
                     "observations",
                     json!({"changed": report.events_saved}),
                 );
-                if local.refresh(store) {
+                if local.follow(store) {
                     broadcast(
                         subscribers,
                         "local_tokens",
@@ -479,23 +501,74 @@ struct LocalTokens {
     pending: u64,
     today: u64,
     day: Option<time::Date>,
+    /// Running totals in tenths of a token: since the base's start, and since UTC midnight.
+    since_base: u64,
+    since_midnight: u64,
 }
 
 impl LocalTokens {
-    /// Recounts; true when the number changed.
+    /// Recounts from the store; true when a number changed. Each count reads every token row
+    /// of its window, so this runs at the start, with each heartbeat, at midnight and with the
+    /// full scan; in between, `follow` adds what each scan saved.
     fn refresh(&mut self, store: &Store) -> bool {
         let today = OffsetDateTime::now_utc().date();
-        let midnight = today.midnight().assume_utc();
-        let total = midnight
+        self.since_midnight = today
+            .midnight()
+            .assume_utc()
             .format(&Rfc3339)
             .ok()
-            .and_then(|since| store.effective_tokens_since(&since).ok())
+            .and_then(|since| store.effective_tenths_since(&since).ok())
             .unwrap_or(0);
-        let pending = self.base.as_ref().map_or(0, |(since, synced)| {
-            store
-                .effective_tokens_since(since)
-                .map_or(0, |total| total.saturating_sub(*synced))
+        self.since_base = self.base.as_ref().map_or(0, |(since, _)| {
+            store.effective_tenths_since(since).unwrap_or(0)
         });
+        self.settle(today)
+    }
+
+    /// Adds the token changes the store recorded since the last call; true when a number
+    /// changed. Falls back to a recount on a new day or a timestamp it cannot read.
+    fn follow(&mut self, store: &mut Store) -> bool {
+        let changes = store.take_token_changes();
+        let today = OffsetDateTime::now_utc().date();
+        if self.day != Some(today) {
+            return self.refresh(store);
+        }
+        let midnight = today.midnight().assume_utc();
+        let base = match &self.base {
+            Some((since, _)) => match OffsetDateTime::parse(since, &Rfc3339) {
+                Ok(since) => Some(since),
+                Err(_) => return self.refresh(store),
+            },
+            None => None,
+        };
+        let mut since_midnight = i128::from(self.since_midnight);
+        let mut since_base = i128::from(self.since_base);
+        for change in changes {
+            let entries = [(change.before, -1i128), (Some(change.after), 1)];
+            for (entry, sign) in entries {
+                let Some((at, amount)) = entry else { continue };
+                let Ok(at) = OffsetDateTime::parse(&at, &Rfc3339) else {
+                    return self.refresh(store);
+                };
+                let amount = sign * i128::from(amount);
+                if at >= midnight {
+                    since_midnight += amount;
+                }
+                if base.is_some_and(|since| at >= since) {
+                    since_base += amount;
+                }
+            }
+        }
+        self.since_midnight = u64::try_from(since_midnight.max(0)).unwrap_or(u64::MAX);
+        self.since_base = u64::try_from(since_base.max(0)).unwrap_or(u64::MAX);
+        self.settle(today)
+    }
+
+    fn settle(&mut self, today: time::Date) -> bool {
+        let pending = self.base.as_ref().map_or(0, |(_, synced)| {
+            (self.since_base / 10).saturating_sub(*synced)
+        });
+        let total = self.since_midnight / 10;
         let changed = self.pending != pending || self.today != total || self.day != Some(today);
         self.pending = pending;
         self.today = total;
@@ -1069,7 +1142,8 @@ fn sync_loop(
         let mut forced = false;
         match commands.recv_timeout(Duration::from_secs(1)) {
             Ok(SyncCommand::Stop) | Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
-            Ok(SyncCommand::Now) => forced = true,
+            // Asked by the player (settings, the notification panel, the CLI): soon, but paced.
+            Ok(SyncCommand::Now) => cadence.request(Instant::now()),
             Ok(SyncCommand::Evolve {
                 character_id,
                 level,
@@ -1295,6 +1369,7 @@ fn sync_loop(
                 error: result.error.as_ref(),
                 next_sync: result.next_sync,
                 busy: busy.recent.load(Ordering::Relaxed),
+                live: busy.live.load(Ordering::Relaxed),
             },
         );
         if result.error.is_none() && !result.deferred {
