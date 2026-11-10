@@ -1,0 +1,23 @@
+crates/daemon/src/run.rs
+  s_4912c446c00645::t_eafa4875112b48 707,711,722-739,742-747,916-922,1306-1307
+crates/daemon/src/sync.rs
+  s_4912c446c00645::t_19c0614fd26c40 267-280,291-292,297,300-304,918,920-931
+crates/daemon/tests/sync.rs
+  s_4912c446c00645::t_a01203e6f7d7fd 809,821-860,970,973-974,1098,1154,1157-1180,1205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c9527acf2746cde65fd847e01d4d61e8c31d9a7e",
+  "prompts": {},
+  "sessions": {
+    "s_4912c446c00645": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c4d8-38e3-7cc1-8322-10e1d03cca9d",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}

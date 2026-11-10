@@ -1,0 +1,39 @@
+apps/desktop/ui/overlay.mjs
+  s_859f5c482ccc8e::t_e237e4938b22c4 21,59-60,144-146,153-166
+apps/desktop/ui/overlay/predict.mjs
+  s_859f5c482ccc8e::t_6a5a8693937131 30-50
+apps/desktop/ui/overlay/tests/predict.test.mjs
+  s_859f5c482ccc8e::t_0c06755494fc48 3,35-57
+crates/core/src/store/migrations.rs
+  s_3ba0da589028e4::t_10ec9698e72859 84-89
+crates/daemon/src/run.rs
+  s_3ba0da589028e4::t_6c16fdf8d614e6 492,496
+crates/daemon/src/sync.rs
+  s_3ba0da589028e4::t_8d25aa0ebf272b 1003
+crates/core/src/store/mod.rs
+  s_859f5c482ccc8e::t_21274fad425b11 178-179,183-208,611-624,626-634,644-646
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a3761b7e6d0b12b7f501c9bf468411040cd8e984",
+  "prompts": {},
+  "sessions": {
+    "s_3ba0da589028e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ce8a3511-87c4-437e-9ab7-17ce7c30db00",
+        "model": "unknown"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    },
+    "s_859f5c482ccc8e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b0c0c21a-caf0-42c1-a4b6-ebc1068b167b",
+        "model": "claude-fable-5-2"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
