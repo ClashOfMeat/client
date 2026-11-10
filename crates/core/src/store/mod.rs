@@ -175,13 +175,37 @@ mod tests {
         ];
         store.save_events("codex", &rows, None).unwrap();
         let since = "2026-01-01T00:00:00Z";
-        assert_eq!(store.effective_tokens_since(since, false).unwrap(), 215);
-        assert_eq!(store.effective_tokens_since(since, true).unwrap(), 0);
+        assert_eq!(store.effective_tokens_since(since).unwrap(), 215);
+        assert_eq!(store.acknowledged_tokens_since(since).unwrap(), 0);
         let snapshot = |e: &Event| (e.id(), e.value, e.at.clone());
         store.mark_synced(&[snapshot(&rows[0])]).unwrap();
         store.reject(&[snapshot(&rows[3])]).unwrap();
-        assert_eq!(store.effective_tokens_since(since, true).unwrap(), 100);
-        assert_eq!(store.effective_tokens_since(since, false).unwrap(), 210);
+        assert_eq!(store.acknowledged_tokens_since(since).unwrap(), 100);
+        assert_eq!(store.effective_tokens_since(since).unwrap(), 210);
+    }
+
+    #[test]
+    fn a_row_queued_again_still_counts_what_the_server_acknowledged() {
+        let mut store = Store::open_in_memory().unwrap();
+        let since = "2026-01-01T00:00:00Z";
+        let mut read = event("r", "cache_read_tokens", 1000, "2026-01-01T12:00:00Z");
+        let mut output = event("r", "output_tokens", 40, "2026-01-01T12:00:00Z");
+        store
+            .save_events("codex", &[read.clone(), output.clone()], None)
+            .unwrap();
+        let snapshot = |e: &Event| (e.id(), e.value, e.at.clone());
+        store
+            .mark_synced(&[snapshot(&read), snapshot(&output)])
+            .unwrap();
+        // A later line of the same message: the same cache read, more output.
+        read.at = "2026-01-01T12:00:05Z".into();
+        output.at = read.at.clone();
+        output.value = 90;
+        store.save_events("codex", &[read, output], None).unwrap();
+        assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 2);
+        // Only the 50 new output tokens are unknown to the server.
+        assert_eq!(store.effective_tokens_since(since).unwrap(), 190);
+        assert_eq!(store.acknowledged_tokens_since(since).unwrap(), 140);
     }
 
     #[test]
@@ -584,17 +608,30 @@ impl Store {
     }
 
     /// Effective tokens of observations since `since`, counted as the server scores them: input,
-    /// output and cache writes in full, a tenth of cache reads. `synced_only` counts only what
-    /// the server acknowledged; otherwise everything except observations it refused.
-    pub fn effective_tokens_since(&self, since: &str, synced_only: bool) -> Result<u64> {
+    /// output and cache writes in full, a tenth of cache reads. Observations the server refused
+    /// are left out.
+    pub fn effective_tokens_since(&self, since: &str) -> Result<u64> {
+        self.effective_sum("value", since)
+    }
+
+    /// The part of `effective_tokens_since` the server has acknowledged. An observation queued
+    /// again still counts what was acknowledged before, so the difference between the two is
+    /// only what the server has not seen.
+    pub fn acknowledged_tokens_since(&self, since: &str) -> Result<u64> {
+        self.effective_sum("acked", since)
+    }
+
+    fn effective_sum(&self, column: &str, since: &str) -> Result<u64> {
         let total: f64 = self.conn.query_row(
-            "SELECT COALESCE(SUM(CASE key WHEN 'cache_read_tokens' THEN value / 10.0 ELSE value END), 0)
-             FROM events
-             WHERE kind='counter'
-               AND key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens')
-               AND julianday(at)>=julianday(?1)
-               AND (synced=1 OR (?2=0 AND synced=0))",
-            params![since, synced_only],
+            &format!(
+                "SELECT COALESCE(SUM(CASE key WHEN 'cache_read_tokens' THEN {column} / 10.0 ELSE {column} END), 0)
+                 FROM events
+                 WHERE kind='counter'
+                   AND key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens')
+                   AND julianday(at)>=julianday(?1)
+                   AND synced IN (0,1)"
+            ),
+            [since],
             |row| row.get(0),
         )?;
         Ok(total as u64)
@@ -604,8 +641,9 @@ impl Store {
     pub fn mark_synced(&mut self, snapshots: &[(String, u64, String)]) -> Result<()> {
         let tx = self.conn.transaction()?;
         {
-            let mut statement =
-                tx.prepare_cached("UPDATE events SET synced=1 WHERE id=?1 AND value=?2 AND at=?3")?;
+            let mut statement = tx.prepare_cached(
+                "UPDATE events SET synced=1, acked=value WHERE id=?1 AND value=?2 AND at=?3",
+            )?;
             for (id, value, at) in snapshots {
                 statement.execute(params![id, value, at])?;
             }

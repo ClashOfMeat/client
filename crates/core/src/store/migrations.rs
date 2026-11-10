@@ -82,4 +82,10 @@ CREATE INDEX observer_tasks_pending ON observer_tasks(synced, completed_at);
     r#"
 ALTER TABLE events ADD COLUMN agent_id TEXT;
 "#,
+    // The value the server last acknowledged. A row queued again (a later line of the same
+    // message) keeps it, so local counts know how much of the row the server already has.
+    r#"
+ALTER TABLE events ADD COLUMN acked INTEGER NOT NULL DEFAULT 0;
+UPDATE events SET acked=value WHERE synced=1;
+"#,
 ];

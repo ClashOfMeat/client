@@ -18,7 +18,7 @@ import { heroSettings } from './settings/hero.mjs'
 for (const type of ['selectstart', 'dragstart']) document.addEventListener(type, event => event.preventDefault())
 document.getSelection()?.removeAllRanges()
 import { friendRows, friendPage, errorText } from './overlay/friends.mjs'
-import { predict } from './overlay/predict.mjs'
+import { predict, levelDue, steadyXp } from './overlay/predict.mjs'
 import { xpBar } from './overlay/xp-bar.mjs'
 import { notificationSnapshot, bellCount, notificationIcon, bellPosition, bellVisible, unreadCount, markedRead, stillSelected, arrived, BELL_RING_MS } from './overlay/notifications.mjs'
 
@@ -56,6 +56,8 @@ let workArea, animation, character, progression, player
 // This machine's effective tokens the last heartbeat did not include yet (see overlay/predict.mjs).
 let localTokens = 0
 let localTodayTokens = 0
+// What the XP bar last showed (see steadyXp), and the syncs asked for a level that is due.
+let shownXp = null, levelAsk = { key: '', tries: 0, at: 0 }
 // visitSpot pins the window and the visitor where the visitor arrived (see visitAnchor).
 let aura, auraStarted = 0, gained, visitor, visitorStarted = 0, visitSpot = null, departure = null
 const visits = visitTracker()
@@ -139,12 +141,27 @@ function normaliseActivity(data) {
 function updateStats() {
   if (!character) return
   document.getElementById('name').textContent = character.name ?? heroName(character.heroId)
-  const { xp } = predict(character, progression, localTokens, localTodayTokens)
-  const bar = xpBar(character, xp)
+  shownXp = steadyXp(shownXp, character, predict(character, progression, localTokens, localTodayTokens).xp)
+  const bar = xpBar(character, shownXp.xp)
+  confirmLevel()
   document.getElementById('xp-text').textContent = bar.level
   document.getElementById('xp-count').textContent = bar.count
   document.getElementById('xp-fill').style.width = `${bar.fill}%`
   document.querySelector('.xp-track').dataset.state = bar.state
+}
+
+// Local tokens already pay for the next level, but only the server grants it and the bar waits
+// one XP short. A sync uploads them and the one after brings the level, so ask a few times, ten
+// seconds apart, instead of sitting there until the next heartbeats.
+function confirmLevel() {
+  const key = `${character.id}:${character.level}`
+  if (levelAsk.key !== key) levelAsk = { key, tries: 0, at: 0 }
+  if (!levelDue(character, localTokens) || levelAsk.tries >= 3 || Date.now() - levelAsk.at < 10_000) return
+  levelAsk.tries++
+  levelAsk.at = Date.now()
+  void invoke('daemon_request', { method: 'sync_now', params: {} }).catch(() => {})
+  // The bar stops being refreshed once local tokens stop arriving; look again by ourselves.
+  setTimeout(updateStats, 10_500)
 }
 
 // Older servers send no display name; "framework_familiar" reads as "Framework Familiar".

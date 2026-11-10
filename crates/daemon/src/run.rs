@@ -489,11 +489,11 @@ impl LocalTokens {
         let total = midnight
             .format(&Rfc3339)
             .ok()
-            .and_then(|since| store.effective_tokens_since(&since, false).ok())
+            .and_then(|since| store.effective_tokens_since(&since).ok())
             .unwrap_or(0);
         let pending = self.base.as_ref().map_or(0, |(since, synced)| {
             store
-                .effective_tokens_since(since, false)
+                .effective_tokens_since(since)
                 .map_or(0, |total| total.saturating_sub(*synced))
         });
         let changed = self.pending != pending || self.today != total || self.day != Some(today);

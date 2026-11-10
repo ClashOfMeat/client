@@ -27,3 +27,24 @@ export function predict(character, progression, localTokens, localTodayTokens = 
   }
   return { xp, tokens: expired ? today : server === null ? (today || null) : Math.max(server + local, today) }
 }
+
+// Whether this machine's tokens already pay for the next level. The bar then waits one XP short
+// of it (see predict) until the server confirms, so the overlay asks for a sync instead of
+// waiting for the next heartbeat.
+export function levelDue(character, localTokens) {
+  if (!Number.isSafeInteger(character?.xp) || !Number.isSafeInteger(character.nextLevelAt)) return false
+  if (!Number.isSafeInteger(localTokens) || localTokens <= 0 || character.xp >= character.nextLevelAt) return false
+  return character.xp + Math.floor(localTokens * XP_PER_MILLION_TOKENS / 1_000_000) >= character.nextLevelAt
+}
+
+// The XP to show, given what was shown last ({ id, level, serverXp, xp }). On the same hero and
+// level the number never goes down while the server's own XP has not: a guess that shrinks (a
+// daemon restart, a refused observation, a heartbeat still decoding) keeps the last number
+// until the server catches up.
+export function steadyXp(shown, character, xp) {
+  const next = { id: character?.id, level: character?.level, serverXp: character?.xp, xp }
+  if (!shown || !Number.isSafeInteger(xp) || !Number.isSafeInteger(shown.xp)) return next
+  if (shown.id !== next.id || shown.level !== next.level) return next
+  if (Number.isSafeInteger(shown.serverXp) && next.serverXp < shown.serverXp) return next
+  return { ...next, xp: Math.max(xp, shown.xp) }
+}
