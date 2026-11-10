@@ -1000,7 +1000,7 @@ pub fn sync_once_with(
         .format(&Rfc3339)
         .ok()
         .and_then(|since| {
-            let synced = store.effective_tokens_since(&since, true).ok()?;
+            let synced = store.acknowledged_tokens_since(&since).ok()?;
             Some((since, synced))
         });
     // One batch per sync; the sync thread drains a backlog at its own pace (`drain_once`).
