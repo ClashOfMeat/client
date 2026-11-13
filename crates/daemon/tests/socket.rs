@@ -112,7 +112,7 @@ fn today_tokens_uses_offset_and_maps_shared_claude_events() {
 }
 
 #[test]
-fn snapshot_counts_effective_today_even_before_a_server_heartbeat() {
+fn snapshot_counts_today_by_kind_even_before_a_server_heartbeat() {
     let dir = tempdir().unwrap();
     let env = Env::for_home(dir.path());
     let now = OffsetDateTime::now_utc();
@@ -138,7 +138,15 @@ fn snapshot_counts_effective_today_even_before_a_server_heartbeat() {
     let handle = start(dir.path());
     let mut stream = UnixStream::connect(handle.socket_path()).unwrap();
     let snapshot = request(&mut stream, &json!({"id":1,"method":"snapshot"}));
-    assert_eq!(snapshot["result"]["localTodayTokens"], 109);
+    assert_eq!(
+        snapshot["result"]["localToday"],
+        json!({"input":100,"output":0,"cacheWrite":0,"cacheRead":90})
+    );
+    // Nothing is pending before a heartbeat gives the daemon a baseline.
+    assert_eq!(
+        snapshot["result"]["localPending"],
+        json!({"input":0,"output":0,"cacheWrite":0,"cacheRead":0})
+    );
     handle.stop().unwrap();
 }
 

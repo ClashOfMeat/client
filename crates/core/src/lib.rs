@@ -20,4 +20,4 @@ pub use reader::{
     list_files, read_json, read_jsonl, FileCursor, FileEntry, Line, ReadBatch, CHUNK,
 };
 pub use signal::{Event, EventKind, Observation, Signal, TaskRef, Turn, TurnPhase, Usage};
-pub use store::{HealthRow, Store, StoreError, StoredEvent, TokenChange};
+pub use store::{HealthRow, Store, StoreError, StoredEvent, TokenChange, TokenKinds};

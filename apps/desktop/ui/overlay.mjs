@@ -53,9 +53,11 @@ const activity = heroActivity()
 const images = new Map()
 const effectImages = new Map()
 let workArea, animation, character, progression, player
-// This machine's effective tokens the last heartbeat did not include yet (see overlay/predict.mjs).
-let localTokens = 0
-let localTodayTokens = 0
+// This machine's tokens by kind: those the last heartbeat did not include yet, and those since UTC
+// midnight (see overlay/predict.mjs). An older daemon sends neither, and the hero then shows the
+// server's numbers alone.
+let localPending = null
+let localToday = null
 // What the XP bar last showed (see steadyXp), and the syncs asked for a level that is due.
 let shownXp = null, levelAsk = { key: '', tries: 0, at: 0 }
 // visitSpot pins the window and the visitor where the visitor arrived (see visitAnchor).
@@ -141,7 +143,7 @@ function normaliseActivity(data) {
 function updateStats() {
   if (!character) return
   document.getElementById('name').textContent = character.name ?? heroName(character.heroId)
-  shownXp = steadyXp(shownXp, character, predict(character, progression, localTokens, localTodayTokens).xp)
+  shownXp = steadyXp(shownXp, character, predict(character, progression, localPending, localToday).xp)
   const bar = xpBar(character, shownXp.xp)
   confirmLevel()
   document.getElementById('xp-text').textContent = bar.level
@@ -156,7 +158,7 @@ function updateStats() {
 function confirmLevel() {
   const key = `${character.id}:${character.level}`
   if (levelAsk.key !== key) levelAsk = { key, tries: 0, at: 0 }
-  if (!levelDue(character, localTokens) || levelAsk.tries >= 3 || Date.now() - levelAsk.at < 10_000) return
+  if (!levelDue(character, progression, localPending) || levelAsk.tries >= 3 || Date.now() - levelAsk.at < 10_000) return
   levelAsk.tries++
   levelAsk.at = Date.now()
   void invoke('daemon_request', { method: 'sync_now', params: {} }).catch(() => {})
@@ -971,22 +973,22 @@ setInterval(async () => {
 
 await listen('daemon', ({ payload }) => {
   if (payload?.kind === 'snapshot') {
-    localTokens = payload.data?.localTokens ?? 0
-    localTodayTokens = payload.data?.localTodayTokens ?? 0
+    localPending = payload.data?.localPending ?? null
+    localToday = payload.data?.localToday ?? null
     normaliseActivity(payload.data?.activity)
     notificationHeartbeat(payload.data?.hero)
     void setHero(payload.data?.hero)
   } else if (payload?.kind === 'event') {
     if (payload.data?.event === 'activity') normaliseActivity(payload.data.data)
     if (payload.data?.event === 'heartbeat') {
-      localTokens = payload.data.data?.localTokens ?? 0
-      localTodayTokens = payload.data.data?.localTodayTokens ?? localTodayTokens
+      localPending = payload.data.data?.localPending ?? null
+      localToday = payload.data.data?.localToday ?? localToday
       notificationHeartbeat(payload.data.data)
       void setHero(payload.data.data, true)
     }
     if (payload.data?.event === 'local_tokens') {
-      localTokens = payload.data.data?.effective ?? 0
-      localTodayTokens = payload.data.data?.localTodayTokens ?? localTodayTokens
+      localPending = payload.data.data?.pending ?? null
+      localToday = payload.data.data?.today ?? localToday
       updateStats()
     }
   } else if (payload?.kind === 'status' && payload.data?.connected === false) {
@@ -1005,8 +1007,8 @@ setStayStill(initialHero.still)
 setPaused(!initialHero.show)
 const snapshot = initial.daemon?.snapshot
 if (snapshot) {
-  localTokens = snapshot.localTokens ?? 0
-  localTodayTokens = snapshot.localTodayTokens ?? 0
+  localPending = snapshot.localPending ?? null
+  localToday = snapshot.localToday ?? null
 }
 if (snapshot) normaliseActivity(snapshot.activity)
 const firstHero = initial.daemon?.heartbeat ?? snapshot?.hero

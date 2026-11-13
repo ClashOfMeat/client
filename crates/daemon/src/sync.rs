@@ -823,9 +823,9 @@ pub struct SyncResult {
     pub more: bool,
     /// The server's pace for the next sync, `nextSyncInSeconds`.
     pub next_sync: Option<Duration>,
-    /// What the heartbeat's numbers already include: effective tokens acknowledged since this
-    /// time. Local activity beyond them moves the overlay before the next sync.
-    pub tokens_base: Option<(String, u64)>,
+    /// What the heartbeat's numbers already include: the tokens of each kind acknowledged since
+    /// this time. Local activity beyond them moves the overlay before the next sync.
+    pub tokens_base: Option<(String, clashofmeat_core::TokenKinds)>,
 }
 
 impl SyncResult {
