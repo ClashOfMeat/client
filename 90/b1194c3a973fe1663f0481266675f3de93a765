@@ -1,0 +1,33 @@
+apps/desktop/ui/overlay/predict.mjs
+  s_b47a3b31849a2a::t_c18c14ca9e597d 1-56,66-70,73-110,112-113,116,118-122,128,130-132
+apps/desktop/ui/overlay/tests/predict.test.mjs
+  s_b47a3b31849a2a::t_cfe6008a558540 3,5-35,37-58,62-110,117
+apps/desktop/ui/overlay.mjs
+  s_b47a3b31849a2a::t_60cfc6d6efde2d 56-60,146,161,976-977,984-985,990-991,1010-1011
+crates/core/src/lib.rs
+  s_b47a3b31849a2a::t_39bc047045c158 23
+crates/core/src/store/mod.rs
+  s_b47a3b31849a2a::t_d024ba42fc986d 166,179-189,193-197,216,232,240-242,246-247,271-281,486-487,490-491,498-558,751,754-755,848-851,854-858,861-882
+crates/daemon/src/run.rs
+  s_b47a3b31849a2a::t_bf6f2e7cf9593b 12,293,326,370-371,437,463,482-484,488-490,492-494,498-502,513-520,540-542,544-546,555,558,562-568,573-580,582,639,670
+crates/daemon/src/sync.rs
+  s_b47a3b31849a2a::t_ba9ad79faa5f8b 826-828
+crates/daemon/tests/socket.rs
+  s_b47a3b31849a2a::t_6af79dc5e16aa6 115,141-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90b1194c3a973fe1663f0481266675f3de93a765",
+  "prompts": {},
+  "sessions": {
+    "s_b47a3b31849a2a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3164a9db-9829-4453-99f8-02215fc9b7fe",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Paul FOURNET <paul.pfournet@gmail.com>"
+    }
+  }
+}
