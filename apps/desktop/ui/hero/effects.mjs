@@ -1,6 +1,7 @@
 import { companionFrame } from './frames.mjs'
 import { HERO_CONTRACT } from './hero-contract.mjs'
 import { HERO_CELL_SIZE } from './display.mjs'
+import { SIGN_EMOTE, PLANT_MS, plantPose } from './plant.mjs'
 
 const { walkInMs: WALK_IN, walkOutMs: WALK_OUT, emoteMs: EMOTE_MS } = HERO_CONTRACT.visit
 
@@ -29,7 +30,8 @@ export function levelUpFrame(effect, elapsed) {
 // `edge` to `stand` beside it, plays its emote turned towards the host (one Flex clip, or a held Kiss or Angry), and
 // walks back out. It always faces the way it walks; base frames face right.
 export function visitDuration(animation, emote = 'kiss') {
-  const emoteMs = emote === 'flex' ? animation.clips.flex.durations.reduce((sum, ms) => sum + ms, 0) : EMOTE_MS[emote]
+  const emoteMs = emote === 'flex' ? animation.clips.flex.durations.reduce((sum, ms) => sum + ms, 0)
+    : emote === SIGN_EMOTE ? PLANT_MS : EMOTE_MS[emote]
   return WALK_IN + emoteMs + WALK_OUT
 }
 
@@ -45,6 +47,13 @@ export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
   const state = arriving || leaving ? 'walk' : emote
   const progress = arriving ? Math.max(0, elapsed) / WALK_IN : leaving ? Math.min(1, (elapsed - leaveAt) / WALK_OUT) : 0
   const inward = edge > stand ? 'left' : 'right', outward = inward === 'left' ? 'right' : 'left'
+  // Review me plants its sign on the far side, away from the host, then turns to the host to say so.
+  if (state === SIGN_EMOTE) {
+    const plant = plantPose(elapsed - WALK_IN)
+    const towardHost = stand > 0 ? 'left' : 'right', awayFromHost = stand > 0 ? 'right' : 'left'
+    return { frame: plant.frame, state, facing: plant.toHost ? towardHost : awayFromHost, offset: stand,
+      sx: plant.sx, sy: plant.sy, dy: plant.dy }
+  }
   const clip = animation?.clips?.[state]
   const duration = clip?.durations.reduce((sum, ms) => sum + ms, 0) ?? 0
   const clipElapsed = state === 'flex' && duration ? Math.min(elapsed - WALK_IN, duration - 1) : arriving || leaving ? elapsed : elapsed - WALK_IN

@@ -806,7 +806,7 @@ fn friends_are_fetched_with_the_installation_token_and_cleaned() {
         json!({"friends": [
             {"handle": "gab", "name": "Gab", "online": true, "level": 12},
             {"handle": "tom", "name": "tom", "online": false, "level": null},
-        ]})
+        ], "pins": ["flex", "kiss", "angry"]})
     );
     let requests = server.finish();
     assert_eq!(requests[0].method, "GET");
@@ -816,6 +816,46 @@ fn friends_are_fetched_with_the_installation_token_and_cleaned() {
         format!("Bearer {TOKEN}")
     );
     assert_eq!(requests[0].headers["x-clashofmeat-client"], "desktop/0.1.0");
+}
+
+#[test]
+fn friends_carry_the_active_hero_pins_or_the_free_emotes() {
+    let server = Server::start(vec![
+        Reply::ok(json!({"friends": [], "pins": ["flex", "review_me", "kiss"]})),
+        Reply::ok(json!({"friends": [], "pins": ["flex", "Not a key!", "kiss"]})),
+        Reply::ok(json!({"friends": [], "pins": ["flex", "kiss"]})),
+    ]);
+    let client = client(&server);
+    assert_eq!(
+        client.friends().unwrap()["pins"],
+        json!(["flex", "review_me", "kiss"])
+    );
+    // A bad key or a wrong count falls back to the free emotes.
+    assert_eq!(
+        client.friends().unwrap()["pins"],
+        json!(["flex", "kiss", "angry"])
+    );
+    assert_eq!(
+        client.friends().unwrap()["pins"],
+        json!(["flex", "kiss", "angry"])
+    );
+    server.finish();
+}
+
+#[test]
+fn a_review_me_visit_posts_its_link() {
+    let server = Server::start(vec![Reply::ok(
+        json!({"id": ID, "target": "gab", "expiresAt": NOW, "emote": "review_me"}),
+    )]);
+    let url = "https://github.com/ClashOfMeat/app/pull/114";
+    client(&server)
+        .send_visit("gab", "review_me", Some(url), ID)
+        .unwrap();
+    let requests = server.finish();
+    assert_eq!(
+        requests[0].body,
+        json!({"target": "gab", "requestId": ID, "emote": "review_me", "sign": {"url": url}})
+    );
 }
 
 #[test]
@@ -927,10 +967,11 @@ fn send_visit_posts_the_target_emote_and_request_id_and_keeps_the_server_message
     let client = client(&server);
     let request_id = clashofmeat_core::ids::random_uuid();
     assert_eq!(
-        client.send_visit("gab", "flex", &request_id).unwrap()["emote"],
+        client.send_visit("gab", "flex", None, &request_id).unwrap()["emote"],
         "flex"
     );
-    let Err(ApiError::Status { status, detail, .. }) = client.send_visit("gab", "kiss", ID) else {
+    let Err(ApiError::Status { status, detail, .. }) = client.send_visit("gab", "kiss", None, ID)
+    else {
         panic!("expected a status error");
     };
     assert_eq!(
@@ -1054,7 +1095,7 @@ fn socket_call(
 fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
     let dir = tempfile::tempdir().unwrap();
     let env = Env::for_home(dir.path());
-    let server = Server::with_handler(6, || {
+    let server = Server::with_handler(7, || {
         |request: &Request| match request.path.as_str() {
             "/api/companion/friends" => {
                 Reply::ok(json!({"friends": [{"handle": "gab", "name": "Gab", "online": true}]}))
@@ -1110,8 +1151,32 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
     );
     // Checked locally: never reaches the server.
     assert_eq!(
-        call(4, "send_visit", json!({"target": "gab", "emote": "dance"}))["error"]["code"],
+        call(4, "send_visit", json!({"target": "gab", "emote": "Dance!"}))["error"]["code"],
         "bad_request"
+    );
+    assert_eq!(
+        call(
+            11,
+            "send_visit",
+            json!({"target": "gab", "emote": "review_me"})
+        )["error"]["code"],
+        "bad_request"
+    );
+    assert_eq!(
+        call(
+            12,
+            "send_visit",
+            json!({"target": "gab", "emote": "kiss", "sign": {"url": "https://github.com/a/b"}})
+        )["error"]["code"],
+        "bad_request"
+    );
+    assert_eq!(
+        call(
+            13,
+            "send_visit",
+            json!({"target": "gab", "emote": "review_me", "sign": {"url": "https://github.com/a/b/pull/1"}})
+        )["result"]["emote"],
+        "review_me"
     );
     assert_eq!(
         call(5, "visit_done", json!({"id": "nope"}))["error"]["code"],
@@ -1137,6 +1202,7 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
         .find(|request| request.path == "/api/installations/heartbeat")
         .unwrap();
     assert_eq!(heartbeat.body["acknowledgedVisits"], json!([ID]));
+    assert_eq!(heartbeat.body["supportedEmotes"], json!(["review_me"]));
     let session = heartbeat.body["sessionId"].as_str().unwrap();
     let store = Store::open(store_path(&Env::for_home(dir.path()))).unwrap();
     assert_eq!(

@@ -160,3 +160,17 @@ test('character keeps its evolution stage and rejects a bad one', () => {
   assert.equal(validateCharacter({ ...character, evolution: 0 }), null)
   assert.equal(validateCharacter({ ...character, evolution: 2.5 }), null)
 })
+
+test('a Review me visitor brings a GitHub or GitLab link, or is refused', () => {
+  const now = Date.parse('2026-11-10T12:00:00Z')
+  const visit = { id: uuid, name: 'Gab', guild: null, emote: 'review_me', expiresAt: new Date(now + 60000).toISOString(), character: { id: uuid, png, animation } }
+  const url = 'https://github.com/ClashOfMeat/app/pull/114'
+  const sign = { v: 1, preset: 'review_me', url }
+  assert.deepEqual(validateVisit({ ...visit, sign }, now).sign, { url })
+  assert.equal(validateVisit({ ...visit, sign }, now).emote, 'review_me')
+  assert.equal(validateVisit(visit, now), null)
+  for (const bad of [{ ...sign, v: 2 }, { ...sign, preset: 'other' }, { ...sign, url: 'https://evil.example/x' }, { ...sign, url: 'http://github.com/x' }])
+    assert.equal(validateVisit({ ...visit, sign: bad }, now), null)
+  // A sign on another emote is ignored, not shown.
+  assert.equal(validateVisit({ ...visit, emote: 'kiss', sign }, now).sign, undefined)
+})

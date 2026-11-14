@@ -1,0 +1,8 @@
+{
+  "identifier": "signs",
+  "windows": ["signs"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-emit"
+  ]
+}

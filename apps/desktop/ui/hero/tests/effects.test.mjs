@@ -78,3 +78,22 @@ test('a visitor stands beside the host on the side of the window with room', () 
   assert.deepEqual(visitPlace(180, 424), { stand: -112, edge: -372 })
   assert.deepEqual(visitPlace(232, 424), { stand: -112, edge: -424 })
 })
+
+test('Review me walks in, plants its sign facing away from the host, then turns to the host', () => {
+  const stand = 112, edge = 308
+  assert.equal(visitDuration(animation, 'review_me'), 1500 + 1350 + 1500)
+  assert.equal(visitPose(animation, 0, stand, edge, 'review_me').state, 'walk')
+  const crouch = visitPose(animation, 1500 + 100, stand, edge, 'review_me')
+  assert.equal(crouch.state, 'review_me')
+  assert.equal(crouch.facing, 'right')
+  assert.equal(crouch.offset, stand)
+  assert(crouch.sy < 1 && crouch.sx > 1)
+  assert(visitPose(animation, 1500 + 300, stand, edge, 'review_me').dy < 0)
+  const talk = visitPose(animation, 1500 + 800, stand, edge, 'review_me')
+  assert.equal(talk.facing, 'left')
+  assert([4, 5, 6].includes(talk.frame))
+  // A visitor on the host's left plants to its left and talks facing right.
+  assert.equal(visitPose(animation, 1500 + 100, -stand, -300, 'review_me').facing, 'left')
+  assert.equal(visitPose(animation, 1500 + 800, -stand, -300, 'review_me').facing, 'right')
+  assert.equal(visitPose(animation, 1500 + 1350 + 10, stand, edge, 'review_me').state, 'walk')
+})
