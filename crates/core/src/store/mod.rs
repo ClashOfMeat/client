@@ -163,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn effective_tokens_count_a_tenth_of_cache_reads_and_skip_refused_rows() {
+    fn token_kinds_stay_apart_and_skip_refused_rows() {
         let mut store = Store::open_in_memory().unwrap();
         let at = "2026-01-01T12:00:00Z";
         let rows = [
@@ -176,13 +176,25 @@ mod tests {
         ];
         store.save_events("codex", &rows, None).unwrap();
         let since = "2026-01-01T00:00:00Z";
-        assert_eq!(store.effective_tokens_since(since).unwrap(), 215);
-        assert_eq!(store.acknowledged_tokens_since(since).unwrap(), 0);
+        let kinds = |input, output, cache_write, cache_read| TokenKinds {
+            input,
+            output,
+            cache_write,
+            cache_read,
+        };
+        assert_eq!(store.tokens_since(since).unwrap(), kinds(100, 5, 10, 1000));
+        assert_eq!(
+            store.acknowledged_tokens_since(since).unwrap(),
+            TokenKinds::default()
+        );
         let snapshot = |e: &Event| (e.id(), e.value, e.at.clone());
         store.mark_synced(&[snapshot(&rows[0])]).unwrap();
         store.reject(&[snapshot(&rows[3])]).unwrap();
-        assert_eq!(store.acknowledged_tokens_since(since).unwrap(), 100);
-        assert_eq!(store.effective_tokens_since(since).unwrap(), 210);
+        assert_eq!(
+            store.acknowledged_tokens_since(since).unwrap(),
+            kinds(100, 0, 0, 0)
+        );
+        assert_eq!(store.tokens_since(since).unwrap(), kinds(100, 0, 10, 1000));
     }
 
     #[test]
@@ -201,6 +213,7 @@ mod tests {
         assert_eq!(
             store.take_token_changes(),
             vec![TokenChange {
+                key: "cache_read_tokens".into(),
                 before: None,
                 after: (at.into(), 1000)
             }]
@@ -216,6 +229,7 @@ mod tests {
         assert_eq!(
             store.take_token_changes(),
             vec![TokenChange {
+                key: "cache_read_tokens".into(),
                 before: None,
                 after: (at.into(), 1500)
             }]
@@ -223,15 +237,14 @@ mod tests {
         // 10:00 UTC, written with an offset: after a 09:00 UTC start, before an 11:00 one.
         assert_eq!(
             store
-                .effective_tenths_since("2026-01-01T09:00:00Z")
-                .unwrap(),
+                .tokens_since("2026-01-01T09:00:00Z")
+                .unwrap()
+                .cache_read,
             1500
         );
         assert_eq!(
-            store
-                .effective_tenths_since("2026-01-01T11:00:00Z")
-                .unwrap(),
-            0
+            store.tokens_since("2026-01-01T11:00:00Z").unwrap(),
+            TokenKinds::default()
         );
     }
 
@@ -255,8 +268,17 @@ mod tests {
         store.save_events("codex", &[read, output], None).unwrap();
         assert_eq!(store.pending_count(EventKind::Counter).unwrap(), 2);
         // Only the 50 new output tokens are unknown to the server.
-        assert_eq!(store.effective_tokens_since(since).unwrap(), 190);
-        assert_eq!(store.acknowledged_tokens_since(since).unwrap(), 140);
+        let unknown = store
+            .tokens_since(since)
+            .unwrap()
+            .saturating_sub(store.acknowledged_tokens_since(since).unwrap());
+        assert_eq!(
+            unknown,
+            TokenKinds {
+                output: 50,
+                ..TokenKinds::default()
+            }
+        );
     }
 
     #[test]
@@ -461,15 +483,77 @@ pub struct Store {
     token_changes: Option<Vec<TokenChange>>,
 }
 
-/// How one saved token observation changed, in tenths of an effective token (a cache read
-/// counts a tenth of a token). The daemon adds these to its running totals instead of summing
-/// the table again after every scan.
+/// How one saved token observation changed, in raw tokens of its kind (`key`). The daemon adds
+/// these to its running totals instead of summing the table again after every scan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TokenChange {
+    /// The token kind: `input_tokens`, `output_tokens`, `cache_write_tokens` or `cache_read_tokens`.
+    pub key: String,
     /// The observation's time and amount before the save; `None` when it was new or refused.
     pub before: Option<(String, u64)>,
     /// Its time and amount after the save.
     pub after: (String, u64),
+}
+
+/// Raw token counts by kind. The server weights each kind with its own policy (output 1, input
+/// 0.2 and cache 0 under the log model), so the client keeps them apart and applies the weights
+/// the server sends instead of hardcoding them.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenKinds {
+    pub input: u64,
+    pub output: u64,
+    pub cache_write: u64,
+    pub cache_read: u64,
+}
+
+impl TokenKinds {
+    /// The metric keys of the kinds, in the order of `to_array`.
+    pub const KEYS: [&'static str; 4] = [
+        "input_tokens",
+        "output_tokens",
+        "cache_write_tokens",
+        "cache_read_tokens",
+    ];
+
+    /// The position of a token kind's metric key in `KEYS`; `None` for any other key.
+    pub fn index(key: &str) -> Option<usize> {
+        Self::KEYS.iter().position(|kind| *kind == key)
+    }
+
+    pub fn to_array(self) -> [u64; 4] {
+        [self.input, self.output, self.cache_write, self.cache_read]
+    }
+
+    pub fn from_array([input, output, cache_write, cache_read]: [u64; 4]) -> Self {
+        Self {
+            input,
+            output,
+            cache_write,
+            cache_read,
+        }
+    }
+
+    /// The count for one token kind's metric key; `None` for any other key.
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut u64> {
+        match key {
+            "input_tokens" => Some(&mut self.input),
+            "output_tokens" => Some(&mut self.output),
+            "cache_write_tokens" => Some(&mut self.cache_write),
+            "cache_read_tokens" => Some(&mut self.cache_read),
+            _ => None,
+        }
+    }
+
+    /// Each kind of `self` minus the same kind of `other`, never below zero.
+    pub fn saturating_sub(self, other: Self) -> Self {
+        Self {
+            input: self.input.saturating_sub(other.input),
+            output: self.output.saturating_sub(other.output),
+            cache_write: self.cache_write.saturating_sub(other.cache_write),
+            cache_read: self.cache_read.saturating_sub(other.cache_read),
+        }
+    }
 }
 
 const TOKEN_KEYS: [&str; 4] = [
@@ -478,14 +562,6 @@ const TOKEN_KEYS: [&str; 4] = [
     "cache_read_tokens",
     "cache_write_tokens",
 ];
-
-fn tenths(key: &str, value: u64) -> u64 {
-    if key == "cache_read_tokens" {
-        value
-    } else {
-        value.saturating_mul(10)
-    }
-}
 
 /// A date every timestamp at or after `since` sorts after as text, whatever its UTC offset:
 /// the day before `since`. It lets the `at` index skip older rows before the exact
@@ -672,10 +748,11 @@ impl Store {
                 if tokens && saved > 0 {
                     if let Some((at, value, _)) = row(&id)? {
                         changes.push(TokenChange {
+                            key: event.key.clone(),
                             before: before
                                 .filter(|(_, _, synced)| *synced != 2)
-                                .map(|(at, value, _)| (at, tenths(&event.key, value))),
-                            after: (at, tenths(&event.key, value)),
+                                .map(|(at, value, _)| (at, value)),
+                            after: (at, value),
                         });
                     }
                 }
@@ -768,39 +845,41 @@ impl Store {
             .map_err(Into::into)
     }
 
-    /// Effective tokens of observations since `since`, counted as the server scores them: input,
-    /// output and cache writes in full, a tenth of cache reads. Observations the server refused
-    /// are left out.
-    pub fn effective_tokens_since(&self, since: &str) -> Result<u64> {
-        Ok(self.effective_tenths_since(since)? / 10)
+    /// Tokens of observations since `since`, by kind. Observations the server refused are left
+    /// out. The server weights the kinds; the overlay applies the weights it sent.
+    pub fn tokens_since(&self, since: &str) -> Result<TokenKinds> {
+        self.token_kinds("value", since)
     }
 
-    /// `effective_tokens_since` in tenths of a token, the unit of `TokenChange`.
-    pub fn effective_tenths_since(&self, since: &str) -> Result<u64> {
-        self.effective_tenths("value", since)
+    /// The part of `tokens_since` the server has acknowledged. An observation queued again still
+    /// counts what was acknowledged before, so the difference between the two is only what the
+    /// server has not seen.
+    pub fn acknowledged_tokens_since(&self, since: &str) -> Result<TokenKinds> {
+        self.token_kinds("acked", since)
     }
 
-    /// The part of `effective_tokens_since` the server has acknowledged. An observation queued
-    /// again still counts what was acknowledged before, so the difference between the two is
-    /// only what the server has not seen.
-    pub fn acknowledged_tokens_since(&self, since: &str) -> Result<u64> {
-        Ok(self.effective_tenths("acked", since)? / 10)
-    }
-
-    fn effective_tenths(&self, column: &str, since: &str) -> Result<u64> {
-        Ok(self.conn.query_row(
-            &format!(
-                "SELECT COALESCE(SUM(CASE key WHEN 'cache_read_tokens' THEN {column} ELSE {column} * 10 END), 0)
-                 FROM events INDEXED BY events_at
-                 WHERE at>=?2
-                   AND kind='counter'
-                   AND key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens')
-                   AND julianday(at)>=julianday(?1)
-                   AND synced IN (0,1)"
-            ),
-            params![since, day_before(since)],
-            |row| row.get(0),
-        )?)
+    fn token_kinds(&self, column: &str, since: &str) -> Result<TokenKinds> {
+        let mut statement = self.conn.prepare_cached(&format!(
+            "SELECT key, COALESCE(SUM({column}), 0)
+             FROM events INDEXED BY events_at
+             WHERE at>=?2
+               AND kind='counter'
+               AND key IN ('input_tokens','output_tokens','cache_read_tokens','cache_write_tokens')
+               AND julianday(at)>=julianday(?1)
+               AND synced IN (0,1)
+             GROUP BY key"
+        ))?;
+        let rows = statement.query_map(params![since, day_before(since)], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
+        })?;
+        let mut kinds = TokenKinds::default();
+        for row in rows {
+            let (key, total) = row?;
+            if let Some(slot) = kinds.get_mut(&key) {
+                *slot = total;
+            }
+        }
+        Ok(kinds)
     }
 
     /// Acknowledges only observations whose value and timestamp still match the snapshot.

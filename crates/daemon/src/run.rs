@@ -9,7 +9,7 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use clashofmeat_core::{Env, EventKind, Store};
+use clashofmeat_core::{Env, EventKind, Store, TokenKinds};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use serde_json::{json, Map, Value};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime, UtcOffset};
@@ -290,11 +290,7 @@ fn main_loop(
             }
             Ok(Message::Tick) => {
                 if local.day != Some(OffsetDateTime::now_utc().date()) && local.refresh(&store) {
-                    broadcast(
-                        &mut subscribers,
-                        "local_tokens",
-                        json!({"effective":local.pending,"localTodayTokens":local.today}),
-                    );
+                    broadcast(&mut subscribers, "local_tokens", local.event());
                 }
                 let next = serde_json::to_value(engine.activity(OffsetDateTime::now_utc()))
                     .unwrap_or(Value::Null);
@@ -327,8 +323,7 @@ fn main_loop(
                     &opts,
                     &mut store,
                     &activity,
-                    local.pending,
-                    local.today,
+                    &local,
                     cached.as_ref(),
                     &pair_state,
                     &sync_tx,
@@ -372,8 +367,8 @@ fn main_loop(
                     // The overlay adds this machine's activity since the heartbeat to its numbers.
                     local.base = result.tokens_base;
                     local.refresh(&store);
-                    view["localTokens"] = json!(local.pending);
-                    view["localTodayTokens"] = json!(local.today);
+                    view["localPending"] = json!(local.pending);
+                    view["localToday"] = json!(local.today);
                     // Private inbox text lives only in the live event, never in the artwork cache.
                     if let Some(notifications) = heartbeat.get("notifications") {
                         view["notifications"] = notifications.clone();
@@ -439,11 +434,7 @@ fn main_loop(
             open_files.track(&recent);
             // The running totals follow each scan's changes; count them in full now and then.
             if local.refresh(&store) {
-                broadcast(
-                    &mut subscribers,
-                    "local_tokens",
-                    json!({"effective":local.pending,"localTodayTokens":local.today}),
-                );
+                broadcast(&mut subscribers, "local_tokens", local.event());
             }
             let _ = watch_refresh.send(());
             full_at = Instant::now();
@@ -469,11 +460,7 @@ fn scan_and_broadcast(
                     json!({"changed": report.events_saved}),
                 );
                 if local.follow(store) {
-                    broadcast(
-                        subscribers,
-                        "local_tokens",
-                        json!({"effective": local.pending,"localTodayTokens":local.today}),
-                    );
+                    broadcast(subscribers, "local_tokens", local.event());
                 }
             }
             report.recent
@@ -492,21 +479,27 @@ fn scan_and_broadcast(
     recent
 }
 
-/// This machine's effective tokens since the last heartbeat, plus its independent UTC-day total.
-/// The day total survives daemon restarts while the server is offline.
+/// This machine's tokens by kind since the last heartbeat, plus its independent UTC-day total.
+/// The overlay weights them with the rule the server sends (overlay/predict.mjs). The day total
+/// survives daemon restarts while the server is offline.
 #[derive(Default)]
 struct LocalTokens {
     /// The last heartbeat's `tokens_base`: since when, and how much was acknowledged then.
-    base: Option<(String, u64)>,
-    pending: u64,
-    today: u64,
+    base: Option<(String, TokenKinds)>,
+    pending: TokenKinds,
+    today: TokenKinds,
     day: Option<time::Date>,
-    /// Running totals in tenths of a token: since the base's start, and since UTC midnight.
-    since_base: u64,
-    since_midnight: u64,
+    /// Running totals: since the base's start, and since UTC midnight.
+    since_base: TokenKinds,
+    since_midnight: TokenKinds,
 }
 
 impl LocalTokens {
+    /// The `local_tokens` event the overlay follows.
+    fn event(&self) -> Value {
+        json!({"pending": self.pending, "today": self.today})
+    }
+
     /// Recounts from the store; true when a number changed. Each count reads every token row
     /// of its window, so this runs at the start, with each heartbeat, at midnight and with the
     /// full scan; in between, `follow` adds what each scan saved.
@@ -517,11 +510,14 @@ impl LocalTokens {
             .assume_utc()
             .format(&Rfc3339)
             .ok()
-            .and_then(|since| store.effective_tenths_since(&since).ok())
-            .unwrap_or(0);
-        self.since_base = self.base.as_ref().map_or(0, |(since, _)| {
-            store.effective_tenths_since(since).unwrap_or(0)
-        });
+            .and_then(|since| store.tokens_since(&since).ok())
+            .unwrap_or_default();
+        self.since_base = self
+            .base
+            .as_ref()
+            .map_or_else(TokenKinds::default, |(since, _)| {
+                store.tokens_since(since).unwrap_or_default()
+            });
         self.settle(today)
     }
 
@@ -541,9 +537,13 @@ impl LocalTokens {
             },
             None => None,
         };
-        let mut since_midnight = i128::from(self.since_midnight);
-        let mut since_base = i128::from(self.since_base);
+        let signed = |kinds: TokenKinds| kinds.to_array().map(i128::from);
+        let mut since_midnight = signed(self.since_midnight);
+        let mut since_base = signed(self.since_base);
         for change in changes {
+            let Some(kind) = TokenKinds::index(&change.key) else {
+                continue;
+            };
             let entries = [(change.before, -1i128), (Some(change.after), 1)];
             for (entry, sign) in entries {
                 let Some((at, amount)) = entry else { continue };
@@ -552,26 +552,34 @@ impl LocalTokens {
                 };
                 let amount = sign * i128::from(amount);
                 if at >= midnight {
-                    since_midnight += amount;
+                    since_midnight[kind] += amount;
                 }
                 if base.is_some_and(|since| at >= since) {
-                    since_base += amount;
+                    since_base[kind] += amount;
                 }
             }
         }
-        self.since_midnight = u64::try_from(since_midnight.max(0)).unwrap_or(u64::MAX);
-        self.since_base = u64::try_from(since_base.max(0)).unwrap_or(u64::MAX);
+        let clamp = |totals: [i128; 4]| {
+            TokenKinds::from_array(
+                totals.map(|total| u64::try_from(total.max(0)).unwrap_or(u64::MAX)),
+            )
+        };
+        self.since_midnight = clamp(since_midnight);
+        self.since_base = clamp(since_base);
         self.settle(today)
     }
 
     fn settle(&mut self, today: time::Date) -> bool {
-        let pending = self.base.as_ref().map_or(0, |(_, synced)| {
-            (self.since_base / 10).saturating_sub(*synced)
-        });
-        let total = self.since_midnight / 10;
-        let changed = self.pending != pending || self.today != total || self.day != Some(today);
+        let pending = self
+            .base
+            .as_ref()
+            .map_or_else(TokenKinds::default, |(_, synced)| {
+                self.since_base.saturating_sub(*synced)
+            });
+        let changed =
+            self.pending != pending || self.today != self.since_midnight || self.day != Some(today);
         self.pending = pending;
-        self.today = total;
+        self.today = self.since_midnight;
         self.day = Some(today);
         changed
     }
@@ -628,8 +636,7 @@ fn handle_request(
     opts: &RunOptions,
     store: &mut Store,
     activity: &Value,
-    local_tokens: u64,
-    local_today_tokens: u64,
+    local: &LocalTokens,
     cached: Option<&Value>,
     pair_state: &Value,
     sync_tx: &Sender<SyncCommand>,
@@ -660,7 +667,7 @@ fn handle_request(
             })
         }
         "snapshot" => Ok(
-            json!({"activity":activity,"hero":cached,"localTokens":local_tokens,"localTodayTokens":local_today_tokens}),
+            json!({"activity":activity,"hero":cached,"localPending":local.pending,"localToday":local.today}),
         ),
         "subscribe" => {
             if let Some(subscriber) = subscriber {
