@@ -51,6 +51,7 @@ function render() {
   $('today-total').textContent = view.totalTokens === null ? '' : `today ${view.totalTokens} tokens`
   $('show-hero').checked = hero.show
   $('stay-still').checked = hero.still
+  $('allow-signs').checked = hero.signs
   const select = $('screen')
   select.querySelectorAll('option[data-display]').forEach(option => option.remove())
   for (const display of displays) {
@@ -197,6 +198,10 @@ $('show-hero').addEventListener('change', async event => {
 })
 $('stay-still').addEventListener('change', async event => {
   try { hero = await invoke('set_hero_settings', { show: hero.show, screen: hero.screen, still: event.target.checked }) }
+  catch (reason) { error(reason); render() }
+})
+$('allow-signs').addEventListener('change', async event => {
+  try { hero = await invoke('set_hero_settings', { show: hero.show, screen: hero.screen, still: hero.still, signs: event.target.checked }) }
   catch (reason) { error(reason); render() }
 })
 $('screen').addEventListener('change', async event => {

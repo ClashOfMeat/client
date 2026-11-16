@@ -27,7 +27,7 @@ button:disabled { opacity: .5; cursor: default; }
 /* Wraps the screen choice onto its own line when the window is too narrow for one row. */
 .hero-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 6px; }
 .hero-settings label { white-space: nowrap; }
-.hero-settings label:is([for="show-hero"], [for="stay-still"]) { margin-right: 12px; }
+.hero-settings label:is([for="show-hero"], [for="stay-still"], [for="allow-signs"]) { margin-right: 12px; }
 .hero-screen { display: flex; flex: none; align-items: center; gap: 6px; max-width: 100%; }
 .hero-settings select { min-width: 0; max-width: 160px; }
 .about { display: flex; align-items: baseline; gap: 10px; }

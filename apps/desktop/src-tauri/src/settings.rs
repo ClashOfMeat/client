@@ -15,9 +15,16 @@ pub struct HeroSettings {
     /// this field existed has no `still`, and it also means still.
     #[serde(default = "still_by_default")]
     pub still: bool,
+    /// Friends' Review me signs are planted on this desktop. On unless the user turned them off.
+    #[serde(default = "signs_by_default")]
+    pub signs: bool,
 }
 
 fn still_by_default() -> bool {
+    true
+}
+
+fn signs_by_default() -> bool {
     true
 }
 
@@ -27,6 +34,7 @@ impl Default for HeroSettings {
             show: true,
             screen: "main".into(),
             still: still_by_default(),
+            signs: signs_by_default(),
         }
     }
 }
@@ -179,6 +187,7 @@ pub fn set_hero_settings(
     show: bool,
     screen: String,
     still: Option<bool>,
+    signs: Option<bool>,
 ) -> Result<HeroSettings, String> {
     set(
         &app,
@@ -186,6 +195,7 @@ pub fn set_hero_settings(
             show,
             screen,
             still: still.unwrap_or_else(|| current(&app).still),
+            signs: signs.unwrap_or_else(|| current(&app).signs),
         },
     )
 }
@@ -215,6 +225,38 @@ fn openable(link: &str) -> bool {
         "http" => matches!(url.host_str(), Some("localhost" | "127.0.0.1")),
         _ => false,
     }
+}
+
+/// A Review me link: https on exactly github.com or gitlab.com, with no login or port. The server
+/// checks the same rule before it sends one; a planted sign is checked again before it opens.
+fn review_link(link: &str) -> bool {
+    let Some(rest) = link
+        .get(..8)
+        .filter(|scheme| scheme.eq_ignore_ascii_case("https://"))
+        .map(|_| &link[8..])
+    else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    link.len() <= 2048
+        && !link
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || c == '\\')
+        && !authority.contains(['@', ':'])
+        && matches!(
+            authority.to_ascii_lowercase().as_str(),
+            "github.com" | "gitlab.com"
+        )
+        && tauri::Url::parse(link).is_ok()
+}
+
+/// Opens the link of a friend's Review me sign in the browser.
+#[tauri::command]
+pub fn open_review_link(link: String) -> Result<(), String> {
+    if !review_link(&link) {
+        return Err("only GitHub and GitLab links open".into());
+    }
+    open_pair_link(link)
 }
 
 #[tauri::command]
@@ -247,7 +289,43 @@ fn displays(app: &tauri::AppHandle) -> Vec<Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::{openable, HeroSettings};
+    use super::{openable, review_link, HeroSettings};
+
+    #[test]
+    fn friends_signs_are_on_unless_turned_off() {
+        assert!(HeroSettings::default().signs);
+        let old: HeroSettings = serde_json::from_str(r#"{"show":true,"screen":"main"}"#).unwrap();
+        assert!(old.signs);
+        let off: HeroSettings =
+            serde_json::from_str(r#"{"show":true,"screen":"main","signs":false}"#).unwrap();
+        assert!(!off.signs);
+    }
+
+    #[test]
+    fn only_github_and_gitlab_review_links_open() {
+        for link in [
+            "https://github.com/ClashOfMeat/app/pull/114",
+            "https://GitHub.com/org/repo/issues/3",
+            "https://gitlab.com/group/project/-/merge_requests/7#note_12",
+            "https://github.com/org/repo/blob/main/app.ts?plain=1#L10",
+        ] {
+            assert!(review_link(link), "{link}");
+        }
+        for link in [
+            "http://github.com/org/repo/pull/1",
+            "github.com/org/repo/pull/1",
+            "https://gist.github.com/x",
+            "https://github.com.evil.com/x",
+            "https://user@github.com/x",
+            "https://github.com:8443/x",
+            "https://gitlab.example.com/x",
+            "https://github.com/a b",
+            "https://github.com\\@evil.com",
+            "javascript:alert(1)",
+        ] {
+            assert!(!review_link(link), "{link}");
+        }
+    }
 
     #[test]
     fn hero_stands_still_unless_walking_was_chosen() {

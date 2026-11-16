@@ -21,6 +21,7 @@
         <button id="send-friend" class="wide">Send emote <img class="pixel-arrow forward" src="./assets/pixel-arrow.svg" alt=""></button>
         <button id="open-app" aria-label="Open Clash of Meat" title="Open Clash of Meat"><img class="pixel-globe" src="./assets/pixel-globe.svg" alt=""></button>
       </div>
+      <button id="remove-signs" class="wide" hidden>Remove all signs <span id="sign-count" class="sign-count"></span></button>
     </div>
     <div id="friends" class="friends" hidden>
       <div class="friends-head"><button id="friends-back" class="back" aria-label="Back to the hero card"><img class="pixel-arrow" src="./assets/pixel-arrow.svg" alt=""></button>Send to a friend</div>
@@ -32,6 +33,13 @@
         <button id="friends-next" aria-label="Next friends"><img class="pixel-arrow forward" src="./assets/pixel-arrow.svg" alt=""></button>
       </div>
       <button id="friends-open" class="wide" hidden>Open Clash of Meat <img class="pixel-globe" src="./assets/pixel-globe.svg" alt=""></button>
+    </div>
+    <div id="sign-step" class="friends" hidden>
+      <div class="friends-head"><button id="sign-back" class="back" aria-label="Back to your friends"><img class="pixel-arrow" src="./assets/pixel-arrow.svg" alt=""></button><span id="sign-title" class="sign-title">Review me</span></div>
+      <div class="friends-note">Paste a GitHub or GitLab link.</div>
+      <input id="sign-url" type="url" placeholder="https://github.com/…/pull/42" spellcheck="false" autocomplete="off" aria-label="Link to review">
+      <div id="sign-why" class="sign-why" role="status"></div>
+      <button id="sign-send" class="wide" disabled>Plant the sign <img class="pixel-arrow forward" src="./assets/pixel-arrow.svg" alt=""></button>
     </div>
     <div id="notifications" class="notifications" hidden>
       <div class="friends-head"><button id="notifications-back" class="back" aria-label="Back to the hero card"><img class="pixel-arrow" src="./assets/pixel-arrow.svg" alt=""></button>Notifications<button id="notifications-read" class="notifications-read" disabled>Mark as read</button></div>

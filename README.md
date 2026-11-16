@@ -49,7 +49,19 @@ On a Mac or Linux, if your default account lives elsewhere through `CLAUDE_CONFI
 
 When a notification arrives, a bell rings beside the hero for about ten seconds and fades out (not while you carry the hero). Click it, or the bell at the top right of the hero card, to see your ten newest unread notifications, including rewards you have read but still need to claim. Clicking a notification opens its destination in the web app; tick unread rows (the box shows on hover) and click **Mark as read** to read them without opening anything. **View all in Clash of Meat** opens the full notification history. The bell and inbox disappear when the hero is hidden or the desktop app is quit; the background collector still runs.
 
-## Privacy
+## Review me signs
+
+Ask a friend to review your work. In the hero card, **Send emote** lists your friends with the three emotes pinned on
+your hero (pick them on the web app's hero page). Pin **Review me**, click its sign beside an online friend, paste a
+GitHub or GitLab link (`https://github.com/…` or `https://gitlab.com/…`, nothing else) and press **Plant the sign**.
+Your hero walks onto their screen and plants a sign beside their hero.
+
+A sign planted on your screen stays there until you remove it, quit the app or the computer sleeps. Hover it to see who
+sent it, click it to open the link in your browser, or use its × to pull it out. **Remove all signs** in the hero card
+takes them all down. Untick **Friends' signs** in Settings to stop receiving them: a friend's Review me then arrives as
+a Kiss. Nothing about a sign is stored on this computer.
+
+
 
 The client reads agent session files, but it never uploads their content. It keeps a local database of counts and
 syncs it to your account.

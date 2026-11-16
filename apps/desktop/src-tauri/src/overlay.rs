@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
@@ -8,10 +9,10 @@ use tauri::{
     WebviewWindow, WebviewWindowBuilder,
 };
 
-/// Window-local rectangles (logical px) that take clicks: the hero, its label, an open card or menu.
-/// Everything else in the overlay window lets clicks through to the apps underneath.
+/// Window-local rectangles (logical px) that take clicks, per overlay window: the hero, its label,
+/// an open card or menu; the planted signs. Everything else lets clicks through to the apps underneath.
 #[derive(Default)]
-pub struct HitRegions(Mutex<Vec<[f64; 4]>>);
+pub struct HitRegions(Mutex<HashMap<String, Vec<[f64; 4]>>>);
 
 #[derive(Serialize)]
 struct Area {
@@ -52,7 +53,30 @@ pub fn create(app: &tauri::AppHandle) -> tauri::Result<WebviewWindow> {
         .build()?;
     window.set_focusable(false)?;
     window.set_ignore_cursor_events(true)?;
+    follow_cursor(window.clone());
+    Ok(window)
+}
+
+/// The friends' Review me signs, planted along the bottom of the hero's screen (signs.html). Made
+/// before the hero window, and never hidden, so the hero always stands in front of them. It stays
+/// empty and lets every click through until a sign is planted.
+pub fn create_signs(app: &tauri::AppHandle) -> tauri::Result<WebviewWindow> {
     app.manage(HitRegions::default());
+    let window = WebviewWindowBuilder::new(app, "signs", WebviewUrl::App("signs.html".into()))
+        .title("Clash of Meat signs")
+        .inner_size(1.0, 1.0)
+        .transparent(true)
+        .decorations(false)
+        .shadow(false)
+        .always_on_top(true)
+        .visible_on_all_workspaces(true)
+        .skip_taskbar(true)
+        .focusable(false)
+        .resizable(false)
+        .visible(true)
+        .build()?;
+    window.set_focusable(false)?;
+    window.set_ignore_cursor_events(true)?;
     follow_cursor(window.clone());
     Ok(window)
 }
@@ -155,8 +179,10 @@ fn follow_cursor(window: WebviewWindow) {
             let inside = visible
                 && local.is_some_and(|(x, y)| {
                     window.state::<HitRegions>().0.lock().is_ok_and(|regions| {
-                        regions.iter().any(|[left, top, width, height]| {
-                            x >= *left && x <= left + width && y >= *top && y <= top + height
+                        regions.get(window.label()).is_some_and(|regions| {
+                            regions.iter().any(|[left, top, width, height]| {
+                                x >= *left && x <= left + width && y >= *top && y <= top + height
+                            })
                         })
                     })
                 });
@@ -175,7 +201,9 @@ fn follow_cursor(window: WebviewWindow) {
             let counted = left_clicks();
             if counted != clicks {
                 clicks = counted;
-                if let (true, false, Some((x, y))) = (visible, inside, local) {
+                if let (true, false, Some((x, y)), "hero") =
+                    (visible, inside, local, window.label())
+                {
                     let _ = window.emit_to("hero", "screen-click", ScreenClick { x, y });
                 }
             }
@@ -189,16 +217,33 @@ fn follow_cursor(window: WebviewWindow) {
     });
 }
 
+/// The calling window's hit regions: up to 8 for the hero, one per planted sign (at most 12).
 #[tauri::command]
 pub fn hero_hit(window: WebviewWindow, regions: Vec<[f64; 4]>) -> Result<(), String> {
-    if regions.len() > 8 || regions.iter().flatten().any(|v| !v.is_finite()) {
+    let limit = if window.label() == "signs" { 12 } else { 8 };
+    if regions.len() > limit || regions.iter().flatten().any(|v| !v.is_finite()) {
         return Err("invalid hit regions".into());
     }
-    *window
+    window
         .state::<HitRegions>()
         .0
         .lock()
-        .map_err(|e| e.to_string())? = regions;
+        .map_err(|e| e.to_string())?
+        .insert(window.label().to_owned(), regions);
+    Ok(())
+}
+
+/// Lets the hero window take the keyboard while the card asks for a link to review, and gives it
+/// back after. The hero never takes focus otherwise, so typing elsewhere is never interrupted.
+#[tauri::command]
+pub fn hero_keyboard(window: WebviewWindow, on: bool) -> Result<(), String> {
+    if window.label() != "hero" {
+        return Err("only the hero window types".into());
+    }
+    window.set_focusable(on).map_err(|e| e.to_string())?;
+    if on {
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 

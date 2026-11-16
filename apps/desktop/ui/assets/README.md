@@ -1,6 +1,10 @@
-The desktop hero has three manual emotes: Flex, Kiss and Angry. The Kiss and
+The desktop hero has three free emotes: Flex, Kiss and Angry. The Kiss and
 Angry buttons use `emote-kiss.png` and `emote-angry.png`. Flex uses the player's
 current crest from `leagues/`.
+
+`sign-review-me.png` is the Review me sign (PixelLab pixflux, 104×96, grass and
+dirt removed), shown at 1.5 px per pixel when a visitor plants it on the desktop
+(signs.html), and scaled down as the Review me button in the friend list.
 
 The seven PNGs in `leagues/` are exact copies of the web app's leaderboard
 crests. Each transparent `flex-fx/<league>.png` stacks twelve 180×200 frames;
