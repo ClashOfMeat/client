@@ -859,12 +859,19 @@ impl SyncResult {
 }
 
 /// The last full hero art. Heartbeats send its revision so the server can leave the frames out.
+/// It also keeps the last few visit emote clips (`visit.clip`): heartbeats list their revisions in
+/// `emoteClips`, which also tells the server this app plays clips, and a visit then carries only the
+/// revision of a clip held here.
 #[derive(Default)]
 pub struct HeroArt {
     revision: Option<String>,
     png: Value,
     animation: Value,
+    clips: Vec<(String, Value)>,
 }
+
+/// Visit emote clips kept for the next deliveries (a visit is re-sent until acknowledged).
+const KEPT_CLIPS: usize = 4;
 
 impl HeroArt {
     /// Starts from a saved hero view (`hero/cache.json`).
@@ -876,15 +883,52 @@ impl HeroArt {
     }
 
     fn request(&self) -> Value {
+        let clips: Vec<&String> = self.clips.iter().map(|(revision, _)| revision).collect();
         match &self.revision {
-            Some(revision) => json!({ "artRevision": revision }),
-            None => json!({}),
+            Some(revision) => json!({ "artRevision": revision, "emoteClips": clips }),
+            None => json!({ "emoteClips": clips }),
         }
     }
 
+    /// Fills an unchanged visit clip back in, or remembers a new one. False when the server
+    /// skipped a clip this client no longer holds.
+    fn keep_clip(&mut self, heartbeat: &mut Value) -> bool {
+        let Some(clip) = heartbeat
+            .get_mut("visit")
+            .and_then(|visit| visit.get_mut("clip"))
+        else {
+            return true;
+        };
+        let Some(revision) = clip
+            .get("revision")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+        else {
+            return true;
+        };
+        if clip.get("unchanged") == Some(&Value::Bool(true)) {
+            let Some(index) = self.clips.iter().position(|(held, _)| *held == revision) else {
+                return false;
+            };
+            let held = self.clips.remove(index);
+            *clip = held.1.clone();
+            self.clips.push(held);
+            return true;
+        }
+        self.clips.retain(|(held, _)| *held != revision);
+        self.clips.push((revision, clip.clone()));
+        if self.clips.len() > KEPT_CLIPS {
+            self.clips.remove(0);
+        }
+        true
+    }
+
     /// Fills unchanged art back in, or remembers new art. False when the server
-    /// skipped art this client no longer holds.
+    /// skipped art or a clip this client no longer holds.
     fn keep(&mut self, heartbeat: &mut Value) -> bool {
+        if !self.keep_clip(heartbeat) {
+            return false;
+        }
         let Some(character) = heartbeat
             .get_mut("character")
             .and_then(Value::as_object_mut)
@@ -909,7 +953,11 @@ impl HeroArt {
                 self.animation = animation.clone();
                 self.revision = Some(revision);
             }
-            _ => *self = Self::default(),
+            _ => {
+                self.png = Value::Null;
+                self.animation = Value::Null;
+                self.revision = None;
+            }
         }
         true
     }
@@ -995,7 +1043,7 @@ pub fn sync_once_with(
     };
     if !art.keep(&mut heartbeat) {
         *art = HeroArt::default();
-        heartbeat = match client.heartbeat(with_presence(json!({}))) {
+        heartbeat = match client.heartbeat(with_presence(art.request())) {
             Ok(value) => value,
             Err(error) => return fail(client, store, now, result, error),
         };

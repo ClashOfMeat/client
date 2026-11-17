@@ -498,7 +498,7 @@ fn heartbeat_fallback_and_sync_meta() {
     let requests = server.finish();
     assert_eq!(requests[0].body["adapters"]["codex"]["files"], 1);
     assert_eq!(requests[1].body, json!({}));
-    assert_eq!(requests[2].body, json!({}));
+    assert_eq!(requests[2].body, json!({"emoteClips": []}));
 }
 
 #[test]
@@ -746,8 +746,11 @@ fn heartbeat_reuses_unchanged_art_and_stores_it_without_frames() {
         stored["character"].get("png").is_none() && stored["character"].get("animation").is_none()
     );
     let requests = server.finish();
-    assert_eq!(requests[0].body, json!({}));
-    assert_eq!(requests[1].body, json!({"artRevision": revision}));
+    assert_eq!(requests[0].body, json!({"emoteClips": []}));
+    assert_eq!(
+        requests[1].body,
+        json!({"artRevision": revision, "emoteClips": []})
+    );
 }
 
 #[test]
@@ -766,9 +769,48 @@ fn heartbeat_refetches_art_it_no_longer_holds() {
     let requests = server.finish();
     assert_eq!(
         requests[0].body,
-        json!({"artRevision": "0123456789abcdef0123456789abcdef"})
+        json!({"artRevision": "0123456789abcdef0123456789abcdef", "emoteClips": []})
     );
-    assert_eq!(requests[1].body, json!({}));
+    assert_eq!(requests[1].body, json!({"emoteClips": []}));
+}
+
+fn clip_visit(clip: Value) -> Value {
+    json!({"visit": {"id": ID, "emote": "flex", "clip": clip}})
+}
+
+#[test]
+fn heartbeat_keeps_visit_clips_and_fills_in_unchanged_ones() {
+    let one = "11111111111111111111111111111111";
+    let full = json!({"v": 1, "revision": one, "sheet": "iVBOR", "frames": [0], "durations": [83]});
+    let server = Server::start(vec![
+        Reply::ok(clip_visit(full.clone())),
+        Reply::ok(clip_visit(
+            json!({"v": 1, "revision": one, "unchanged": true}),
+        )),
+        // A clip this app no longer holds: it asks again without revisions.
+        Reply::ok(clip_visit(
+            json!({"v": 1, "revision": "22222222222222222222222222222222", "unchanged": true}),
+        )),
+        Reply::ok(clip_visit(full.clone())),
+    ]);
+    let client = client(&server);
+    let mut store = Store::open_in_memory().unwrap();
+    let mut art = HeroArt::default();
+    let first = sync_once_with_art(&client, &mut store, now(), &mut art);
+    assert_eq!(first.heartbeat.unwrap()["visit"]["clip"], full);
+    let second = sync_once_with_art(&client, &mut store, now(), &mut art);
+    assert_eq!(
+        second.heartbeat.unwrap()["visit"]["clip"],
+        full,
+        "the held clip is put back"
+    );
+    let third = sync_once_with_art(&client, &mut store, now(), &mut art);
+    assert_eq!(third.heartbeat.unwrap()["visit"]["clip"], full);
+    let requests = server.finish();
+    assert_eq!(requests[0].body, json!({"emoteClips": []}));
+    assert_eq!(requests[1].body, json!({"emoteClips": [one]}));
+    assert_eq!(requests[2].body, json!({"emoteClips": [one]}));
+    assert_eq!(requests[3].body, json!({"emoteClips": []}));
 }
 
 #[test]
@@ -1063,11 +1105,11 @@ fn heartbeat_carries_the_presence_fields_on_both_attempts() {
     let requests = server.finish();
     assert_eq!(
         requests[0].body,
-        json!({"artRevision": "0123456789abcdef0123456789abcdef", "sessionId": ID, "acknowledgedVisits": [ID]})
+        json!({"artRevision": "0123456789abcdef0123456789abcdef", "emoteClips": [], "sessionId": ID, "acknowledgedVisits": [ID]})
     );
     assert_eq!(
         requests[1].body,
-        json!({"sessionId": ID, "acknowledgedVisits": [ID]})
+        json!({"emoteClips": [], "sessionId": ID, "acknowledgedVisits": [ID]})
     );
 }
 

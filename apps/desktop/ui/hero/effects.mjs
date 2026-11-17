@@ -2,6 +2,7 @@ import { companionFrame } from './frames.mjs'
 import { HERO_CONTRACT } from './hero-contract.mjs'
 import { HERO_CELL_SIZE } from './display.mjs'
 import { SIGN_EMOTE, PLANT_MS, plantPose } from './plant.mjs'
+import { clipDuration, clipStep } from './clip.mjs'
 
 const { walkInMs: WALK_IN, walkOutMs: WALK_OUT, emoteMs: EMOTE_MS } = HERO_CONTRACT.visit
 
@@ -28,9 +29,11 @@ export function levelUpFrame(effect, elapsed) {
 
 // The visit choreography of the hero contract. Offsets are pixels from the host hero: the visitor walks in from
 // `edge` to `stand` beside it, plays its emote turned towards the host (one Flex clip, or a held Kiss or Angry), and
-// walks back out. It always faces the way it walks; base frames face right.
-export function visitDuration(animation, emote = 'kiss') {
-  const emoteMs = emote === 'flex' ? animation.clips.flex.durations.reduce((sum, ms) => sum + ms, 0)
+// walks back out. It always faces the way it walks; base frames face right. A visit that brings its own emote clip
+// (clip.mjs) plays it once instead, like a Flex.
+export function visitDuration(animation, emote = 'kiss', clip = null) {
+  const emoteMs = clip ? clipDuration(clip)
+    : emote === 'flex' ? animation.clips.flex.durations.reduce((sum, ms) => sum + ms, 0)
     : emote === SIGN_EMOTE ? PLANT_MS : EMOTE_MS[emote]
   return WALK_IN + emoteMs + WALK_OUT
 }
@@ -41,8 +44,8 @@ export function visitLabelVisible(elapsed, duration) {
     (elapsed < WALK_IN || elapsed >= duration - WALK_OUT)
 }
 
-export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
-  const leaveAt = visitDuration(animation, emote) - WALK_OUT
+export function visitPose(animation, elapsed, stand, edge, emote = 'kiss', clip = null) {
+  const leaveAt = visitDuration(animation, emote, clip) - WALK_OUT
   const arriving = elapsed < WALK_IN, leaving = elapsed >= leaveAt
   const state = arriving || leaving ? 'walk' : emote
   const progress = arriving ? Math.max(0, elapsed) / WALK_IN : leaving ? Math.min(1, (elapsed - leaveAt) / WALK_OUT) : 0
@@ -54,12 +57,14 @@ export function visitPose(animation, elapsed, stand, edge, emote = 'kiss') {
     return { frame: plant.frame, state, facing: plant.toHost ? towardHost : awayFromHost, offset: stand,
       sx: plant.sx, sy: plant.sy, dy: plant.dy }
   }
-  const clip = animation?.clips?.[state]
-  const duration = clip?.durations.reduce((sum, ms) => sum + ms, 0) ?? 0
+  const facing = arriving ? inward : leaving ? outward : stand > 0 ? 'left' : 'right'
+  const offset = arriving ? edge + (stand - edge) * progress : leaving ? stand + (edge - stand) * progress : stand
+  // `step` is the visit clip's step; a null sheet frame there is the hero's idle, frame 0.
+  if (clip && state === emote) return { frame: 0, step: clipStep(clip, elapsed - WALK_IN), state, facing, offset }
+  const contractClip = animation?.clips?.[state]
+  const duration = contractClip?.durations.reduce((sum, ms) => sum + ms, 0) ?? 0
   const clipElapsed = state === 'flex' && duration ? Math.min(elapsed - WALK_IN, duration - 1) : arriving || leaving ? elapsed : elapsed - WALK_IN
-  return { frame: companionFrame(animation, state, clipElapsed), state,
-    facing: arriving ? inward : leaving ? outward : stand > 0 ? 'left' : 'right',
-    offset: arriving ? edge + (stand - edge) * progress : leaving ? stand + (edge - stand) * progress : stand }
+  return { frame: companionFrame(animation, state, clipElapsed), state, facing, offset }
 }
 
 // Where a visitor stands in the fixed window. Keep the full 112px separation

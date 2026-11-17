@@ -10,6 +10,7 @@ These browser ES modules also run in Node 22. They hold no timers or DOM state, 
 | `activity.mjs` | Turn daemon `activity` reports into the hero pose and pixel position. `update` takes `{busy, sessions}`; `snapshot` takes the overlay's available travel width and current time. `drag` and `preview` change the pose without timers. |
 | `frames.mjs` | Pick clip frames, time the next frame boundary, and choose an authored mirrored PNG or a canvas flip. |
 | `effects.mjs` | Detect XP gains and compute bubble, level-up, and visitor poses. Visitor offsets and bubble `dy` are pixels. |
+| `clip.mjs` | Play a visit's own emote clip (`visit.clip`, checked by `validateEmoteClip`): the web's Kiss, Angry, Flex or cast for the sender's skin, as one right-facing sheet placed in the hero cell. Steps, next-step delay, effect (crest, or the anger mark from `effectFrom`), mirrored draw rectangle, and how far it reaches past the cell (the window widens by that much). Without a clip the visitor plays the contract's clip. |
 | `visit.mjs` | Play each friend visit once (the server re-sends it until acknowledged) and place its player-name label. |
 | `outgoing.mjs` | Keep the sender's hero away for each accepted outbound visit ID until playback, failure, or expiry. Ignore stale heartbeats after a terminal result. |
 
