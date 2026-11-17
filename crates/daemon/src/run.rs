@@ -142,6 +142,11 @@ enum SyncCommand {
     VisitDone {
         id: String,
     },
+    /// The overlay won't play this visit because its hero is hidden; the next heartbeat declines
+    /// it, so the server ends it now and the sender's hero comes back.
+    VisitDeclined {
+        id: String,
+    },
     Stop,
 }
 
@@ -860,6 +865,13 @@ fn handle_request(
                 .map_err(internal),
             _ => Err(SocketError::new("bad_request", "id must be a visit ID")),
         },
+        "visit_declined" => match params.get("id").and_then(Value::as_str) {
+            Some(id) if clashofmeat_core::ids::is_uuid(id) => sync_tx
+                .send(SyncCommand::VisitDeclined { id: id.to_owned() })
+                .map(|()| json!({"queued":true}))
+                .map_err(internal),
+            _ => Err(SocketError::new("bad_request", "id must be a visit ID")),
+        },
         "pair_status" => Ok(pair_state.clone()),
         "wire_provider" => match params.get("id").and_then(Value::as_str) {
             Some("cursor") => {
@@ -1176,6 +1188,8 @@ fn sync_loop(
     // Visits the overlay played, acknowledged by the next heartbeat (the server re-sends a
     // visit until then).
     let mut played: Vec<String> = Vec::new();
+    // Visits a hidden hero won't play, declined by the next heartbeat.
+    let mut declined: Vec<String> = Vec::new();
     loop {
         let mut forced = false;
         match commands.recv_timeout(Duration::from_secs(1)) {
@@ -1220,6 +1234,15 @@ fn sync_loop(
                         played.remove(0);
                     }
                     played.push(id);
+                }
+                cadence.nudge(Instant::now());
+            }
+            Ok(SyncCommand::VisitDeclined { id }) => {
+                if !declined.contains(&id) {
+                    if declined.len() >= 20 {
+                        declined.remove(0);
+                    }
+                    declined.push(id);
                 }
                 cadence.nudge(Instant::now());
             }
@@ -1384,6 +1407,9 @@ fn sync_loop(
         if !played.is_empty() {
             presence.insert("acknowledgedVisits".into(), json!(played));
         }
+        if !declined.is_empty() {
+            presence.insert("declinedVisits".into(), json!(declined));
+        }
         // Paid or prop emotes this app plays; others arrive as their free stand-in.
         presence.insert("supportedEmotes".into(), json!(sync::SUPPORTED_EMOTES));
         let result = if due == Due::Drain {
@@ -1399,6 +1425,7 @@ fn sync_loop(
         };
         if result.heartbeat.is_some() {
             played.clear();
+            declined.clear();
         }
         cadence.after(
             Instant::now(),

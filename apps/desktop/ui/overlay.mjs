@@ -557,6 +557,12 @@ function visitDone(id) {
   void invoke('daemon_request', { method: 'visit_done', params: { id } }).catch(error => console.error('visit done:', error))
 }
 
+// A hidden hero won't play the visit: the next heartbeat declines it and the server ends it at once, so the
+// sender's hero comes back instead of waiting until this hero shows again.
+function visitDeclined(id) {
+  void invoke('daemon_request', { method: 'visit_declined', params: { id } }).catch(error => console.error('visit declined:', error))
+}
+
 function setStayStill(next) {
   if (next && !stayStill && workArea) {
     const now = Date.now()
@@ -602,9 +608,13 @@ async function setHero(data, heartbeat = false) {
     if (!nextAura && !recent && previous && character && previous.id === character.id && character.level > previous.level) void playLevelUp()
   }
   // Each visit plays once; a repeat of one that already finished is acknowledged again, in case
-  // the last acknowledgement was lost. A hidden hero leaves it for a later heartbeat.
+  // the last acknowledgement was lost. A hidden hero declines a visit it never showed: the visit is cancelled, not
+  // kept until the hero shows again, so the sender's hero is not stuck away. One it already showed still counts.
   const visit = validateVisit(data?.visit, now)
-  if (visit && !paused && !hidden) {
+  if (visit && (paused || hidden)) {
+    if (visits.has(visit.id)) visitDone(visit.id)
+    else visitDeclined(visit.id)
+  } else if (visit) {
     if (visits.first(visit.id)) {
       // With friends' signs turned off in Settings, a Review me visitor just blows a kiss.
       visitor = visit.emote === SIGN_EMOTE && !allowSigns ? { ...visit, emote: 'kiss', sign: undefined } : visit

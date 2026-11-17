@@ -12,6 +12,8 @@ export function visitTracker(limit = 50) {
       if (seen.length > limit) seen.shift()
       return true
     },
+    // Whether this visit ID was already offered (it started playing).
+    has(id) { return seen.includes(id) },
   }
 }
 

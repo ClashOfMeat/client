@@ -171,6 +171,7 @@ pub fn daemon_request(
             | "send_feedback"
             | "visit_status"
             | "visit_done"
+            | "visit_declined"
     ) {
         return Err("unsupported method".into());
     }
