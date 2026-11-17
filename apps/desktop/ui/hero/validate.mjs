@@ -86,6 +86,30 @@ export function validateLevelUp(value) {
     ...(value.renderScale !== undefined ? { renderScale: value.renderScale } : {}) }
 }
 
+const REVISION = /^[a-f0-9]{32}$/
+const between = (value, min, max) => Number.isInteger(value) && value >= min && value <= max
+const MAX_CLIP_SHEET = 2 * 1024 * 1024
+
+// A visit's own emote clip (ClashOfMeat/app docs/hero-contract.md, Emote clips): one sheet of right-facing frames at
+// the hero's scale, placed by `origin` in the 192 px cell, played once. Anything off this shape is dropped and the
+// visitor plays the contract's clip instead.
+export function validateEmoteClip(value) {
+  if (!value || typeof value !== 'object' || value.v !== 1 || !REVISION.test(value.revision ?? '')) return null
+  const { sheet, columns, rows, width, height, origin, frames, durations, effect, effectFrom } = value
+  if (![columns, rows].every(n => between(n, 1, 64)) || ![width, height].every(n => between(n, 1, 512)) ||
+      !Array.isArray(origin) || origin.length !== 2 || !origin.every(n => between(n, -512, 512))) return null
+  if (typeof sheet !== 'string' || sheet.length > MAX_CLIP_SHEET || !BASE64.test(sheet)) return null
+  try { if (atob(sheet.slice(0, 12)).slice(0, 8) !== PNG_SIGNATURE) return null } catch { return null }
+  const dimensions = pngDimensions(sheet)
+  if (dimensions?.width !== columns * width || dimensions.height !== rows * height) return null
+  if (!Array.isArray(frames) || !between(frames.length, 1, 200) || !Array.isArray(durations) || durations.length !== frames.length ||
+      !frames.every(frame => frame === null || between(frame, 0, columns * rows - 1)) ||
+      !durations.every(ms => between(ms, 1, 5000)) || durations.reduce((sum, ms) => sum + ms, 0) > 15000) return null
+  if (![null, 'crest', 'mark'].includes(effect ?? null) || !between(effectFrom ?? 0, 0, frames.length)) return null
+  return { revision: value.revision, sheet, columns, rows, width, height, origin: [...origin], frames: [...frames],
+    durations: [...durations], effect: effect ?? null, effectFrom: effectFrom ?? 0 }
+}
+
 export function validateVisit(value, now = Date.now()) {
   if (!value || typeof value !== 'object' || !UUID.test(value.id) || typeof value.name !== 'string' || value.name.length > 80 ||
       !(value.guild === null || typeof value.guild === 'string' && value.guild.length <= 80) ||
@@ -100,6 +124,8 @@ export function validateVisit(value, now = Date.now()) {
   const clean = text => text.replace(/[\x00-\x1f\x7f]/g, '')
   const emote = value.emote
   const leagueRank = value.leagueRank
+  // Only a free emote plays a clip; review_me plants its sign from the contract's poses.
+  const clip = VISIT_EMOTES.includes(emote) ? validateEmoteClip(value.clip) : null
   return { id: value.id, name: clean(value.name), guild: value.guild === null ? null : clean(value.guild), expiresAt: value.expiresAt, emote, league: leagueOrBronze(value.league),
-    ...(Number.isSafeInteger(leagueRank) && leagueRank > 0 ? { leagueRank } : {}), ...(sign ? { sign } : {}), character }
+    ...(Number.isSafeInteger(leagueRank) && leagueRank > 0 ? { leagueRank } : {}), ...(sign ? { sign } : {}), ...(clip ? { clip } : {}), character }
 }

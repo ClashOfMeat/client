@@ -16,6 +16,7 @@ import { heroSettings } from './settings/hero.mjs'
 import { SIGN_EMOTE, SIGN_DROP_AT, signPostX } from './hero/plant.mjs'
 import { checkReviewLink } from './overlay/review-link.mjs'
 import { HERO_CONTRACT } from './hero/hero-contract.mjs'
+import { clipDraw, clipEffect, clipDelay, clipReach } from './hero/clip.mjs'
 
 // The hero window has no text to select or images to drag; a selection there could never be cleared (see overlay.css).
 for (const type of ['selectstart', 'dragstart']) document.addEventListener(type, event => { if (event.target !== signUrl) event.preventDefault() })
@@ -136,6 +137,7 @@ function heroPngs(hero = character, frames = animation, effect = aura) {
     ...(effect?.frames ?? []),
     ...(visitor?.character.animation?.frames ?? []),
     ...Object.values(visitor?.character.animation?.mirroredFrames ?? {}),
+    ...(visitor?.clip ? [visitor.clip.sheet] : []),
   ]
 }
 
@@ -657,6 +659,19 @@ function drawImage(png, x, y, size, flip = false, opacity = 1, height = size) {
   ctx.restore()
 }
 
+// One frame of a visit's emote clip sheet (clipDraw), drawn at 1x like the hero's frames.
+function drawClipFrame(png, place) {
+  const image = images.get(png)
+  if (!image || typeof image.then === 'function') return
+  ctx.save()
+  if (place.flip) {
+    ctx.translate(place.x + place.width, place.y)
+    ctx.scale(-1, 1)
+    ctx.drawImage(image, place.sx, place.sy, place.width, place.height, 0, 0, place.width, place.height)
+  } else ctx.drawImage(image, place.sx, place.sy, place.width, place.height, place.x, place.y, place.width, place.height)
+  ctx.restore()
+}
+
 function drawHeroImage(png, x, y, frameSize, flip = false, opacity = 1, squash) {
   const place = heroDrawRect(x, y, frameSize)
   if (!squash) return drawImage(png, place.x, place.y, place.width, flip, opacity, place.height)
@@ -729,10 +744,15 @@ function deadline(now, pose) {
   if (pose.state === 'kiss' || pose.state === 'angry') delays.push(83)
   // The plant squashes and hops: draw it smoothly while it plays.
   if (visitor?.emote === SIGN_EMOTE && now - visitorStarted >= WALK_IN && now - visitorStarted < visitDuration(visitor.character.animation, SIGN_EMOTE)) delays.push(33)
+  // A visit's own clip steps at its own durations (casts run at 10–12 fps, some steps shorter).
+  if (visitor?.clip && now - visitorStarted >= WALK_IN) {
+    const step = clipDelay(visitor.clip, now - visitorStarted - WALK_IN)
+    if (Number.isFinite(step)) delays.push(step)
+  }
   if (gained && bubbleFrame(gained, now).visible) delays.push(83, Math.max(0, gained.startedAt + 1800 - now))
   if (aura && now - auraStarted < aura.durationMs) delays.push(83, aura.durationMs - (now - auraStarted))
-  if (visitor && now - visitorStarted < visitDuration(visitor.character.animation, visitor.emote)) {
-    delays.push(83, visitDuration(visitor.character.animation, visitor.emote) - (now - visitorStarted))
+  if (visitor && now - visitorStarted < visitDuration(visitor.character.animation, visitor.emote, visitor.clip)) {
+    delays.push(83, visitDuration(visitor.character.animation, visitor.emote, visitor.clip) - (now - visitorStarted))
     const visitorFlexElapsed = now - visitorStarted - 1500
     if (visitor.emote === 'flex' && visitorFlexElapsed >= 0 && visitorFlexElapsed < FLEX_DURATION) delays.push(flexDelay(visitorFlexElapsed))
   }
@@ -756,7 +776,7 @@ async function draw() {
       play('sit', now, 3000)
     }
   }
-  if (visitor && now - visitorStarted >= visitDuration(visitor.character.animation, visitor.emote)) {
+  if (visitor && now - visitorStarted >= visitDuration(visitor.character.animation, visitor.emote, visitor.clip)) {
     visitDone(visitor.id)
     visitor = null
   }
@@ -770,7 +790,8 @@ async function draw() {
   const pose = activity.snapshot(now, { width: patrolWidth, still: stayStill || statsOpen || menuOpen || away || Boolean(visitor) })
   // One fixed size: the window only moves, so opening the card never resizes it (no flash).
   const boundedX = Math.max(0, Math.min(patrolWidth, leaving?.x ?? pose.x))
-  const heroRect = windowRect(boundedX, { workArea, bubble: true, lift })
+  // A visitor's clip wider than the hero cell widens the window for the visit, so none of it is cut.
+  const heroRect = windowRect(boundedX, { workArea, bubble: true, lift, reach: visitor?.clip ? clipReach(visitor.clip) : 0 })
   if (visitor && !visitSpot && !drag?.moved) {
     // The host stops where it is to greet the visitor, and the window stays here until the visit ends.
     if (!leaving) activity.drag(pose.x, now)
@@ -841,13 +862,16 @@ async function draw() {
     // Drawn from where the host stood when the visitor arrived, not from where the host is now.
     const place = visitSpot ?? visitAnchor(rect)
     const visitorX = place.spriteX
-    const v = visitPose(visitAnimation, now - visitorStarted, place.stand, place.edge, visitor.emote)
+    const v = visitPose(visitAnimation, now - visitorStarted, place.stand, place.edge, visitor.emote, visitor.clip)
     const frame = frameImage(visitAnimation, v.frame, v.facing)
     const visitElapsed = now - visitorStarted - 1500
     const motion = v.state === 'flex' ? flexMotion(visitElapsed) : { dx: 0, dy: 0 }
     const visitorCellX = visitorX + v.offset
     const squash = v.state === SIGN_EMOTE ? { sx: v.sx, sy: v.sy } : undefined
-    drawHeroImage(frame.png, visitorCellX + motion.dx, rect.spriteY + motion.dy + (v.dy ?? 0), visitAnimation.size, frame.flip, 1, squash)
+    // The visit's own clip (the web's Kiss, Angry, Flex or cast); its idle steps are the hero's frame 0.
+    const clipFrame = v.step === undefined ? null : clipDraw(visitor.clip, v.step, visitorCellX + motion.dx, rect.spriteY + motion.dy, v.facing)
+    if (clipFrame) drawClipFrame(visitor.clip.sheet, clipFrame)
+    else drawHeroImage(frame.png, visitorCellX + motion.dx, rect.spriteY + motion.dy + (v.dy ?? 0), visitAnimation.size, frame.flip, 1, squash)
     // The sign drops beside the visitor, away from the host, into the signs window (signs.mjs) that keeps it.
     if (v.state === SIGN_EMOTE && visitor.sign && !visitor.planted && now - visitorStarted - WALK_IN >= SIGN_DROP_AT) {
       visitor.planted = true
@@ -859,11 +883,13 @@ async function draw() {
     // heart between the two heroes.
     const visitorEffect = heroEffectAnchor(visitorCellX, rect.spriteY)
     const hostEffect = heroEffectAnchor(visitorX, rect.spriteY)
-    drawEmoteEffect(v.state, visitElapsed, v.frame, visitorEffect.x, visitorEffect.y, v.facing, visitor.league, visitor.leagueRank, hostEffect.x)
+    // A clip says which effect it takes: the crest on any Flex, the mark on a bare Angry from its stamp, else none.
+    const effect = v.step === undefined ? v.state : clipEffect(visitor.clip, v.step)
+    drawEmoteEffect(effect, visitElapsed, v.step === undefined ? v.frame : 12, visitorEffect.x, visitorEffect.y, v.facing, visitor.league, visitor.leagueRank, hostEffect.x)
     // Measured while shown: a hidden label is 0 px wide, which put its left edge on the hero's centre.
     visitLabel.hidden = false
     const left = visitLabelLeft(visitorCellX, visitLabel.offsetWidth, rect.width)
-    visitLabel.hidden = left === null || !visitLabelVisible(now - visitorStarted, visitDuration(visitAnimation, visitor.emote))
+    visitLabel.hidden = left === null || !visitLabelVisible(now - visitorStarted, visitDuration(visitAnimation, visitor.emote, visitor.clip))
     visitLabel.style.left = `${left ?? 0}px`
     visitLabel.style.top = `${visitorEffect.y - 4}px`
   }
