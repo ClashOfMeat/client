@@ -1187,6 +1187,14 @@ fn daemon_sends_visits_lists_friends_and_acknowledges_played_visits() {
         true
     );
     assert_eq!(
+        call(14, "visit_declined", json!({"id": "nope"}))["error"]["code"],
+        "bad_request"
+    );
+    assert_eq!(
+        call(15, "visit_declined", json!({"id": ID}))["result"]["queued"],
+        true
+    );
+    assert_eq!(
         call(9, "visit_status", json!({"id": ID}))["result"]["visit"]["status"],
         "played"
     );

@@ -10,6 +10,8 @@ test('a re-sent visit plays once, and old IDs are forgotten past the limit', () 
   assert.equal(visits.first('c'), true)
   assert.equal(visits.first('b'), false)
   assert.equal(visits.first('a'), true)
+  assert.equal(visits.has('a'), true, 'a visit that started playing is still acknowledged when the hero hides')
+  assert.equal(visits.has('z'), false, 'one never shown is declined instead')
 })
 
 test('the visit label stays centred over the visitor and inside the window', () => {
